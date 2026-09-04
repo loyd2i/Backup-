@@ -1,0 +1,388 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Utilisateur (artiste, ingénieur, ou gestionnaire de studio)
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String
+  name         String
+  phone        String?
+  role         String   @default("artiste") // artiste, ingenieur, gestionnaire, studio_owner
+  avatar       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  // Relations
+  studios           Studio[]          @relation("StudioOwner")
+  appointments      Appointment[]
+  tracks            Track[]
+  texts             Text[]
+  sentMessages      Message[]         @relation("SentMessages")
+  receivedMessages  Message[]         @relation("ReceivedMessages")
+  invoices          Invoice[]
+  forumPosts        ForumPost[]
+  forumComments     ForumComment[]
+  forumLikes        ForumLike[]
+  emailLogs         EmailLog[]
+  trackComments     TrackComment[]
+  sharedTracks      TrackShare[]
+}
+
+// Studio d'enregistrement
+model Studio {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  location      String
+  address       String?  // Adresse complète
+  type          String   @default("professionnel") // professionnel, home_studio
+  pricePerHour  Float    @default(50)
+  rating        Float    @default(4.5)
+  imageUrl      String?
+  equipment     String?  // Équipement disponible
+  capacity      Int?     // Nombre de personnes max
+  latitude      Float?   // Coordonnée GPS pour la carte
+  longitude     Float?   // Coordonnée GPS pour la carte
+  ownerId       String
+  owner         User     @relation("StudioOwner", fields: [ownerId], references: [id])
+  isActive      Boolean  @default(true)
+  
+  // Nouvelles infos vitrine
+  phone         String?  // Téléphone
+  website       String?  // Site web
+  instagram     String?  // @instagram
+  twitter       String?  // @twitter
+  facebook      String?  // Facebook URL
+  youtube       String?  // YouTube URL
+  spotify       String?  // Spotify artist/studio URL
+  soundcloud    String?  // Soundcloud URL
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  appointments   Appointment[]
+  availabilities Availability[]
+  pricingTiers   PricingTier[]
+  blocks         StudioBlock[]
+  tracks         Track[]     // Tracks travaillées par ce studio
+  photos         StudioPhoto[]
+  links          StudioLink[]
+}
+
+// Photos du studio
+model StudioPhoto {
+  id          String   @id @default(cuid())
+  studioId    String
+  studio      Studio   @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  url         String
+  caption     String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+// Liens personnalisés (Linktree style)
+model StudioLink {
+  id          String   @id @default(cuid())
+  studioId    String
+  studio      Studio   @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  title       String
+  url         String
+  icon        String?  // Lucide icon name
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+// Grille tarifaire
+model PricingTier {
+  id          String   @id @default(cuid())
+  studioId    String
+  studio      Studio   @relation(fields: [studioId], references: [id])
+  name        String   // "Heure standard", "Demi-journée", "Journée complète", "Mixage", "Mastering"
+  description String?
+  price       Float
+  duration    Int      // durée en heures (0 = forfait)
+  unit        String   @default("heure") // heure, forfait, projet
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Disponibilités du studio (horaires réguliers)
+model Availability {
+  id        String   @id @default(cuid())
+  studioId  String
+  studio    Studio   @relation(fields: [studioId], references: [id])
+  dayOfWeek Int      // 0-6 (dimanche à samedi)
+  startTime String   // "09:00"
+  endTime   String   // "18:00"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([studioId, dayOfWeek])
+}
+
+// Blocages / Indisponibilités (jours de repos, vacances, maintenance)
+model StudioBlock {
+  id          String   @id @default(cuid())
+  studioId    String
+  studio      Studio   @relation(fields: [studioId], references: [id])
+  date        DateTime // Date du blocage
+  startTime   String?  // "09:00" ou null pour toute la journée
+  endTime     String?  // "18:00" ou null pour toute la journée
+  reason      String?  // "Vacances", "Maintenance", "Jour férié", etc.
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([studioId, date, startTime])
+}
+
+// Rendez-vous / Séance
+model Appointment {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  studioId         String
+  studio           Studio   @relation(fields: [studioId], references: [id])
+  date             DateTime
+  startTime        String   // "14:00"
+  endTime          String   // "18:00"
+  duration         Int      // en heures
+  status           String   @default("pending") // pending, confirmed, completed, cancelled
+  notes            String?
+  totalPrice       Float?
+  confirmationSent Boolean  @default(false)
+  reminderSent     Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  
+  // Empreinte de paiement
+  preAuthorization PreAuthorization?
+}
+
+// Empreinte de paiement (pré-autorisation)
+model PreAuthorization {
+  id              String   @id @default(cuid())
+  appointmentId   String   @unique
+  appointment     Appointment @relation(fields: [appointmentId], references: [id])
+  amount          Float    // Montant pré-autorisé
+  status          String   @default("held") // held, captured, released, failed
+  stripeIntentId  String?  // ID du PaymentIntent Stripe
+  heldAt          DateTime @default(now())  // Date de mise en hold
+  capturedAt      DateTime? // Date de capture (après session)
+  releasedAt      DateTime? // Date de libération (annulation)
+  releaseReason   String?  // Motif de libération
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Morceau de musique
+model Track {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  studioId    String?  // Studio qui a travaillé la track
+  studio      Studio?  @relation(fields: [studioId], references: [id])
+  title       String
+  artist      String
+  bpm         Int?
+  key         String?
+  status      String   @default("in_progress") // in_progress, finished
+  audioUrl    String?
+  duration    Int?     // Durée en secondes
+  isPublic    Boolean  @default(false) // Public ou privé
+  coverUrl    String?  // Image de couverture
+  views       Int      @default(0) // Nombre de vues
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  versions    TrackVersion[]
+  comments    TrackComment[]
+  sharedWith  TrackShare[]
+}
+
+// Version d'une track (V1, V2, etc.)
+model TrackVersion {
+  id        String   @id @default(cuid())
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  version   Int      @default(1)  // 1 = V1, 2 = V2, etc.
+  label     String?  // "Mix initial", "Mix final", etc.
+  audioUrl  String
+  duration  Int?     // Durée en secondes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([trackId, version])
+}
+
+// Commentaire sur une track
+model TrackComment {
+  id        String   @id @default(cuid())
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Partage sélectif de track privée
+model TrackShare {
+  id        String   @id @default(cuid())
+  trackId   String
+  track     Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  userId    String   // Utilisateur avec qui la track est partagée
+  user      User     @relation(fields: [userId], references: [id])
+  sharedBy  String   // ID de l'utilisateur qui a partagé
+  createdAt DateTime @default(now())
+
+  @@unique([trackId, userId]) // Une track ne peut être partagée qu'une fois avec un même utilisateur
+}
+
+// Texte / Paroles
+model Text {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  artist    String
+  content   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Message
+model Message {
+  id          String   @id @default(cuid())
+  senderId    String
+  sender      User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId  String
+  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  content     String
+  subject     String?
+  type        String   @default("message") // message, invoice, reminder
+  amount      Float?
+  description String?
+  isRead      Boolean  @default(false)
+  attachments MessageAttachment[] // Pièces jointes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Pièce jointe d'un message
+model MessageAttachment {
+  id          String   @id @default(cuid())
+  messageId   String
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  fileName    String
+  fileType    String   // image, audio, document, video
+  fileUrl     String
+  fileSize    Int?     // Taille en octets
+  createdAt   DateTime @default(now())
+}
+
+// Facture
+model Invoice {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  studioName     String
+  amount         Float
+  description    String
+  appointmentId  String?
+  status         String   @default("pending") // pending, paid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Log des emails envoyés
+model EmailLog {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  email          String
+  type           String   // confirmation, reminder, reminder_3h
+  appointmentId  String?
+  subject        String
+  status         String   @default("sent") // sent, failed
+  sentAt         DateTime @default(now())
+}
+
+// ============================================
+// FORUM - Amateurs de son
+// ============================================
+
+// Catégorie du forum
+model ForumCategory {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  slug        String      @unique
+  icon        String?
+  order       Int         @default(0)
+  posts       ForumPost[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+// Post du forum
+model ForumPost {
+  id          String        @id @default(cuid())
+  title       String
+  content     String
+  slug        String        @unique
+  authorId    String
+  author      User          @relation(fields: [authorId], references: [id])
+  categoryId  String
+  category    ForumCategory @relation(fields: [categoryId], references: [id])
+  views       Int           @default(0)
+  isPinned    Boolean       @default(false)
+  isLocked    Boolean       @default(false)
+  comments    ForumComment[]
+  likes       ForumLike[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+// Commentaire sur un post
+model ForumComment {
+  id        String    @id @default(cuid())
+  content   String
+  postId    String
+  post      ForumPost @relation(fields: [postId], references: [id])
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id])
+  likes     ForumLike[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// Like (post ou commentaire)
+model ForumLike {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  postId    String?
+  post      ForumPost?  @relation(fields: [postId], references: [id])
+  commentId String?
+  comment   ForumComment? @relation(fields: [commentId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+}
