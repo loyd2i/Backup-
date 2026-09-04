@@ -8,11 +8,16 @@ import {
   Play, Square, UserX, Send, Crown,
 } from 'lucide-react';
 
+// Serveurs ICE par défaut (STUN public) si la session n'en précise pas
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+
 interface Participant {
   id: string;
   userId: string;
   role: string;
   connectionState: string;
+  isScreenSharing: boolean;
+  canShareScreen: boolean;
   user: { id: string; name: string };
 }
 
@@ -28,6 +33,7 @@ interface EStudioSession {
   enableAnnotations: boolean;
   enableRecording: boolean;
   maxParticipants: number;
+  iceServers: string | null;
   createdAt: string;
   startedAt: string | null;
   endedAt: string | null;
@@ -83,6 +89,17 @@ export default function EStudioPage() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Écran partagé (WebRTC mesh, signalisation par polling)
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [remoteScreenStream, setRemoteScreenStream] = useState<MediaStream | null>(null);
+  const [screenShareError, setScreenShareError] = useState<string | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const signalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const presenterUserIdRef = useRef<string | null>(null);
 
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
 
@@ -145,6 +162,71 @@ export default function EStudioPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Polling de la signalisation WebRTC (1,5s) pendant qu'une session est ouverte
+  useEffect(() => {
+    if (!selectedSessionId) return;
+
+    const pollSignals = async () => {
+      try {
+        const res = await fetch(`/api/e-studio/sessions/${selectedSessionId}/signals`);
+        if (!res.ok) return;
+        const data = await res.json();
+        for (const sig of data.signals || []) {
+          const payload = JSON.parse(sig.payload);
+          if (sig.type === 'offer') await handleOffer(sig.fromUserId, payload);
+          else if (sig.type === 'answer') await handleAnswer(sig.fromUserId, payload);
+          else if (sig.type === 'ice-candidate') await handleIceCandidate(sig.fromUserId, payload);
+        }
+      } catch (error) {
+        console.error('Error polling signals:', error);
+      }
+    };
+
+    signalPollRef.current = setInterval(pollSignals, 1500);
+    return () => {
+      if (signalPollRef.current) clearInterval(signalPollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSessionId]);
+
+  // Détecte un changement de présentateur pour nettoyer la connexion sortante
+  useEffect(() => {
+    if (!detail) return;
+    const presenter = detail.participants.find(p => p.isScreenSharing);
+    const presenterUserId = presenter?.userId || null;
+
+    if (presenterUserId !== presenterUserIdRef.current) {
+      const previous = presenterUserIdRef.current;
+      if (previous && previous !== user?.id) {
+        peerConnectionsRef.current.get(previous)?.close();
+        peerConnectionsRef.current.delete(previous);
+        setRemoteScreenStream(null);
+      }
+      presenterUserIdRef.current = presenterUserId;
+    }
+  }, [detail, user]);
+
+  // Nettoyage WebRTC à la fermeture de la session / démontage
+  useEffect(() => {
+    return () => {
+      localStreamRef.current?.getTracks().forEach(t => t.stop());
+      localStreamRef.current = null;
+      peerConnectionsRef.current.forEach(pc => pc.close());
+      peerConnectionsRef.current.clear();
+      setIsScreenSharing(false);
+      setRemoteScreenStream(null);
+      presenterUserIdRef.current = null;
+    };
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteScreenStream;
+  }, [remoteScreenStream]);
+
+  useEffect(() => {
+    if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+  }, [isScreenSharing]);
+
   const fetchSessions = async () => {
     try {
       const res = await fetch('/api/e-studio/sessions');
@@ -178,6 +260,147 @@ export default function EStudioPage() {
       }
     } catch (error) {
       console.error('Error fetching messages:', error);
+    }
+  };
+
+  // ─── Écran partagé (WebRTC) ───
+
+  const getIceServers = (): RTCIceServer[] => {
+    if (detail?.iceServers) {
+      try {
+        const parsed = JSON.parse(detail.iceServers);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // ignore, fallback ci-dessous
+      }
+    }
+    return DEFAULT_ICE_SERVERS;
+  };
+
+  const sendSignal = async (toUserId: string, type: string, payload: unknown) => {
+    if (!selectedSessionId) return;
+    try {
+      await fetch(`/api/e-studio/sessions/${selectedSessionId}/signals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toUserId, type, payload })
+      });
+    } catch (error) {
+      console.error('Error sending signal:', error);
+    }
+  };
+
+  // Reçu côté spectateur : le présentateur nous envoie une offre
+  const handleOffer = async (fromUserId: string, sdp: RTCSessionDescriptionInit) => {
+    peerConnectionsRef.current.get(fromUserId)?.close();
+    const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+    peerConnectionsRef.current.set(fromUserId, pc);
+
+    pc.ontrack = (e) => setRemoteScreenStream(e.streams[0]);
+    pc.onicecandidate = (e) => {
+      if (e.candidate) sendSignal(fromUserId, 'ice-candidate', e.candidate.toJSON());
+    };
+
+    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    sendSignal(fromUserId, 'answer', pc.localDescription);
+  };
+
+  // Reçu côté présentateur : un spectateur répond à notre offre
+  const handleAnswer = async (fromUserId: string, sdp: RTCSessionDescriptionInit) => {
+    const pc = peerConnectionsRef.current.get(fromUserId);
+    if (pc) await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+  };
+
+  const handleIceCandidate = async (fromUserId: string, candidate: RTCIceCandidateInit) => {
+    const pc = peerConnectionsRef.current.get(fromUserId);
+    if (pc) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error('Error adding ICE candidate:', error);
+      }
+    }
+  };
+
+  const startScreenShare = async () => {
+    if (!selectedSessionId || !detail || !user) return;
+    setScreenShareError(null);
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      localStreamRef.current = stream;
+      setIsScreenSharing(true);
+
+      const myParticipant = detail.participants.find(p => p.userId === user.id);
+      if (myParticipant) {
+        await fetch(`/api/e-studio/sessions/${selectedSessionId}/participants/${myParticipant.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isScreenSharing: true })
+        });
+      }
+
+      const others = detail.participants.filter(p => p.userId !== user.id);
+      for (const p of others) {
+        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+        peerConnectionsRef.current.set(p.userId, pc);
+        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+        pc.onicecandidate = (e) => {
+          if (e.candidate) sendSignal(p.userId, 'ice-candidate', e.candidate.toJSON());
+        };
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        sendSignal(p.userId, 'offer', pc.localDescription);
+      }
+
+      stream.getVideoTracks()[0].onended = () => {
+        stopScreenShare();
+      };
+
+      fetchSessionDetail(selectedSessionId);
+    } catch (error) {
+      console.error('Error starting screen share:', error);
+      setScreenShareError('Impossible de démarrer le partage d\'écran (autorisation refusée ou non disponible)');
+      setIsScreenSharing(false);
+    }
+  };
+
+  const stopScreenShare = async () => {
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    localStreamRef.current = null;
+    peerConnectionsRef.current.forEach(pc => pc.close());
+    peerConnectionsRef.current.clear();
+    setIsScreenSharing(false);
+
+    if (selectedSessionId && detail && user) {
+      const myParticipant = detail.participants.find(p => p.userId === user.id);
+      if (myParticipant) {
+        try {
+          await fetch(`/api/e-studio/sessions/${selectedSessionId}/participants/${myParticipant.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isScreenSharing: false })
+          });
+        } catch (error) {
+          console.error('Error stopping screen share:', error);
+        }
+      }
+      fetchSessionDetail(selectedSessionId);
+    }
+  };
+
+  const handleForceStopShare = async (participantId: string) => {
+    if (!selectedSessionId) return;
+    try {
+      await fetch(`/api/e-studio/sessions/${selectedSessionId}/participants/${participantId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isScreenSharing: false })
+      });
+      fetchSessionDetail(selectedSessionId);
+    } catch (error) {
+      console.error('Error forcing screen share stop:', error);
     }
   };
 
@@ -356,6 +579,7 @@ export default function EStudioPage() {
   // ─── Detail view ───
   if (selectedSessionId) {
     const isHost = detail?.host.id === user?.id;
+    const presenter = detail?.participants.find(p => p.isScreenSharing) || null;
 
     return (
       <div className="p-6 lg:p-8">
@@ -444,6 +668,60 @@ export default function EStudioPage() {
               </div>
             )}
 
+            {/* Écran partagé */}
+            {detail.enableScreenShare && (
+              <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
+                <div className="p-4 border-b border-[#2a2a2a] flex items-center justify-between gap-2 flex-wrap">
+                  <h2 className="text-white font-semibold text-sm flex items-center gap-2">
+                    <MonitorUp className="w-4 h-4 text-gray-400" />
+                    Écran partagé
+                  </h2>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {presenter && (
+                      <span className="flex items-center gap-1.5 bg-[#6366f1]/20 text-[#6366f1] px-2.5 py-1 rounded-full text-xs font-medium">
+                        <span className="w-1.5 h-1.5 bg-[#6366f1] rounded-full animate-pulse" />
+                        {presenter.userId === user?.id
+                          ? 'Vous partagez votre écran'
+                          : `${presenter.user.name} partage son écran`}
+                      </span>
+                    )}
+                    {detail.status !== 'ended' && (!presenter || presenter.userId === user?.id) && (
+                      <button
+                        onClick={isScreenSharing ? stopScreenShare : startScreenShare}
+                        style={!isScreenSharing ? { backgroundColor: accentColor } : undefined}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-white ${
+                          isScreenSharing ? 'bg-red-600 hover:bg-red-700' : 'hover:opacity-90'
+                        }`}
+                      >
+                        <MonitorUp className="w-3.5 h-3.5" />
+                        {isScreenSharing ? 'Arrêter le partage' : 'Partager mon écran'}
+                      </button>
+                    )}
+                    {isHost && presenter && presenter.userId !== user?.id && (
+                      <button
+                        onClick={() => handleForceStopShare(presenter.id)}
+                        className="text-xs text-gray-400 hover:text-white underline underline-offset-2"
+                      >
+                        Reprendre la main
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {screenShareError && (
+                  <p className="text-red-400 text-xs px-4 pt-2">{screenShareError}</p>
+                )}
+                <div className="bg-black aspect-video flex items-center justify-center">
+                  {isScreenSharing ? (
+                    <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
+                  ) : remoteScreenStream ? (
+                    <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-contain" />
+                  ) : (
+                    <p className="text-gray-600 text-sm">Aucun écran partagé pour le moment</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Participants */}
               <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
@@ -466,6 +744,7 @@ export default function EStudioPage() {
                         <p className="text-white text-sm truncate flex items-center gap-1">
                           {p.user.name}
                           {p.role === 'host' && <Crown className="w-3 h-3 text-yellow-400" />}
+                          {p.isScreenSharing && <MonitorUp className="w-3 h-3 text-[#6366f1]" />}
                         </p>
                         <p className="text-gray-500 text-xs">
                           {p.role === 'host' ? 'Hôte' : 'Participant'}

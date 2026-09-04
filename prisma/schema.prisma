@@ -455,6 +455,7 @@ model EStudioSession {
   annotations  EStudioAnnotation[]
   invitations  EStudioInvitation[]
   recordings   EStudioRecording[]
+  signals      EStudioSignal[]
 }
 
 model EStudioParticipant {
@@ -534,4 +535,17 @@ model EStudioTemplate {
   enableRecording   Boolean  @default(false)
   maxParticipants   Int      @default(5)
   createdAt         DateTime @default(now())
+}
+
+// Signalisation WebRTC (offer/answer SDP + candidats ICE) échangée par
+// polling entre participants d'une même session (mesh P2P direct).
+model EStudioSignal {
+  id         String   @id @default(cuid())
+  sessionId  String
+  session    EStudioSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  fromUserId String
+  toUserId   String   // destinataire ciblé
+  type       String   // offer, answer, ice-candidate
+  payload    String   // SDP ou candidat ICE, JSON stringifié
+  createdAt  DateTime @default(now())
 }
