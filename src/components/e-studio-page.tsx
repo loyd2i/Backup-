@@ -1,15 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {
   Cast, Plus, X, Users, Radio, Clock, CheckCircle2, Video, MonitorUp,
-  MessageSquare, PenLine, CircleDot, Mic,
+  MessageSquare, PenLine, CircleDot, Mic, ArrowLeft, Link2, Check,
+  Play, Square, UserX, Send, Crown,
 } from 'lucide-react';
 
 interface Participant {
   id: string;
+  userId: string;
   role: string;
+  connectionState: string;
   user: { id: string; name: string };
 }
 
@@ -26,9 +29,18 @@ interface EStudioSession {
   enableRecording: boolean;
   maxParticipants: number;
   createdAt: string;
+  startedAt: string | null;
+  endedAt: string | null;
   host: { id: string; name: string };
   participants: Participant[];
   _count?: { participants: number };
+}
+
+interface ChatMessage {
+  id: string;
+  content: string;
+  createdAt: string;
+  user: { id: string; name: string };
 }
 
 const SESSION_TYPES = [
@@ -60,11 +72,78 @@ export default function EStudioPage() {
     maxParticipants: 5,
   });
 
+  // Detail view state
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<EStudioSession | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isTogglingStatus, setIsTogglingStatus] = useState(false);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
 
   useEffect(() => {
     fetchSessions();
   }, []);
+
+  // Traite un lien d'invitation (?e-studio=join&token=xxx) au montage
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('e-studio') === 'join') {
+      const token = params.get('token');
+      if (token) {
+        (async () => {
+          try {
+            const res = await fetch('/api/e-studio/join', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token })
+            });
+            const data = await res.json();
+            if (res.ok) {
+              window.history.replaceState({}, '', window.location.pathname);
+              await fetchSessions();
+              openSession(data.sessionId);
+            } else {
+              setJoinError(data.error || 'Impossible de rejoindre cette session');
+              window.history.replaceState({}, '', window.location.pathname);
+            }
+          } catch {
+            setJoinError('Impossible de rejoindre cette session');
+          }
+        })();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Polling détail + chat pendant qu'une session est ouverte
+  useEffect(() => {
+    if (!selectedSessionId) {
+      if (pollRef.current) clearInterval(pollRef.current);
+      return;
+    }
+
+    const poll = async () => {
+      await fetchSessionDetail(selectedSessionId);
+      await fetchMessages(selectedSessionId);
+    };
+    poll();
+    pollRef.current = setInterval(poll, 2000);
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const fetchSessions = async () => {
     try {
@@ -76,6 +155,45 @@ export default function EStudioPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchSessionDetail = async (id: string) => {
+    try {
+      const res = await fetch(`/api/e-studio/sessions/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDetail(data.session);
+      }
+    } catch (error) {
+      console.error('Error fetching session detail:', error);
+    }
+  };
+
+  const fetchMessages = async (id: string) => {
+    try {
+      const res = await fetch(`/api/e-studio/sessions/${id}/messages`);
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(data.messages || []);
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  };
+
+  const openSession = (id: string) => {
+    setJoinError(null);
+    setInviteLink(null);
+    setDetail(null);
+    setMessages([]);
+    setSelectedSessionId(id);
+  };
+
+  const closeSession = () => {
+    setSelectedSessionId(null);
+    setDetail(null);
+    setMessages([]);
+    fetchSessions();
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -111,6 +229,81 @@ export default function EStudioPage() {
     }
   };
 
+  const handleToggleStatus = async (status: 'live' | 'ended') => {
+    if (!selectedSessionId) return;
+    setIsTogglingStatus(true);
+    try {
+      const res = await fetch(`/api/e-studio/sessions/${selectedSessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDetail(data.session);
+      }
+    } catch (error) {
+      console.error('Error toggling session status:', error);
+    } finally {
+      setIsTogglingStatus(false);
+    }
+  };
+
+  const handleGenerateInvite = async () => {
+    if (!selectedSessionId) return;
+    try {
+      const res = await fetch(`/api/e-studio/sessions/${selectedSessionId}/invite`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const url = `${window.location.origin}${window.location.pathname}?e-studio=join&token=${data.invitation.token}`;
+        setInviteLink(url);
+        try {
+          await navigator.clipboard.writeText(url);
+          setCopySuccess(true);
+          setTimeout(() => setCopySuccess(false), 2500);
+        } catch {
+          // Clipboard indisponible : le lien reste affiché à l'écran pour copie manuelle
+        }
+      }
+    } catch (error) {
+      console.error('Error generating invite:', error);
+    }
+  };
+
+  const handleExpel = async (participantId: string) => {
+    if (!selectedSessionId) return;
+    if (!confirm('Expulser ce participant de la session ?')) return;
+    try {
+      await fetch(`/api/e-studio/sessions/${selectedSessionId}/participants/${participantId}`, {
+        method: 'DELETE'
+      });
+      fetchSessionDetail(selectedSessionId);
+    } catch (error) {
+      console.error('Error expelling participant:', error);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !selectedSessionId) return;
+    const content = newMessage;
+    setNewMessage('');
+    try {
+      const res = await fetch(`/api/e-studio/sessions/${selectedSessionId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+      if (res.ok) {
+        fetchMessages(selectedSessionId);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'live':
@@ -140,6 +333,15 @@ export default function EStudioPage() {
   const sessionTypeLabel = (type: string) =>
     SESSION_TYPES.find(t => t.value === type)?.label || type;
 
+  const formatTime = (dateStr: string) =>
+    new Date(dateStr).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  const formatDuration = (start: string, end: string) => {
+    const mins = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000);
+    if (mins < 60) return `${mins} min`;
+    return `${Math.floor(mins / 60)}h${(mins % 60).toString().padStart(2, '0')}`;
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 lg:p-8">
@@ -151,6 +353,202 @@ export default function EStudioPage() {
     );
   }
 
+  // ─── Detail view ───
+  if (selectedSessionId) {
+    const isHost = detail?.host.id === user?.id;
+
+    return (
+      <div className="p-6 lg:p-8">
+        <button
+          onClick={closeSession}
+          className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Retour aux sessions
+        </button>
+
+        {!detail ? (
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-[#2a2a2a] rounded w-1/3" />
+            <div className="h-40 bg-[#1a1a1a] rounded-2xl" />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-5">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-3 flex-wrap mb-1">
+                    <h1 className="text-xl font-bold text-white">{detail.title}</h1>
+                    {getStatusBadge(detail.status)}
+                  </div>
+                  <p className="text-gray-500 text-sm">
+                    {sessionTypeLabel(detail.sessionType)} • Hôte : {detail.host.name}
+                  </p>
+                  {detail.status === 'ended' && detail.startedAt && detail.endedAt && (
+                    <p className="text-gray-500 text-sm mt-1">
+                      Durée : {formatDuration(detail.startedAt, detail.endedAt)} •{' '}
+                      {detail.participants.length} participant{detail.participants.length > 1 ? 's' : ''}
+                    </p>
+                  )}
+                </div>
+
+                {isHost && detail.status !== 'ended' && (
+                  <div className="flex items-center gap-2">
+                    {detail.status === 'waiting' && (
+                      <button
+                        onClick={() => handleToggleStatus('live')}
+                        disabled={isTogglingStatus}
+                        className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                      >
+                        <Play className="w-4 h-4" />
+                        Démarrer
+                      </button>
+                    )}
+                    {detail.status === 'live' && (
+                      <button
+                        onClick={() => handleToggleStatus('ended')}
+                        disabled={isTogglingStatus}
+                        className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                      >
+                        <Square className="w-4 h-4" />
+                        Terminer
+                      </button>
+                    )}
+                    <button
+                      onClick={handleGenerateInvite}
+                      className="flex items-center gap-2 bg-[#2a2a2a] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#3a3a3a] transition-colors"
+                    >
+                      {copySuccess ? <Check className="w-4 h-4 text-green-400" /> : <Link2 className="w-4 h-4" />}
+                      {copySuccess ? 'Lien copié !' : 'Inviter'}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {inviteLink && (
+                <div className="mt-4 bg-[#121212] rounded-xl p-3 flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={inviteLink}
+                    className="flex-1 bg-transparent text-gray-400 text-xs truncate outline-none"
+                    onFocus={(e) => e.target.select()}
+                  />
+                </div>
+              )}
+            </div>
+
+            {joinError && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-4 text-sm">
+                {joinError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Participants */}
+              <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
+                <div className="p-4 border-b border-[#2a2a2a] flex items-center gap-2">
+                  <Users className="w-4 h-4 text-gray-400" />
+                  <h2 className="text-white font-semibold text-sm">
+                    Participants ({detail.participants.length}/{detail.maxParticipants})
+                  </h2>
+                </div>
+                <div className="divide-y divide-[#2a2a2a]">
+                  {detail.participants.map((p) => (
+                    <div key={p.id} className="p-3 flex items-center gap-3">
+                      <div
+                        style={{ backgroundColor: accentColor }}
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                      >
+                        {p.user.name[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm truncate flex items-center gap-1">
+                          {p.user.name}
+                          {p.role === 'host' && <Crown className="w-3 h-3 text-yellow-400" />}
+                        </p>
+                        <p className="text-gray-500 text-xs">
+                          {p.role === 'host' ? 'Hôte' : 'Participant'}
+                        </p>
+                      </div>
+                      {isHost && p.role !== 'host' && detail.status !== 'ended' && (
+                        <button
+                          onClick={() => handleExpel(p.id)}
+                          className="text-gray-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                          title="Expulser"
+                        >
+                          <UserX className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chat */}
+              <div className="lg:col-span-2 bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] flex flex-col h-[480px]">
+                <div className="p-4 border-b border-[#2a2a2a] flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-gray-400" />
+                  <h2 className="text-white font-semibold text-sm">Chat</h2>
+                </div>
+
+                {!detail.enableChat ? (
+                  <div className="flex-1 flex items-center justify-center text-gray-500 text-sm p-6 text-center">
+                    Le chat est désactivé pour cette session.
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                      {messages.length === 0 ? (
+                        <p className="text-gray-500 text-sm text-center py-8">
+                          Aucun message pour le moment.
+                        </p>
+                      ) : (
+                        messages.map((msg) => (
+                          <div key={msg.id} className="flex gap-2">
+                            <div className="w-7 h-7 bg-[#2a2a2a] rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                              {msg.user.name[0]}
+                            </div>
+                            <div>
+                              <p className="text-gray-400 text-xs">
+                                {msg.user.name} • {formatTime(msg.createdAt)}
+                              </p>
+                              <p className="text-white text-sm">{msg.content}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+                    {detail.status !== 'ended' && (
+                      <form onSubmit={handleSendMessage} className="p-3 border-t border-[#2a2a2a] flex gap-2">
+                        <input
+                          type="text"
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          placeholder="Écrire un message..."
+                          className="flex-1 bg-[#2a2a2a] text-white rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#6366f1]"
+                        />
+                        <button
+                          type="submit"
+                          style={{ backgroundColor: accentColor }}
+                          className="p-2 text-white rounded-xl hover:opacity-90 transition-opacity"
+                        >
+                          <Send className="w-5 h-5" />
+                        </button>
+                      </form>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── List view ───
   return (
     <div className="p-6 lg:p-8">
       <div className="flex items-center justify-between mb-8">
@@ -172,6 +570,12 @@ export default function EStudioPage() {
           Nouvelle session
         </button>
       </div>
+
+      {joinError && (
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-4 text-sm mb-6">
+          {joinError}
+        </div>
+      )}
 
       {sessions.length === 0 ? (
         <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-12 text-center">
@@ -220,6 +624,7 @@ export default function EStudioPage() {
                   </div>
                 </div>
                 <button
+                  onClick={() => openSession(session.id)}
                   style={{ backgroundColor: accentColor }}
                   className="flex items-center gap-2 text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity flex-shrink-0"
                 >

@@ -23,6 +23,7 @@ export default function StudiolibApp() {
   const user = useAppStore((state) => state.user);
   const setUser = useAppStore((state) => state.setUser);
   const login = useAppStore((state) => state.login);
+  const setCurrentPage = useAppStore((state) => state.setCurrentPage);
 
   // Public page state from URL query params
   const [publicPage, setPublicPage] = useState<string | null>(null);
@@ -115,6 +116,16 @@ export default function StudiolibApp() {
     };
     checkSession();
   }, [login]);
+
+  // Lien d'invitation E-Studio (?e-studio=join&token=xxx) : une fois connecté,
+  // ouvrir directement la page E-Studio (qui traitera le join côté client)
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('e-studio') === 'join' && params.get('token')) {
+      setCurrentPage('e-studio');
+    }
+  }, [isLoggedIn, setCurrentPage]);
 
   // Show login page if not logged in
   if (!isLoggedIn || currentPage === 'login') {
