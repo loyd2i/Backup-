@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, location, type, pricePerHour } = body;
+    const { name, description, location, type, pricePerHour, country } = body;
 
     if (!name || !location || !pricePerHour) {
       return NextResponse.json(
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
         location,
         type: type || 'professionnel',
         pricePerHour: parseFloat(pricePerHour),
+        country: country || 'FR',
         ownerId: user.id
       }
     });

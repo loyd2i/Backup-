@@ -6,6 +6,7 @@ import {
   Camera, Calendar, ChevronLeft, ChevronRight, X, Plus, GripVertical, Pencil, ExternalLink,
   Share2, Heart, MessageCircle, Play, Pause
 } from 'lucide-react';
+import { SUPPORTED_COUNTRIES } from '@/lib/tax-config';
 
 interface StudioPhoto {
   id: string;
@@ -55,6 +56,7 @@ interface Studio {
   youtube: string | null;
   spotify: string | null;
   soundcloud: string | null;
+  country: string;
   photos: StudioPhoto[];
   links: StudioLink[];
 }
@@ -570,6 +572,7 @@ function StudioEditModal({
     description: studio.description || '',
     equipment: studio.equipment || '',
     phone: studio.phone || '',
+    country: studio.country || 'FR',
     website: studio.website || '',
     instagram: studio.instagram || '',
     twitter: studio.twitter || '',
@@ -725,6 +728,21 @@ function StudioEditModal({
                   onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                   className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
                 />
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-2 block">Pays</label>
+                <select
+                  value={formData.country}
+                  onChange={(e) => setFormData(prev => ({ ...prev, country: e.target.value }))}
+                  className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
+                >
+                  {SUPPORTED_COUNTRIES.map(c => (
+                    <option key={c.country} value={c.country}>{c.countryName}</option>
+                  ))}
+                </select>
+                <p className="text-gray-500 text-xs mt-1.5">
+                  Détermine le taux de TVA appliqué sur vos factures et reçus.
+                </p>
               </div>
               <button
                 onClick={handleSaveInfo}
