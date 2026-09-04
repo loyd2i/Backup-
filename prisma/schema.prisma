@@ -226,6 +226,14 @@ model Track {
   isPublic    Boolean  @default(false) // Public ou privé
   coverUrl    String?  // Image de couverture
   views       Int      @default(0) // Nombre de vues
+
+  // Fiche Release
+  genre         String?
+  releaseDate   DateTime?
+  spotifyUrl    String?
+  youtubeUrl    String?
+  appleMusicUrl String?
+  deezerUrl     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   

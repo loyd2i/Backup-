@@ -185,6 +185,12 @@ export async function PUT(request: NextRequest) {
     if (data.artist !== undefined) updateData.artist = data.artist;
     if (data.studioId !== undefined) updateData.studioId = data.studioId;
     if (data.views !== undefined) updateData.views = data.views;
+    if (data.genre !== undefined) updateData.genre = data.genre;
+    if (data.releaseDate !== undefined) updateData.releaseDate = data.releaseDate ? new Date(data.releaseDate) : null;
+    if (data.spotifyUrl !== undefined) updateData.spotifyUrl = data.spotifyUrl;
+    if (data.youtubeUrl !== undefined) updateData.youtubeUrl = data.youtubeUrl;
+    if (data.appleMusicUrl !== undefined) updateData.appleMusicUrl = data.appleMusicUrl;
+    if (data.deezerUrl !== undefined) updateData.deezerUrl = data.deezerUrl;
 
     const track = await prisma.track.update({
       where: { id, userId: user.id },

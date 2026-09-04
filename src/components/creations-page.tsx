@@ -33,6 +33,12 @@ interface Track {
   studio?: { id: string; name: string } | null;
   createdAt: string;
   _count?: { comments: number };
+  genre?: string | null;
+  releaseDate?: string | null;
+  spotifyUrl?: string | null;
+  youtubeUrl?: string | null;
+  appleMusicUrl?: string | null;
+  deezerUrl?: string | null;
 }
 
 interface TextItem {
@@ -619,6 +625,15 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                     commentCount={track._count?.comments || 0}
                     hideStudio={isStudioMode}
                     onDelete={() => handleDeleteTrack(track.id)}
+                    status={track.status}
+                    genre={track.genre}
+                    releaseDate={track.releaseDate}
+                    spotifyUrl={track.spotifyUrl}
+                    youtubeUrl={track.youtubeUrl}
+                    appleMusicUrl={track.appleMusicUrl}
+                    deezerUrl={track.deezerUrl}
+                    canEditRelease={!isStudioMode && !track.isShared}
+                    onReleaseUpdate={fetchData}
                   />
                 ))}
               </div>

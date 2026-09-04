@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Share2, Download, Globe, Lock, Repeat, Shuffle, Eye, MessageCircle, X, Send, Users, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Share2, Download, Globe, Lock, Repeat, Shuffle, Eye, MessageCircle, X, Send, Users, MoreHorizontal, Trash2, Disc3, Music, Youtube, Headphones, Calendar } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
 interface Comment {
@@ -41,6 +41,15 @@ interface AudioPlayerProps {
   commentCount?: number;
   hideStudio?: boolean; // Hide studio info (for studio mode)
   onDelete?: () => void; // Delete callback
+  status?: string; // in_progress, finished
+  genre?: string | null;
+  releaseDate?: string | null;
+  spotifyUrl?: string | null;
+  youtubeUrl?: string | null;
+  appleMusicUrl?: string | null;
+  deezerUrl?: string | null;
+  canEditRelease?: boolean; // Owner can edit the release sheet
+  onReleaseUpdate?: () => void;
 }
 
 export default function AudioPlayer({
@@ -59,7 +68,16 @@ export default function AudioPlayer({
   studio,
   commentCount = 0,
   hideStudio = false,
-  onDelete
+  onDelete,
+  status,
+  genre,
+  releaseDate,
+  spotifyUrl,
+  youtubeUrl,
+  appleMusicUrl,
+  deezerUrl,
+  canEditRelease = false,
+  onReleaseUpdate
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -74,6 +92,16 @@ export default function AudioPlayer({
   const [newComment, setNewComment] = useState('');
   const [shares, setShares] = useState<TrackShare[]>([]);
   const [shareEmail, setShareEmail] = useState('');
+  const [showRelease, setShowRelease] = useState(false);
+  const [isSavingRelease, setIsSavingRelease] = useState(false);
+  const [releaseForm, setReleaseForm] = useState({
+    genre: genre || '',
+    releaseDate: releaseDate ? releaseDate.substring(0, 10) : '',
+    spotifyUrl: spotifyUrl || '',
+    youtubeUrl: youtubeUrl || '',
+    appleMusicUrl: appleMusicUrl || '',
+    deezerUrl: deezerUrl || '',
+  });
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -92,6 +120,17 @@ export default function AudioPlayer({
       audioRef.current.volume = isMuted ? 0 : volume;
     }
   }, [volume, isMuted]);
+
+  useEffect(() => {
+    setReleaseForm({
+      genre: genre || '',
+      releaseDate: releaseDate ? releaseDate.substring(0, 10) : '',
+      spotifyUrl: spotifyUrl || '',
+      youtubeUrl: youtubeUrl || '',
+      appleMusicUrl: appleMusicUrl || '',
+      deezerUrl: deezerUrl || '',
+    });
+  }, [genre, releaseDate, spotifyUrl, youtubeUrl, appleMusicUrl, deezerUrl]);
 
   useEffect(() => {
     return () => {
@@ -220,6 +259,35 @@ export default function AudioPlayer({
     }
   };
 
+  // Save release sheet
+  const handleSaveRelease = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingRelease(true);
+    try {
+      const res = await fetch('/api/tracks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: trackId,
+          genre: releaseForm.genre || null,
+          releaseDate: releaseForm.releaseDate || null,
+          spotifyUrl: releaseForm.spotifyUrl || null,
+          youtubeUrl: releaseForm.youtubeUrl || null,
+          appleMusicUrl: releaseForm.appleMusicUrl || null,
+          deezerUrl: releaseForm.deezerUrl || null,
+        })
+      });
+      if (res.ok) {
+        setShowRelease(false);
+        onReleaseUpdate?.();
+      }
+    } catch (e) {
+      console.error('Error saving release info:', e);
+    } finally {
+      setIsSavingRelease(false);
+    }
+  };
+
   // Share with user
   const handleShare = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,10 +365,47 @@ export default function AudioPlayer({
               )}
               
               {/* BPM and Key */}
-              <div className="flex items-center gap-3 text-xs mt-1">
+              <div className="flex items-center gap-3 text-xs mt-1 flex-wrap">
                 {bpm && <span className="bg-[#2a2a3a] text-gray-300 px-2 py-0.5 rounded-md">{bpm} BPM</span>}
                 {keySignature && <span className="bg-[#2a2a3a] text-gray-300 px-2 py-0.5 rounded-md">{keySignature}</span>}
+                {genre && <span className="bg-[#2a2a3a] text-gray-300 px-2 py-0.5 rounded-md">{genre}</span>}
+                {releaseDate && (
+                  <span className="flex items-center gap-1 text-gray-500">
+                    <Calendar className="w-3 h-3" />
+                    {new Date(releaseDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
               </div>
+
+              {/* Platform links */}
+              {(spotifyUrl || youtubeUrl || appleMusicUrl || deezerUrl) && (
+                <div className="flex items-center gap-2 mt-2">
+                  {spotifyUrl && (
+                    <a href={spotifyUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                      className="p-1.5 bg-[#1DB954]/15 text-[#1DB954] rounded-lg hover:bg-[#1DB954]/25 transition-colors" title="Spotify">
+                      <Music className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  {youtubeUrl && (
+                    <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                      className="p-1.5 bg-[#FF0000]/15 text-[#FF0000] rounded-lg hover:bg-[#FF0000]/25 transition-colors" title="YouTube">
+                      <Youtube className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  {appleMusicUrl && (
+                    <a href={appleMusicUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                      className="p-1.5 bg-white/15 text-white rounded-lg hover:bg-white/25 transition-colors" title="Apple Music">
+                      <Disc3 className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  {deezerUrl && (
+                    <a href={deezerUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                      className="p-1.5 bg-[#FF5500]/15 text-[#FF5500] rounded-lg hover:bg-[#FF5500]/25 transition-colors" title="Deezer">
+                      <Headphones className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Stats & Actions */}
@@ -355,6 +460,17 @@ export default function AudioPlayer({
                 <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500' : ''}`} />
               </button>
               
+              {/* Release sheet edit button */}
+              {canEditRelease && status === 'finished' && (
+                <button
+                  onClick={() => setShowRelease(true)}
+                  className="p-2 text-gray-500 hover:text-white hover:bg-[#2a2a3a] rounded-xl transition-all"
+                  title="Fiche de sortie"
+                >
+                  <Disc3 className="w-4 h-4" />
+                </button>
+              )}
+
               {/* Delete button */}
               {onDelete && (
                 <button
@@ -526,6 +642,91 @@ export default function AudioPlayer({
                 Seuls les utilisateurs avec qui vous partagez pourront voir cette track privée.
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showRelease && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="p-4 border-b border-[#2a2a2a] flex items-center justify-between">
+              <h3 className="text-white font-semibold flex items-center gap-2">
+                <Disc3 className="w-5 h-5 text-[#6366f1]" />
+                Fiche de sortie
+              </h3>
+              <button onClick={() => setShowRelease(false)} className="text-gray-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRelease} className="p-4 space-y-4">
+              <div>
+                <label className="text-gray-400 text-sm mb-1.5 block">Genre</label>
+                <input
+                  type="text"
+                  value={releaseForm.genre}
+                  onChange={(e) => setReleaseForm(prev => ({ ...prev, genre: e.target.value }))}
+                  placeholder="Rap, Pop, Électro..."
+                  className="w-full bg-[#2a2a2a] text-white rounded-xl px-4 py-2.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-1.5 block">Date de sortie</label>
+                <input
+                  type="date"
+                  value={releaseForm.releaseDate}
+                  onChange={(e) => setReleaseForm(prev => ({ ...prev, releaseDate: e.target.value }))}
+                  className="w-full bg-[#2a2a2a] text-white rounded-xl px-4 py-2.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-1.5 block">Lien Spotify</label>
+                <input
+                  type="url"
+                  value={releaseForm.spotifyUrl}
+                  onChange={(e) => setReleaseForm(prev => ({ ...prev, spotifyUrl: e.target.value }))}
+                  placeholder="https://open.spotify.com/track/..."
+                  className="w-full bg-[#2a2a2a] text-white rounded-xl px-4 py-2.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-1.5 block">Lien YouTube</label>
+                <input
+                  type="url"
+                  value={releaseForm.youtubeUrl}
+                  onChange={(e) => setReleaseForm(prev => ({ ...prev, youtubeUrl: e.target.value }))}
+                  placeholder="https://youtube.com/watch?v=..."
+                  className="w-full bg-[#2a2a2a] text-white rounded-xl px-4 py-2.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-1.5 block">Lien Apple Music</label>
+                <input
+                  type="url"
+                  value={releaseForm.appleMusicUrl}
+                  onChange={(e) => setReleaseForm(prev => ({ ...prev, appleMusicUrl: e.target.value }))}
+                  placeholder="https://music.apple.com/..."
+                  className="w-full bg-[#2a2a2a] text-white rounded-xl px-4 py-2.5 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-1.5 block">Lien Deezer</label>
+                <input
+                  type="url"
+                  value={releaseForm.deezerUrl}
+                  onChange={(e) => setReleaseForm(prev => ({ ...prev, deezerUrl: e.target.value }))}
+                  placeholder="https://deezer.com/track/..."
+                  className="w-full bg-[#2a2a2a] text-white rounded-xl px-4 py-2.5 text-sm"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSavingRelease}
+                className="w-full bg-[#6366f1] text-white py-2.5 rounded-xl text-sm font-medium hover:bg-[#5558e3] transition-colors disabled:opacity-50"
+              >
+                {isSavingRelease ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
+            </form>
           </div>
         </div>
       )}
