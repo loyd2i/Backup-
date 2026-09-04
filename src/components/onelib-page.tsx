@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {
   Share2, Music2, ArrowLeft, Eye, CheckCircle2, PenLine, Trash2,
-  Link2, Check, Music, Youtube,
+  Link2, Check, Music, Youtube, QrCode, Download,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -52,6 +52,8 @@ export default function OnelibPage() {
   const [soundcloudUrl, setSoundcloudUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [isLoadingQr, setIsLoadingQr] = useState(false);
 
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
 
@@ -82,6 +84,20 @@ export default function OnelibPage() {
     setDescription(release.description || '');
     setSoundcloudUrl(release.soundcloudUrl || '');
     setCopySuccess(false);
+    setQrDataUrl(null);
+  };
+
+  const loadQrCode = async (releaseId: string) => {
+    setIsLoadingQr(true);
+    try {
+      const res = await fetch(`/api/onelib/releases/${releaseId}/qrcode`);
+      const data = await res.json();
+      if (res.ok) setQrDataUrl(data.dataUrl);
+    } catch (error) {
+      console.error('Error loading QR code:', error);
+    } finally {
+      setIsLoadingQr(false);
+    }
   };
 
   const handleCreate = async (trackId: string) => {
@@ -250,6 +266,38 @@ export default function OnelibPage() {
               {copySuccess ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
               {copySuccess ? 'Copié !' : 'Copier'}
             </button>
+          </div>
+
+          <div className="mt-4">
+            {qrDataUrl ? (
+              <div className="flex items-center gap-4">
+                <img
+                  src={qrDataUrl}
+                  alt="QR code de la release"
+                  className="w-32 h-32 rounded-xl border border-[#2a2a2a] bg-white p-2"
+                />
+                <div className="flex flex-col gap-2">
+                  <p className="text-gray-400 text-sm">Scanne ou télécharge le QR code pour partager la page de diffusion.</p>
+                  <a
+                    href={qrDataUrl}
+                    download={`onelib-${detail.slug}.png`}
+                    className="flex items-center gap-2 w-fit text-sm px-3 py-1.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Télécharger le PNG
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => loadQrCode(detail.id)}
+                disabled={isLoadingQr}
+                className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors disabled:opacity-50"
+              >
+                <QrCode className="w-4 h-4" />
+                {isLoadingQr ? 'Génération...' : 'Générer le QR code'}
+              </button>
+            )}
           </div>
         </div>
 
