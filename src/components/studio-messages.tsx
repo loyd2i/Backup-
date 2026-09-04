@@ -115,29 +115,7 @@ export default function StudioMessages() {
     return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
   };
 
-  // Demo clients for studio
-  const demoClients: Client[] = [
-    { 
-      id: 'client-1', 
-      name: 'Marie Dupont', 
-      email: 'marie@email.com',
-      lastAppointment: { date: '2024-02-20', startTime: '14:00' }
-    },
-    { 
-      id: 'client-2', 
-      name: 'Jean Rap', 
-      email: 'jean.rap@email.com',
-      lastAppointment: { date: '2024-02-18', startTime: '10:00' }
-    },
-    { 
-      id: 'client-3', 
-      name: 'Luna Singer', 
-      email: 'luna@email.com',
-      lastAppointment: { date: '2024-02-15', startTime: '16:00' }
-    },
-  ];
-
-  const allClients = clients.length > 0 ? clients : demoClients;
+  const allClients = clients;
 
   return (
     <div className="h-[calc(100vh-120px)] lg:h-[calc(100vh-80px)] flex bg-[#121212]">
@@ -235,30 +213,40 @@ export default function StudioMessages() {
                 </span>
               </div>
 
-              {/* Demo conversation */}
-              <div className="flex gap-2 max-w-[85%]">
-                <div className="w-8 h-8 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">
-                  {selectedClient.name[0]}
-                </div>
-                <div>
-                  <div className="bg-[#2a2a2a] rounded-2xl rounded-tl-sm p-3">
-                    <p className="text-white">Bonjour, je voudrais confirmer ma réservation pour demain à 14h.</p>
-                  </div>
-                  <span className="text-gray-500 text-xs mt-1 block">14:25</span>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <div className="max-w-[85%]">
-                  <div className="bg-[#6366f1] rounded-2xl rounded-tr-sm p-3">
-                    <p className="text-white">Bonjour ! Oui, votre réservation est bien confirmée. À demain ! 🎵</p>
-                  </div>
-                  <div className="flex justify-end items-center gap-1 mt-1">
-                    <span className="text-gray-500 text-xs">14:30</span>
-                    <CheckCheck className="w-4 h-4 text-[#6366f1]" />
-                  </div>
-                </div>
-              </div>
+              {messages.length === 0 ? (
+                <p className="text-center text-gray-500 text-sm">
+                  Aucun message échangé avec {selectedClient.name} pour le moment.
+                </p>
+              ) : (
+                messages.map((msg) => {
+                  const isFromClient = msg.senderId === selectedClient.id;
+                  return isFromClient ? (
+                    <div key={msg.id} className="flex gap-2 max-w-[85%]">
+                      <div className="w-8 h-8 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">
+                        {selectedClient.name[0]}
+                      </div>
+                      <div>
+                        <div className="bg-[#2a2a2a] rounded-2xl rounded-tl-sm p-3">
+                          <p className="text-white">{msg.content}</p>
+                        </div>
+                        <span className="text-gray-500 text-xs mt-1 block">{formatTime(msg.createdAt)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={msg.id} className="flex justify-end">
+                      <div className="max-w-[85%]">
+                        <div className="bg-[#6366f1] rounded-2xl rounded-tr-sm p-3">
+                          <p className="text-white">{msg.content}</p>
+                        </div>
+                        <div className="flex justify-end items-center gap-1 mt-1">
+                          <span className="text-gray-500 text-xs">{formatTime(msg.createdAt)}</span>
+                          <CheckCheck className={`w-4 h-4 ${msg.isRead ? 'text-[#6366f1]' : 'text-gray-500'}`} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
 
               <div ref={messagesEndRef} />
             </div>
