@@ -156,7 +156,7 @@ export default function StudioProfile({ studioId, isOwner = false, onBook }: Stu
         {photos.length > 0 ? (
           <>
             <img
-              src={photos[currentPhotoIndex]?.url || '/studio-default.jpg'}
+              src={photos[currentPhotoIndex]?.url || '/background-studio.jpg'}
               alt={studio.name}
               className="w-full h-full object-cover"
             />

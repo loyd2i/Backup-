@@ -201,7 +201,7 @@ export default function StudioShowcasePage({ studioId, isOwner = false, onBook }
         >
           <div
             className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
-            style={{ backgroundImage: `url(${studio.imageUrl || '/studio-default.jpg'})` }}
+            style={{ backgroundImage: `url(${studio.imageUrl || '/background-studio.jpg'})` }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent" />
 
@@ -237,7 +237,7 @@ export default function StudioShowcasePage({ studioId, isOwner = false, onBook }
               >
                 <div
                   className="w-full h-full bg-cover bg-center"
-                  style={{ backgroundImage: `url(${photo.url || '/studio-default.jpg'})` }}
+                  style={{ backgroundImage: `url(${photo.url || '/background-studio.jpg'})` }}
                 />
               </button>
             ))}
@@ -510,7 +510,7 @@ export default function StudioShowcasePage({ studioId, isOwner = false, onBook }
 
           <div className="max-w-4xl max-h-[80vh] px-12">
             <img
-              src={allPhotos[activePhotoIndex]?.url || '/studio-default.jpg'}
+              src={allPhotos[activePhotoIndex]?.url || '/background-studio.jpg'}
               alt={allPhotos[activePhotoIndex]?.caption || studio.name}
               className="max-w-full max-h-[80vh] object-contain rounded-lg"
             />
