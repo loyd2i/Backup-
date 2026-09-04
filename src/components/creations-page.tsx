@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Music, FileText, Pencil, Plus, X, Save, Globe, Lock, Upload, Loader2, Zap, Disc, Building2, Eye, MessageCircle, Trash2 } from 'lucide-react';
 import AudioPlayer from './audio-player';
+import AudioPlayerWithVersions from './audio-player-with-versions';
 import { analyzeAudio, AudioAnalysisResult } from '@/lib/audio-analyzer';
 
 interface Studio {
@@ -39,6 +40,7 @@ interface Track {
   youtubeUrl?: string | null;
   appleMusicUrl?: string | null;
   deezerUrl?: string | null;
+  versions?: { id: string; label: string | null; audioUrl: string | null; duration: number | null; createdAt: string }[];
 }
 
 interface TextItem {
@@ -239,6 +241,21 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     } catch (error) {
       console.error('Error deleting track:', error);
     }
+  };
+
+  const handleUploadVersion = async (trackId: string, file: File, label: string) => {
+    const formData = new FormData();
+    formData.append('audioFile', file);
+    formData.append('label', label);
+
+    const res = await fetch(`/api/tracks/${trackId}/versions`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      throw new Error('Échec de l\'upload de la version');
+    }
+    fetchData();
   };
 
   const finishedTracks = tracks.filter(t => t.status === 'finished');
@@ -608,33 +625,67 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
               </h2>
               <div className="space-y-4">
                 {filteredTracks.map((track) => (
-                  <AudioPlayer
-                    key={track.id}
-                    trackId={track.id}
-                    title={track.title}
-                    artist={track.artist}
-                    bpm={track.bpm}
-                    keySignature={track.key}
-                    duration={track.duration || 180}
-                    audioUrl={track.audioUrl || undefined}
-                    isPublic={track.isPublic}
-                    isShared={track.isShared}
-                    onTogglePublic={() => handleTogglePublic(track.id, track.isPublic || false)}
-                    views={track.views}
-                    studio={track.studio}
-                    commentCount={track._count?.comments || 0}
-                    hideStudio={isStudioMode}
-                    onDelete={() => handleDeleteTrack(track.id)}
-                    status={track.status}
-                    genre={track.genre}
-                    releaseDate={track.releaseDate}
-                    spotifyUrl={track.spotifyUrl}
-                    youtubeUrl={track.youtubeUrl}
-                    appleMusicUrl={track.appleMusicUrl}
-                    deezerUrl={track.deezerUrl}
-                    canEditRelease={!isStudioMode && !track.isShared}
-                    onReleaseUpdate={fetchData}
-                  />
+                  track.versions && track.versions.length > 0 ? (
+                    <AudioPlayerWithVersions
+                      key={track.id}
+                      trackId={track.id}
+                      title={track.title}
+                      artist={track.artist}
+                      bpm={track.bpm}
+                      keySignature={track.key}
+                      duration={track.duration || 180}
+                      audioUrl={track.audioUrl || undefined}
+                      versions={track.versions.map(v => ({
+                        id: v.id,
+                        label: v.label || 'Version',
+                        audioUrl: v.audioUrl,
+                        duration: v.duration,
+                        uploadedAt: v.createdAt,
+                        notes: null
+                      }))}
+                      isPublic={track.isPublic}
+                      isShared={track.isShared}
+                      onTogglePublic={() => handleTogglePublic(track.id, track.isPublic || false)}
+                      views={track.views}
+                      studio={track.studio}
+                      commentCount={track._count?.comments || 0}
+                      hideStudio={isStudioMode}
+                      onDelete={() => handleDeleteTrack(track.id)}
+                      onUploadVersion={
+                        !isStudioMode && !track.isShared
+                          ? (file, label) => handleUploadVersion(track.id, file, label)
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    <AudioPlayer
+                      key={track.id}
+                      trackId={track.id}
+                      title={track.title}
+                      artist={track.artist}
+                      bpm={track.bpm}
+                      keySignature={track.key}
+                      duration={track.duration || 180}
+                      audioUrl={track.audioUrl || undefined}
+                      isPublic={track.isPublic}
+                      isShared={track.isShared}
+                      onTogglePublic={() => handleTogglePublic(track.id, track.isPublic || false)}
+                      views={track.views}
+                      studio={track.studio}
+                      commentCount={track._count?.comments || 0}
+                      hideStudio={isStudioMode}
+                      onDelete={() => handleDeleteTrack(track.id)}
+                      status={track.status}
+                      genre={track.genre}
+                      releaseDate={track.releaseDate}
+                      spotifyUrl={track.spotifyUrl}
+                      youtubeUrl={track.youtubeUrl}
+                      appleMusicUrl={track.appleMusicUrl}
+                      deezerUrl={track.deezerUrl}
+                      canEditRelease={!isStudioMode && !track.isShared}
+                      onReleaseUpdate={fetchData}
+                    />
+                  )
                 ))}
               </div>
             </div>

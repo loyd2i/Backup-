@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
           orderBy: { createdAt: 'desc' },
           take: 5
         },
+        versions: { orderBy: { version: 'asc' } },
         _count: { select: { comments: true, sharedWith: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -51,6 +52,7 @@ export async function GET(request: NextRequest) {
             orderBy: { createdAt: 'desc' },
             take: 5
           },
+          versions: { orderBy: { version: 'asc' } },
           _count: { select: { comments: true, sharedWith: true } }
         },
         orderBy: { createdAt: 'desc' }
@@ -70,6 +72,7 @@ export async function GET(request: NextRequest) {
               orderBy: { createdAt: 'desc' },
               take: 5
             },
+            versions: { orderBy: { version: 'asc' } },
             _count: { select: { comments: true } }
           }
         }

@@ -38,7 +38,7 @@ export async function POST(
 
     const { id: trackId } = await params;
     const body = await request.json();
-    const { content } = body;
+    const { content, timestamp } = body;
 
     if (!content || content.trim() === '') {
       return NextResponse.json({ error: 'Commentaire vide' }, { status: 400 });
@@ -71,7 +71,8 @@ export async function POST(
       data: {
         trackId,
         userId: user.id,
-        content: content.trim()
+        content: content.trim(),
+        timestamp: typeof timestamp === 'number' ? Math.floor(timestamp) : null
       },
       include: {
         user: { select: { id: true, name: true, avatar: true } }

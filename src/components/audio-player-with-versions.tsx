@@ -118,35 +118,40 @@ export default function AudioPlayerWithVersions({
     };
   }, []);
 
-  // Switch version - keep playing if was playing
+  // Switch version - keep playing (and playback position) if was playing
   const switchVersion = (index: number) => {
     const wasPlaying = isPlaying;
-    
+
     // Stop current playback
     if (isPlaying) {
       if (audioRef.current) audioRef.current.pause();
       if (intervalRef.current) clearInterval(intervalRef.current);
       setIsPlaying(false);
     }
-    
+
+    // Keep the current playback position, clamped to the new version's duration
+    const newVersion = allVersions[index];
+    const newDuration = newVersion?.duration || duration;
+    const resumeTime = Math.min(currentTime, newDuration || 0);
+
     setActiveVersionIndex(index);
-    setCurrentTime(0);
+    setCurrentTime(resumeTime);
     setShowVersionSelect(false);
-    
-    // Auto-resume on new version after a brief delay
-    if (wasPlaying) {
-      setTimeout(() => {
-        const newVersion = allVersions[index];
-        if (newVersion?.audioUrl && audioRef.current) {
-          audioRef.current.src = newVersion.audioUrl;
+
+    // Auto-resume on new version, from the same position, after a brief delay
+    setTimeout(() => {
+      if (newVersion?.audioUrl && audioRef.current) {
+        audioRef.current.src = newVersion.audioUrl;
+        audioRef.current.currentTime = resumeTime;
+        if (wasPlaying) {
           audioRef.current.play();
           setIsPlaying(true);
           intervalRef.current = setInterval(() => {
             if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
           }, 100);
         }
-      }, 100);
-    }
+      }
+    }, 100);
   };
 
   const togglePlay = () => {
@@ -215,6 +220,13 @@ export default function AudioPlayerWithVersions({
     }
   };
 
+  // Load comments on mount so timestamped markers show on the waveform
+  // without requiring the user to open the comments modal first
+  useEffect(() => {
+    fetchComments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackId]);
+
   // Submit comment (with optional timestamp)
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,37 +285,40 @@ export default function AudioPlayerWithVersions({
       <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden border border-[#2a2a2a] shadow-lg">
         {/* Header */}
         <div className="p-5 pb-3">
-          <div className="flex items-start gap-4">
-            {/* Cover / Play */}
-            <div className="w-14 h-14 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#6366f1]/20">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
-                <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-              </svg>
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-white font-semibold truncate">{artist}</h3>
-                {isPublic ? (
-                  <Globe className="w-3.5 h-3.5 text-[#6366f1] flex-shrink-0" />
-                ) : (
-                  <Lock className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                )}
+          <div className="flex items-start gap-4 flex-wrap">
+            {/* Cover + Info */}
+            <div className="flex items-start gap-4 flex-1 min-w-[180px]">
+              {/* Cover / Play */}
+              <div className="w-14 h-14 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#6366f1]/20">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                  <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                </svg>
               </div>
-              <p className="text-gray-400 text-sm truncate">{title}</p>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {bpm && <span className="text-[#6366f1] text-xs font-semibold">{bpm} BPM</span>}
-                {keySignature && <span className="text-[#8b5cf6] text-xs">{keySignature}</span>}
-                {!hideStudio && studio && (
-                  <span className="text-[#f59e0b] text-xs">🎙 {studio.name}</span>
-                )}
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-white font-semibold truncate">{artist}</h3>
+                  {isPublic ? (
+                    <Globe className="w-3.5 h-3.5 text-[#6366f1] flex-shrink-0" />
+                  ) : (
+                    <Lock className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                  )}
+                </div>
+                <p className="text-gray-400 text-sm truncate">{title}</p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  {bpm && <span className="text-[#6366f1] text-xs font-semibold">{bpm} BPM</span>}
+                  {keySignature && <span className="text-[#8b5cf6] text-xs">{keySignature}</span>}
+                  {!hideStudio && studio && (
+                    <span className="text-[#f59e0b] text-xs">🎙 {studio.name}</span>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Version Switcher */}
             {allVersions.length > 1 && (
-              <div className="relative">
+              <div className="relative flex-shrink-0">
                 <button
                   onClick={() => setShowVersionSelect(!showVersionSelect)}
                   className="flex items-center gap-2 bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90 transition-all shadow-lg shadow-[#6366f1]/20"
@@ -345,7 +360,7 @@ export default function AudioPlayerWithVersions({
             )}
 
             {/* Stats & Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <div className="flex items-center gap-1 text-gray-500 text-sm">
                 <Eye className="w-4 h-4" /> {views}
               </div>

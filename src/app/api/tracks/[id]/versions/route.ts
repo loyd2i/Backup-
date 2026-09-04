@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { getUser } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
 // GET /api/tracks/:id/versions - Get all versions of a track
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const versions = await prisma.trackVersion.findMany({
-      where: { trackId: params.id },
+      where: { trackId: id },
       orderBy: { version: 'asc' },
     });
 
@@ -25,13 +27,15 @@ export async function GET(
 // POST /api/tracks/:id/versions - Upload a new version
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getUser(request);
+    const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
+
+    const { id } = await params;
 
     const formData = await request.formData();
     const audioFile = formData.get('audioFile') as File | null;
@@ -40,7 +44,7 @@ export async function POST(
 
     // Check track ownership
     const track = await prisma.track.findFirst({
-      where: { id: params.id, userId: user.id },
+      where: { id, userId: user.id },
       include: { versions: { orderBy: { version: 'desc' }, take: 1 } }
     });
 
@@ -58,7 +62,7 @@ export async function POST(
       const uploadsDir = path.join(process.cwd(), 'public', 'audio');
       await mkdir(uploadsDir, { recursive: true });
 
-      const fileName = `${params.id}-v${nextVersion}-${Date.now()}${path.extname(audioFile.name)}`;
+      const fileName = `${id}-v${nextVersion}-${Date.now()}${path.extname(audioFile.name)}`;
       const filePath = path.join(uploadsDir, fileName);
       const bytes = new Uint8Array(await audioFile.arrayBuffer());
       await writeFile(filePath, bytes);
@@ -68,7 +72,7 @@ export async function POST(
     // Create version
     const version = await prisma.trackVersion.create({
       data: {
-        trackId: params.id,
+        trackId: id,
         version: nextVersion,
         label: label || `V${nextVersion}`,
         audioUrl,
@@ -79,7 +83,7 @@ export async function POST(
     // If this is V1 and track has no audioUrl, set it
     if (nextVersion === 1 && !track.audioUrl && audioUrl) {
       await prisma.track.update({
-        where: { id: params.id },
+        where: { id },
         data: { audioUrl, duration: duration ? parseInt(duration) : null },
       });
     }
@@ -94,19 +98,20 @@ export async function POST(
 // DELETE /api/tracks/:id/versions - Delete a version
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getUser(request);
+    const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 
+    const { id } = await params;
     const { versionId } = await request.json();
 
     // Check ownership
     const track = await prisma.track.findFirst({
-      where: { id: params.id, userId: user.id },
+      where: { id, userId: user.id },
     });
 
     if (!track) {
