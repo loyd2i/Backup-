@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAppStore, PageType } from '@/lib/store';
-import { Home, Calendar, Music, MessageSquare, Settings, Menu, X, MessageCircle, Building2, Users, FileText, BarChart3, Cast } from 'lucide-react';
+import { Home, Calendar, Music, MessageSquare, Settings, Menu, X, MessageCircle, Building2, Users, FileText, BarChart3, Cast, Share2 } from 'lucide-react';
 
 interface Props {
   children: React.ReactNode;
@@ -134,6 +134,17 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
               <Cast className="w-5 h-5" />
               <span className="font-medium">E-Studio</span>
             </button>
+            <button
+              onClick={() => handleNavClick('onelib')}
+              className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all ${
+                currentPage === 'onelib'
+                  ? 'bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white'
+                  : 'bg-[#2a2a2a] text-white hover:bg-[#3a3a3a]'
+              }`}
+            >
+              <Share2 className="w-5 h-5" />
+              <span className="font-medium">Onelib</span>
+            </button>
           </div>
         </nav>
 
@@ -195,6 +206,17 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
               title="E-Studio"
             >
               <Cast className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => handleNavClick('onelib')}
+              className={`p-2 rounded-lg transition-colors ${
+                currentPage === 'onelib'
+                  ? 'bg-[#6366f1] text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-[#2a2a2a]'
+              }`}
+              title="Onelib"
+            >
+              <Share2 className="w-5 h-5" />
             </button>
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -283,6 +305,17 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
             >
               <Cast className="w-5 h-5" />
               <span className="font-medium">E-Studio</span>
+            </button>
+            <button
+              onClick={() => handleNavClick('onelib')}
+              className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all ${
+                currentPage === 'onelib'
+                  ? 'bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white'
+                  : 'text-gray-400 hover:bg-[#2a2a2a] hover:text-white'
+              }`}
+            >
+              <Share2 className="w-5 h-5" />
+              <span className="font-medium">Onelib</span>
             </button>
           </div>
         </nav>

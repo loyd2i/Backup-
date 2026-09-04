@@ -42,6 +42,9 @@ model User {
   eStudioParticipations EStudioParticipant[] @relation("EStudioParticipations")
   eStudioChatMessages   EStudioChatMessage[] @relation("EStudioChatMessages")
   eStudioAnnotations    EStudioAnnotation[]  @relation("EStudioAnnotations")
+
+  // Onelib (hub de diffusion des sorties)
+  onelibReleases        OnelibRelease[]
 }
 
 // Studio d'enregistrement
@@ -244,9 +247,10 @@ model Track {
   updatedAt   DateTime @updatedAt
   
   // Relations
-  versions    TrackVersion[]
-  comments    TrackComment[]
-  sharedWith  TrackShare[]
+  versions        TrackVersion[]
+  comments        TrackComment[]
+  sharedWith      TrackShare[]
+  onelibRelease   OnelibRelease?
 }
 
 // Version d'une track (V1, V2, etc.)
@@ -549,4 +553,22 @@ model EStudioSignal {
   kind       String   @default("screen") // screen (D1.3, 1 présentateur -> N) ou audio (D1.4, mesh complet)
   payload    String   // SDP ou candidat ICE, JSON stringifié
   createdAt  DateTime @default(now())
+}
+
+// Onelib : hub de diffusion d'une track terminée (smart link, QR code, kit de distribution)
+model OnelibRelease {
+  id            String    @id @default(cuid())
+  trackId       String    @unique
+  track         Track     @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  slug          String    @unique // URL publique de la page smart link : /o/{slug}
+  status        String    @default("draft") // draft, published
+  description   String?
+  soundcloudUrl String?
+  coverUrl      String?   // override optionnel (sinon on reprend track.coverUrl)
+  views         Int       @default(0)
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
