@@ -72,7 +72,7 @@ export default function ReglagesPage() {
       items: [
         { icon: User, label: 'Profil utilisateur' },
         { icon: Mail, label: 'E-mail', value: user?.email || '' },
-        { icon: Phone, label: 'Télephone', value: user?.phone || 'Non renseigné' },
+        { icon: Phone, label: 'Téléphone', value: user?.phone || 'Non renseigné' },
         { icon: Lock, label: 'Mot de passe', value: '••••••••' },
       ],
     },
