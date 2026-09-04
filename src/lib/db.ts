@@ -6,9 +6,7 @@ const globalForPrisma = globalThis as unknown as {
 
 // Create Prisma client instance
 const prismaClient = globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ['query'],
-  })
+  new PrismaClient()
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prismaClient
 

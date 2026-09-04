@@ -38,7 +38,6 @@ interface Conversation {
   lastMessageTime: string;
   unreadCount: number;
   avatar?: string;
-  online?: boolean;
 }
 
 interface FilePreview {
@@ -130,7 +129,6 @@ export default function MessageriePage() {
             lastMessage: msg.content,
             lastMessageTime: msg.createdAt,
             unreadCount: 0,
-            online: Math.random() > 0.5,
           });
         }
       });
@@ -318,9 +316,6 @@ export default function MessageriePage() {
                 <div className="w-12 h-12 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-full flex items-center justify-center text-white font-bold text-lg">
                   {convo.name[0]}
                 </div>
-                {convo.online && (
-                  <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-[#121212]" />
-                )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
@@ -356,16 +351,10 @@ export default function MessageriePage() {
                   <div className="w-11 h-11 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-full flex items-center justify-center text-white font-bold">
                     {allConversations.find(c => c.id === selectedConversation)?.name[0]}
                   </div>
-                  {allConversations.find(c => c.id === selectedConversation)?.online && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#1a1a1a]" />
-                  )}
                 </div>
                 <div>
                   <p className="text-white font-medium">
                     {allConversations.find(c => c.id === selectedConversation)?.name}
-                  </p>
-                  <p className="text-green-400 text-xs">
-                    {allConversations.find(c => c.id === selectedConversation)?.online ? 'En ligne' : 'Hors ligne'}
                   </p>
                 </div>
               </div>
@@ -681,9 +670,6 @@ export default function MessageriePage() {
                   <div className="w-14 h-14 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-full flex items-center justify-center text-white font-bold text-lg">
                     {convo.name[0]}
                   </div>
-                  {convo.online && (
-                    <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-[#121212]" />
-                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
