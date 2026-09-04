@@ -42,6 +42,7 @@ export default function StudioHoursSettings({ studioId }: StudioHoursSettingsPro
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [newBlock, setNewBlock] = useState({
     date: '',
@@ -112,12 +113,16 @@ export default function StudioHoursSettings({ studioId }: StudioHoursSettingsPro
       });
 
       if (res.ok) {
-        // Show success feedback
+        setSaveMessage('Horaires enregistrés avec succès');
+      } else {
+        setSaveMessage('Erreur lors de l\'enregistrement');
       }
     } catch (error) {
       console.error('Error saving hours:', error);
+      setSaveMessage('Erreur lors de l\'enregistrement');
     } finally {
       setIsSaving(false);
+      setTimeout(() => setSaveMessage(''), 3000);
     }
   };
 
@@ -180,14 +185,21 @@ export default function StudioHoursSettings({ studioId }: StudioHoursSettingsPro
             <Clock className="w-5 h-5 text-[#f59e0b]" />
             <h3 className="text-white font-semibold">Horaires d'ouverture</h3>
           </div>
-          <button
-            onClick={saveHours}
-            disabled={isSaving}
-            className="flex items-center gap-2 bg-[#f59e0b] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#e8950a] transition-colors disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" />
-            {isSaving ? 'Enregistrement...' : 'Enregistrer'}
-          </button>
+          <div className="flex items-center gap-3">
+            {saveMessage && (
+              <span className={`text-sm ${saveMessage.startsWith('Erreur') ? 'text-red-400' : 'text-green-400'}`}>
+                {saveMessage}
+              </span>
+            )}
+            <button
+              onClick={saveHours}
+              disabled={isSaving}
+              className="flex items-center gap-2 bg-[#f59e0b] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#e8950a] transition-colors disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+              {isSaving ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
+          </div>
         </div>
 
         <div className="divide-y divide-[#2a2a2a]">

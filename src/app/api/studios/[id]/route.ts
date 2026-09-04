@@ -14,7 +14,9 @@ export async function GET(
       where: { id },
       include: {
         photos: { orderBy: { order: 'asc' } },
-        links: { orderBy: { order: 'asc' }, where: { isActive: true } }
+        links: { orderBy: { order: 'asc' }, where: { isActive: true } },
+        pricingTiers: { where: { isActive: true }, orderBy: { price: 'asc' } },
+        availabilities: { orderBy: { dayOfWeek: 'asc' } }
       }
     });
 
@@ -113,7 +115,9 @@ export async function PATCH(
       data: body,
       include: {
         photos: { orderBy: { order: 'asc' } },
-        links: { orderBy: { order: 'asc' } }
+        links: { orderBy: { order: 'asc' } },
+        pricingTiers: { where: { isActive: true }, orderBy: { price: 'asc' } },
+        availabilities: { orderBy: { dayOfWeek: 'asc' } }
       }
     });
 
