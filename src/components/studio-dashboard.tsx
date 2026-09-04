@@ -35,6 +35,7 @@ interface Invoice {
   amount: number;
   status: string;
   createdAt: string;
+  appointmentId: string | null;
   user: { name: string; email: string };
   appointment: { date: string; startTime: string };
 }
@@ -442,9 +443,15 @@ export default function StudioDashboard() {
                     {invoice.status === 'paid' ? 'Payée' : 'En attente'}
                   </span>
                   <div className="flex items-center gap-2">
-                    <button className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-white transition-colors">
-                      <Download className="w-4 h-4" />
-                    </button>
+                    {invoice.appointmentId && (
+                      <button
+                        onClick={() => window.open(`/api/appointments/${invoice.appointmentId}/receipt`, '_blank')}
+                        className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-white transition-colors"
+                        title="Télécharger le reçu (avec commission)"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    )}
                     <button className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-white transition-colors">
                       <Send className="w-4 h-4" />
                     </button>

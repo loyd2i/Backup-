@@ -13,8 +13,10 @@ import {
   LogOut,
   ChevronRight,
   Save,
+  Percent,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { PLATFORM_COMMISSION_RATE } from '@/lib/tax-config';
 
 export default function ReglagesPage() {
   const user = useAppStore((state) => state.user);
@@ -81,6 +83,9 @@ export default function ReglagesPage() {
       items: [
         { icon: CreditCard, label: 'Paramètres de paiement' },
         { icon: CreditCard, label: 'Moyens de paiement' },
+        ...(user?.role === 'studio_owner'
+          ? [{ icon: Percent, label: 'Commission plateforme', value: `${(PLATFORM_COMMISSION_RATE * 100).toFixed(0)}%` }]
+          : []),
       ],
     },
     {

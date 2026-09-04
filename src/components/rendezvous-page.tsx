@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Calendar, Clock, MapPin, ChevronLeft, ChevronRight, Star, AlertCircle, Check, X } from 'lucide-react';
+import { Calendar, Clock, MapPin, ChevronLeft, ChevronRight, Star, AlertCircle, Check, X, Download } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
 interface Studio {
@@ -497,13 +497,24 @@ export default function RendezvousPage() {
                     <p className="text-white font-medium capitalize">{formatDate(rdv.date)}</p>
                     <p className="text-gray-400">{rdv.startTime} - {rdv.studio.name}</p>
                   </div>
-                  <span className={`text-sm px-3 py-1 rounded-full ${
-                    rdv.status === 'cancelled' 
-                      ? 'bg-red-500/20 text-red-400' 
-                      : 'bg-gray-500/20 text-gray-400'
-                  }`}>
-                    {rdv.status === 'cancelled' ? 'Annulé' : 'Terminé'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm px-3 py-1 rounded-full ${
+                      rdv.status === 'cancelled'
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      {rdv.status === 'cancelled' ? 'Annulé' : 'Terminé'}
+                    </span>
+                    {rdv.status === 'completed' && (
+                      <button
+                        onClick={() => window.open(`/api/appointments/${rdv.id}/invoice`, '_blank')}
+                        className="p-1.5 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
+                        title="Télécharger la facture"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))

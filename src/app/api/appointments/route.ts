@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { PLATFORM_COMMISSION_RATE } from '@/lib/tax-config';
 
 // GET - Rendez-vous de l'utilisateur ou du studio
 export async function GET(request: NextRequest) {
@@ -199,17 +200,49 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // If status is 'completed', generate invoice automatically
+    // If status is 'completed', generate invoice + créditer le portefeuille studio (commission plateforme 3%)
     if (status === 'completed' && existingAppt.totalPrice) {
+      const description = `Session du ${new Date(existingAppt.date).toLocaleDateString('fr-FR')} - ${existingAppt.startTime} (${existingAppt.duration}h)`;
+
       await prisma.invoice.create({
         data: {
           userId: existingAppt.userId,
           studioName: existingAppt.studio.name,
           amount: existingAppt.totalPrice,
-          description: `Session du ${new Date(existingAppt.date).toLocaleDateString('fr-FR')} - ${existingAppt.startTime} (${existingAppt.duration}h)`,
+          description,
           appointmentId: existingAppt.id,
           status: 'paid' // Already captured from pre-auth
         }
+      });
+
+      const commissionAmount = Math.round(existingAppt.totalPrice * PLATFORM_COMMISSION_RATE * 100) / 100;
+      const netAmount = Math.round((existingAppt.totalPrice - commissionAmount) * 100) / 100;
+
+      await prisma.studio.update({
+        where: { id: existingAppt.studioId },
+        data: {
+          walletBalance: { increment: netAmount },
+          totalEarnings: { increment: netAmount },
+        }
+      });
+
+      await prisma.walletTransaction.createMany({
+        data: [
+          {
+            studioId: existingAppt.studioId,
+            type: 'earning',
+            amount: netAmount,
+            appointmentId: existingAppt.id,
+            description,
+          },
+          {
+            studioId: existingAppt.studioId,
+            type: 'fee',
+            amount: commissionAmount,
+            appointmentId: existingAppt.id,
+            description: `Commission plateforme (${(PLATFORM_COMMISSION_RATE * 100).toFixed(0)}%)`,
+          },
+        ]
       });
     }
 

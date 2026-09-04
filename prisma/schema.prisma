@@ -56,7 +56,7 @@ model Studio {
   ownerId       String
   owner         User     @relation("StudioOwner", fields: [ownerId], references: [id])
   isActive      Boolean  @default(true)
-  
+
   // Nouvelles infos vitrine
   phone         String?  // Téléphone
   website       String?  // Site web
@@ -66,18 +66,38 @@ model Studio {
   youtube       String?  // YouTube URL
   spotify       String?  // Spotify artist/studio URL
   soundcloud    String?  // Soundcloud URL
-  
+
+  // Facturation
+  country       String   @default("FR") // Code pays pour le taux de TVA (voir src/lib/tax-config.ts)
+
+  // Portefeuille studio
+  walletBalance Float    @default(0) // Solde disponible (net après commission)
+  totalEarnings Float    @default(0) // Cumul historique des gains nets
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  
+
   // Relations
-  appointments   Appointment[]
-  availabilities Availability[]
-  pricingTiers   PricingTier[]
-  blocks         StudioBlock[]
-  tracks         Track[]     // Tracks travaillées par ce studio
-  photos         StudioPhoto[]
-  links          StudioLink[]
+  appointments       Appointment[]
+  availabilities     Availability[]
+  pricingTiers       PricingTier[]
+  blocks             StudioBlock[]
+  tracks             Track[]     // Tracks travaillées par ce studio
+  photos             StudioPhoto[]
+  links              StudioLink[]
+  walletTransactions WalletTransaction[]
+}
+
+// Mouvement du portefeuille studio (crédit après session, commission plateforme)
+model WalletTransaction {
+  id            String   @id @default(cuid())
+  studioId      String
+  studio        Studio   @relation(fields: [studioId], references: [id])
+  type          String   // earning (crédit net studio), fee (commission plateforme)
+  amount        Float
+  appointmentId String?
+  description   String?
+  createdAt     DateTime @default(now())
 }
 
 // Photos du studio
