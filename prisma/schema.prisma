@@ -49,6 +49,7 @@ model Studio {
   pricePerHour  Float    @default(50)
   rating        Float    @default(4.5)
   imageUrl      String?
+  coverUrl      String?  // Image de couverture (bannière vitrine)
   equipment     String?  // Équipement disponible
   capacity      Int?     // Nombre de personnes max
   latitude      Float?   // Coordonnée GPS pour la carte

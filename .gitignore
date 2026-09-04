@@ -49,3 +49,6 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# fichiers uploadés par les utilisateurs (générés à l'exécution)
+/public/uploads/

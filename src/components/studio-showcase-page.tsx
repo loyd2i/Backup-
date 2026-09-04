@@ -580,6 +580,35 @@ function StudioEditModal({
   });
   const [links, setLinks] = useState<StudioLink[]>(studio.links || []);
   const [newLink, setNewLink] = useState({ title: '', url: '', icon: '' });
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setIsUploadingPhoto(true);
+    try {
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      uploadData.append('type', 'profile');
+      const res = await fetch(`/api/studios/${studio.id}/upload`, {
+        method: 'POST',
+        body: uploadData,
+      });
+      if (res.ok) {
+        onSave();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        console.error('Erreur upload photo:', data.error);
+      }
+    } catch (error) {
+      console.error('Erreur upload photo:', error);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
 
   const handleSaveInfo = async () => {
     setIsSaving(true);
@@ -712,6 +741,13 @@ function StudioEditModal({
               <p className="text-gray-400 text-sm">
                 Gérez les photos de votre studio. La première photo sera utilisée comme image principale.
               </p>
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoSelected}
+              />
               <div className="grid grid-cols-3 gap-3">
                 {studio.imageUrl && (
                   <div className="aspect-square bg-[#2a2a2a] rounded-lg overflow-hidden relative group">
@@ -720,11 +756,21 @@ function StudioEditModal({
                       style={{ backgroundImage: `url(${studio.imageUrl})` }}
                     />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <button className="text-white text-sm">Changer</button>
+                      <button
+                        onClick={() => photoInputRef.current?.click()}
+                        disabled={isUploadingPhoto}
+                        className="text-white text-sm disabled:opacity-50"
+                      >
+                        {isUploadingPhoto ? 'Envoi...' : 'Changer'}
+                      </button>
                     </div>
                   </div>
                 )}
-                <button className="aspect-square bg-[#2a2a2a] rounded-lg border-2 border-dashed border-[#3a3a3a] flex items-center justify-center hover:border-[#6366f1] transition-colors">
+                <button
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={isUploadingPhoto}
+                  className="aspect-square bg-[#2a2a2a] rounded-lg border-2 border-dashed border-[#3a3a3a] flex items-center justify-center hover:border-[#6366f1] transition-colors disabled:opacity-50"
+                >
                   <Plus className="w-8 h-8 text-gray-500" />
                 </button>
               </div>
