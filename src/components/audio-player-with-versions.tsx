@@ -190,6 +190,12 @@ export default function AudioPlayerWithVersions({
     }
   };
 
+  const handleSkip = (delta: number) => {
+    const newTime = Math.min(Math.max(currentTime + delta, 0), activeDuration || 0);
+    setCurrentTime(newTime);
+    if (audioRef.current) audioRef.current.currentTime = newTime;
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -432,7 +438,7 @@ export default function AudioPlayerWithVersions({
             <span className="text-xs text-gray-500">{formatTime(currentTime)}</span>
 
             <div className="flex items-center gap-2">
-              <button className="p-1 text-gray-500 hover:text-white transition-colors">
+              <button onClick={() => handleSkip(-5)} className="p-1 text-gray-500 hover:text-white transition-colors">
                 <SkipBack className="w-4 h-4" />
               </button>
               <button
@@ -441,7 +447,7 @@ export default function AudioPlayerWithVersions({
               >
                 {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
               </button>
-              <button className="p-1 text-gray-500 hover:text-white transition-colors">
+              <button onClick={() => handleSkip(5)} className="p-1 text-gray-500 hover:text-white transition-colors">
                 <SkipForward className="w-4 h-4" />
               </button>
             </div>
