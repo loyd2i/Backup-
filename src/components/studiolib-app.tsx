@@ -17,6 +17,7 @@ import StudioMessages from './studio-messages';
 import PublicCreationsPage from './public-creations-page';
 import PublicStudiosPage from './public-studios-page';
 import PublicVitrinePage from './public-vitrine-page';
+import PublicOnelibPage from './public-onelib-page';
 
 export default function StudiolibApp() {
   const currentPage = useAppStore((state) => state.currentPage);
@@ -29,16 +30,19 @@ export default function StudiolibApp() {
   // Public page state from URL query params
   const [publicPage, setPublicPage] = useState<string | null>(null);
   const [publicStudioId, setPublicStudioId] = useState<string | null>(null);
+  const [publicSlug, setPublicSlug] = useState<string | null>(null);
 
   // Parse URL query parameters on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const publicParam = params.get('public');
     const studioParam = params.get('studio');
-    
+    const slugParam = params.get('slug');
+
     if (publicParam) {
       setPublicPage(publicParam);
       if (studioParam) setPublicStudioId(studioParam);
+      if (slugParam) setPublicSlug(slugParam);
     }
   }, []);
 
@@ -48,13 +52,16 @@ export default function StudiolibApp() {
       const params = new URLSearchParams(window.location.search);
       const publicParam = params.get('public');
       const studioParam = params.get('studio');
-      
+      const slugParam = params.get('slug');
+
       if (publicParam) {
         setPublicPage(publicParam);
         if (studioParam) setPublicStudioId(studioParam);
+        if (slugParam) setPublicSlug(slugParam);
       } else {
         setPublicPage(null);
         setPublicStudioId(null);
+        setPublicSlug(null);
       }
     };
 
@@ -72,37 +79,9 @@ export default function StudiolibApp() {
     else setPublicStudioId(null);
   };
 
-  // ─── Public Pages (no auth required) ───
-  if (publicPage) {
-    switch (publicPage) {
-      case 'creations':
-        return <PublicCreationsPage />;
-      
-      case 'vitrine':
-        if (publicStudioId) {
-          return (
-            <PublicVitrinePage
-              studioId={publicStudioId}
-              onBack={() => navigatePublic('vitrine')}
-            />
-          );
-        }
-        return (
-          <PublicStudiosPage
-            onSelectStudio={(id) => navigatePublic('vitrine', id)}
-          />
-        );
-      
-      case 'forum':
-        return <ForumPage />;
-      
-      default:
-        return <PublicCreationsPage />;
-    }
-  }
-
   // ─── Auth Check ───
   // Check for existing session on mount
+  // (doit s'exécuter avant tout retour anticipé pour respecter l'ordre des hooks)
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -127,6 +106,46 @@ export default function StudiolibApp() {
       setCurrentPage('e-studio');
     }
   }, [isLoggedIn, setCurrentPage]);
+
+  // ─── Public Pages (no auth required) ───
+  if (publicPage) {
+    switch (publicPage) {
+      case 'creations':
+        return <PublicCreationsPage />;
+      
+      case 'vitrine':
+        if (publicStudioId) {
+          return (
+            <PublicVitrinePage
+              studioId={publicStudioId}
+              onBack={() => navigatePublic('vitrine')}
+            />
+          );
+        }
+        return (
+          <PublicStudiosPage
+            onSelectStudio={(id) => navigatePublic('vitrine', id)}
+          />
+        );
+      
+      case 'forum':
+        return <ForumPage />;
+
+      case 'onelib':
+        if (publicSlug) {
+          return (
+            <PublicOnelibPage
+              slug={publicSlug}
+              onBack={() => navigatePublic('creations')}
+            />
+          );
+        }
+        return <PublicCreationsPage />;
+
+      default:
+        return <PublicCreationsPage />;
+    }
+  }
 
   // Show login page if not logged in
   if (!isLoggedIn || currentPage === 'login') {
