@@ -68,14 +68,11 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-64 bg-[#1a1a1a] border-r border-[#2a2a2a] flex-col z-40">
         {/* Logo - Cliquable pour revenir au menu */}
-        <button 
+        <button
           onClick={goToMenu}
           className="p-6 border-b border-[#2a2a2a] hover:bg-[#222] transition-colors cursor-pointer"
         >
-          <div className="flex items-center gap-3">
-            <img src="/logo-icon.png" alt="Studiolib" width={48} height={48} />
-            <img src="/logo-text.png" alt="Studiolib" width={130} height={45} />
-          </div>
+          <img src="/logo-text.png" alt="Studiolib" width={150} height={52} />
         </button>
 
         {/* Studio Badge */}
@@ -158,22 +155,18 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
         </div>
       </aside>
 
-      {/* Header with centered round logo - Mobile & Desktop */}
+      {/* Header - logo centré : rond sur desktop (texte déjà dans la sidebar), texte sur mobile (rond déjà dans le menu) */}
       <header className="fixed top-0 left-0 right-0 lg:left-64 bg-[#1a1a1a] border-b border-[#2a2a2a] z-40">
-        <div className="flex items-center justify-between px-4 py-3">
-          {/* Left: Text logo (clickable) */}
-          <button 
+        <div className="flex items-center justify-end px-4 py-3">
+          {/* Center: Logo (clickable) */}
+          <button
             onClick={goToMenu}
-            className="hover:opacity-80 transition-opacity"
+            className="absolute left-1/2 -translate-x-1/2 hover:opacity-80 transition-opacity"
           >
-            <img src="/logo-text.png" alt="Studiolib" width={100} height={35} />
+            <img src="/logo-icon.png" alt="Studiolib" width={40} height={40} className="hidden lg:block" />
+            <img src="/logo-text.png" alt="Studiolib" width={110} height={38} className="lg:hidden" />
           </button>
-          
-          {/* Center: Round logo */}
-          <div className="absolute left-1/2 -translate-x-1/2">
-            <img src="/logo-icon.png" alt="Studiolib" width={40} height={40} />
-          </div>
-          
+
           {/* Right: Forum + Menu buttons */}
           <div className="flex items-center gap-2">
             {isStudioMode && (
@@ -228,9 +221,8 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
         }`}
       >
         <div className="p-6 border-b border-[#2a2a2a]">
-          <button onClick={goToMenu} className="flex items-center gap-3 hover:opacity-80">
-            <img src="/logo-icon.png" alt="Studiolib" width={48} height={48} />
-            <img src="/logo-text.png" alt="Studiolib" width={130} height={45} />
+          <button onClick={goToMenu} className="hover:opacity-80">
+            <img src="/logo-icon.png" alt="Studiolib" width={56} height={56} />
           </button>
         </div>
         
