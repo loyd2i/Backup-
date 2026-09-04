@@ -7,6 +7,7 @@ import {
   Smile, MoreVertical, Search, Camera, FileAudio, FileVideo, FileText as FileDoc,
   ChevronLeft, Phone, VideoIcon, Play
 } from 'lucide-react';
+import { useAppStore } from '@/lib/store';
 
 interface Attachment {
   id: string;
@@ -47,6 +48,7 @@ interface FilePreview {
 }
 
 export default function MessageriePage() {
+  const currentUser = useAppStore((state) => state.user);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -254,14 +256,7 @@ export default function MessageriePage() {
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
   };
 
-  // Demo conversations with online status
-  const demoConversations: Conversation[] = [
-    { id: 'studio-1', name: 'Studio Alpha', role: 'studio', lastMessage: 'Votre réservation est confirmée pour demain à 14h', lastMessageTime: new Date().toISOString(), unreadCount: 2, online: true },
-    { id: 'studio-2', name: 'BeatMaker Pro', role: 'artiste', lastMessage: 'Merci pour le partage du projet!', lastMessageTime: new Date(Date.now() - 86400000).toISOString(), unreadCount: 0, online: false },
-    { id: 'studio-3', name: 'MixMaster Studio', role: 'studio', lastMessage: 'Voici le fichier final mixé', lastMessageTime: new Date(Date.now() - 172800000).toISOString(), unreadCount: 1, online: true },
-  ];
-
-  const allConversations = conversations.length > 0 ? conversations : demoConversations;
+  const allConversations = conversations;
 
   return (
     <div className="h-[calc(100vh-120px)] lg:h-[calc(100vh-80px)] flex bg-[#121212]" ref={dropZoneRef}>
@@ -374,118 +369,51 @@ export default function MessageriePage() {
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0d0d0d]">
               {messages.length === 0 ? (
-                // Demo messages
-                <>
-                  <div className="text-center py-4">
-                    <span className="text-gray-500 text-xs bg-[#2a2a2a] px-4 py-1.5 rounded-full">
-                      {formatDate(new Date().toISOString())}
-                    </span>
-                  </div>
-                  
-                  {/* Received message with attachment */}
-                  <div className="flex gap-2 max-w-[85%]">
-                    <div className="w-8 h-8 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">
-                      S
-                    </div>
-                    <div className="flex-1">
-                      <div className="bg-[#2a2a2a] rounded-2xl rounded-tl-sm p-3">
-                        <p className="text-white mb-2">Bonjour! Voici le fichier audio que vous aviez demandé. 👋</p>
-                        
-                        {/* Audio attachment preview - WhatsApp style */}
-                        <div className="bg-[#1a1a1a] rounded-xl overflow-hidden">
-                          <div className="flex items-center gap-3 p-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
-                              <Music className="w-6 h-6 text-white" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-white text-sm font-medium truncate">mix_final_v2.mp3</p>
-                              <p className="text-gray-500 text-xs">3.2 Mo • MP3</p>
-                            </div>
-                            <button className="w-10 h-10 bg-[#6366f1] rounded-full flex items-center justify-center hover:bg-[#5558e3] transition-colors">
-                              <Download className="w-5 h-5 text-white" />
-                            </button>
-                          </div>
-                          {/* Mini player */}
-                          <div className="px-3 pb-3">
-                            <div className="flex items-center gap-2">
-                              <button className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
-                                <Play className="w-4 h-4 text-white ml-0.5" />
-                              </button>
-                              <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
-                                <div className="h-full w-1/3 bg-[#6366f1] rounded-full" />
-                              </div>
-                              <span className="text-gray-400 text-xs">1:23</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-gray-500 text-xs">14:32</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Sent message */}
-                  <div className="flex justify-end">
-                    <div className="max-w-[85%]">
-                      <div className="bg-[#6366f1] rounded-2xl rounded-tr-sm p-3">
-                        <p className="text-white">Super, merci beaucoup! Je l'écoute tout de suite. 🎧</p>
-                      </div>
-                      <div className="flex justify-end items-center gap-1 mt-1">
-                        <span className="text-gray-500 text-xs">14:35</span>
-                        <CheckCheck className="w-4 h-4 text-[#6366f1]" />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Image attachment message */}
-                  <div className="flex gap-2 max-w-[85%]">
-                    <div className="w-8 h-8 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">
-                      B
-                    </div>
-                    <div>
-                      <div className="bg-[#2a2a2a] rounded-2xl rounded-tl-sm p-1 overflow-hidden max-w-[280px]">
-                        <div className="aspect-video bg-gradient-to-br from-[#6366f1]/20 to-[#8b5cf6]/20 rounded-xl flex items-center justify-center">
-                          <ImageIcon className="w-10 h-10 text-gray-500" />
-                        </div>
-                        <p className="text-white text-sm p-2">Voici la pochette pour le single!</p>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-gray-500 text-xs">14:40</span>
-                      </div>
-                    </div>
-                  </div>
-                </>
+                <p className="text-center text-gray-500 text-sm py-4">
+                  Aucun message échangé pour le moment.
+                </p>
               ) : (
-                messages.map((msg) => (
-                  <div key={msg.id} className="flex gap-2 max-w-[85%]">
-                    <div className="w-8 h-8 bg-[#6366f1] rounded-full flex-shrink-0" />
-                    <div>
-                      <div className="bg-[#2a2a2a] rounded-2xl rounded-tl-sm p-3">
-                        <p className="text-white">{msg.content}</p>
-                        {msg.attachments && msg.attachments.length > 0 && (
-                          <div className="mt-3 space-y-2">
-                            {msg.attachments.map((att) => (
-                              <div key={att.id} className="bg-[#1a1a1a] rounded-xl p-3 flex items-center gap-3">
-                                <div className={`w-10 h-10 ${getFileColor(att.fileType)} rounded-lg flex items-center justify-center text-white`}>
-                                  {getFileIcon(att.fileType)}
+                messages.map((msg) => {
+                  const isSentByMe = msg.sender.id === currentUser?.id;
+                  return (
+                    <div key={msg.id} className={isSentByMe ? 'flex justify-end' : 'flex gap-2 max-w-[85%]'}>
+                      {!isSentByMe && (
+                        <div className="w-8 h-8 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">
+                          {msg.sender.name[0]}
+                        </div>
+                      )}
+                      <div className={isSentByMe ? 'max-w-[85%]' : ''}>
+                        <div className={`rounded-2xl p-3 ${isSentByMe ? 'bg-[#6366f1] rounded-tr-sm' : 'bg-[#2a2a2a] rounded-tl-sm'}`}>
+                          <p className="text-white">{msg.content}</p>
+                          {msg.attachments && msg.attachments.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              {msg.attachments.map((att) => (
+                                <div key={att.id} className="bg-[#1a1a1a] rounded-xl p-3 flex items-center gap-3">
+                                  <div className={`w-10 h-10 ${getFileColor(att.fileType)} rounded-lg flex items-center justify-center text-white`}>
+                                    {getFileIcon(att.fileType)}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-white text-sm font-medium truncate">{att.fileName}</p>
+                                    <p className="text-gray-500 text-xs">{formatFileSize(att.fileSize)}</p>
+                                  </div>
+                                  <button className="text-[#6366f1] hover:bg-[#6366f1]/10 p-2 rounded-lg transition-colors">
+                                    <Download className="w-5 h-5" />
+                                  </button>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-white text-sm font-medium truncate">{att.fileName}</p>
-                                  <p className="text-gray-500 text-xs">{formatFileSize(att.fileSize)}</p>
-                                </div>
-                                <button className="text-[#6366f1] hover:bg-[#6366f1]/10 p-2 rounded-lg transition-colors">
-                                  <Download className="w-5 h-5" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className={`flex items-center gap-1 mt-1 ${isSentByMe ? 'justify-end' : ''}`}>
+                          <span className="text-gray-500 text-xs">{formatTime(msg.createdAt)}</span>
+                          {isSentByMe && (
+                            <CheckCheck className={`w-4 h-4 ${msg.isRead ? 'text-[#6366f1]' : 'text-gray-500'}`} />
+                          )}
+                        </div>
                       </div>
-                      <span className="text-gray-500 text-xs mt-1 block">{formatTime(msg.createdAt)}</span>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
               <div ref={messagesEndRef} />
             </div>
