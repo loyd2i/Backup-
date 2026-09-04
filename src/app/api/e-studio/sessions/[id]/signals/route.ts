@@ -65,12 +65,15 @@ export async function POST(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
     }
 
-    const { toUserId, type, payload } = await request.json();
+    const { toUserId, type, payload, kind } = await request.json();
     if (!toUserId || !type || !payload) {
       return NextResponse.json({ error: 'Champs manquants' }, { status: 400 });
     }
     if (!['offer', 'answer', 'ice-candidate'].includes(type)) {
       return NextResponse.json({ error: 'Type invalide' }, { status: 400 });
+    }
+    if (kind && !['screen', 'audio'].includes(kind)) {
+      return NextResponse.json({ error: 'Kind invalide' }, { status: 400 });
     }
 
     const signal = await prisma.eStudioSignal.create({
@@ -79,6 +82,7 @@ export async function POST(
         fromUserId: user.id,
         toUserId,
         type,
+        kind: kind || 'screen',
         payload: typeof payload === 'string' ? payload : JSON.stringify(payload),
       }
     });

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
-// PATCH - Partage d'écran (un seul présentateur à la fois) : soi-même ou
-// l'hôte qui force l'arrêt / passe le tour à quelqu'un d'autre
+// PATCH - Écran partagé (un seul présentateur à la fois), micro (mute) et
+// statut de connexion audio ("connected" = a rejoint l'audio collaboratif)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; participantId: string }> }
@@ -15,10 +15,10 @@ export async function PATCH(
     }
 
     const { id, participantId } = await params;
-    const { isScreenSharing } = await request.json();
+    const { isScreenSharing, isMuted, connectionState } = await request.json();
 
-    if (typeof isScreenSharing !== 'boolean') {
-      return NextResponse.json({ error: 'isScreenSharing requis' }, { status: 400 });
+    if (isScreenSharing === undefined && isMuted === undefined && connectionState === undefined) {
+      return NextResponse.json({ error: 'Aucun champ à mettre à jour' }, { status: 400 });
     }
 
     const session = await prisma.eStudioSession.findUnique({ where: { id } });
@@ -37,23 +37,47 @@ export async function PATCH(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
     }
 
-    if (isScreenSharing) {
-      if (!session.enableScreenShare) {
-        return NextResponse.json({ error: 'Le partage d\'écran est désactivé pour cette session' }, { status: 400 });
+    const data: { isScreenSharing?: boolean; isMuted?: boolean; connectionState?: string } = {};
+
+    if (typeof isScreenSharing === 'boolean') {
+      if (isScreenSharing) {
+        if (!session.enableScreenShare) {
+          return NextResponse.json({ error: 'Le partage d\'écran est désactivé pour cette session' }, { status: 400 });
+        }
+        if (!participant.canShareScreen) {
+          return NextResponse.json({ error: 'Ce participant n\'est pas autorisé à partager son écran' }, { status: 403 });
+        }
+        // Un seul présentateur à la fois : on coupe les autres avant d'activer celui-ci
+        await prisma.eStudioParticipant.updateMany({
+          where: { sessionId: id, id: { not: participantId } },
+          data: { isScreenSharing: false }
+        });
       }
-      if (!participant.canShareScreen) {
-        return NextResponse.json({ error: 'Ce participant n\'est pas autorisé à partager son écran' }, { status: 403 });
+      data.isScreenSharing = isScreenSharing;
+    }
+
+    if (typeof isMuted === 'boolean') {
+      // Se rendre muet : soi-même ou l'hôte. Se démuter : soi-même uniquement
+      // (l'hôte ne peut pas activer le micro de quelqu'un d'autre à sa place).
+      if (isMuted === false && !isSelf) {
+        return NextResponse.json({ error: 'Seul le participant peut réactiver son propre micro' }, { status: 403 });
       }
-      // Un seul présentateur à la fois : on coupe les autres avant d'activer celui-ci
-      await prisma.eStudioParticipant.updateMany({
-        where: { sessionId: id, id: { not: participantId } },
-        data: { isScreenSharing: false }
-      });
+      data.isMuted = isMuted;
+    }
+
+    if (typeof connectionState === 'string') {
+      if (!isSelf) {
+        return NextResponse.json({ error: 'Seul le participant peut modifier son propre statut de connexion' }, { status: 403 });
+      }
+      if (!['new', 'connecting', 'connected', 'disconnected', 'failed'].includes(connectionState)) {
+        return NextResponse.json({ error: 'Statut de connexion invalide' }, { status: 400 });
+      }
+      data.connectionState = connectionState;
     }
 
     const updated = await prisma.eStudioParticipant.update({
       where: { id: participantId },
-      data: { isScreenSharing },
+      data,
       include: { user: { select: { id: true, name: true } } }
     });
 

@@ -546,6 +546,7 @@ model EStudioSignal {
   fromUserId String
   toUserId   String   // destinataire ciblé
   type       String   // offer, answer, ice-candidate
+  kind       String   @default("screen") // screen (D1.3, 1 présentateur -> N) ou audio (D1.4, mesh complet)
   payload    String   // SDP ou candidat ICE, JSON stringifié
   createdAt  DateTime @default(now())
 }

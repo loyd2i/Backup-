@@ -5,7 +5,7 @@ import { useAppStore } from '@/lib/store';
 import {
   Cast, Plus, X, Users, Radio, Clock, CheckCircle2, Video, MonitorUp,
   MessageSquare, PenLine, CircleDot, Mic, ArrowLeft, Link2, Check,
-  Play, Square, UserX, Send, Crown,
+  Play, Square, UserX, Send, Crown, MicOff, Volume2,
 } from 'lucide-react';
 
 // Serveurs ICE par défaut (STUN public) si la session n'en précise pas
@@ -101,6 +101,16 @@ export default function EStudioPage() {
   const signalPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const presenterUserIdRef = useRef<string | null>(null);
 
+  // Audio collaboratif (mesh complet)
+  const [isAudioJoined, setIsAudioJoined] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const [remoteAudioStreams, setRemoteAudioStreams] = useState<Map<string, MediaStream>>(new Map());
+  const [remoteVolumes, setRemoteVolumes] = useState<Map<string, number>>(new Map());
+  const localAudioStreamRef = useRef<MediaStream | null>(null);
+  const audioPeerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const audioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
 
   useEffect(() => {
@@ -173,9 +183,15 @@ export default function EStudioPage() {
         const data = await res.json();
         for (const sig of data.signals || []) {
           const payload = JSON.parse(sig.payload);
-          if (sig.type === 'offer') await handleOffer(sig.fromUserId, payload);
-          else if (sig.type === 'answer') await handleAnswer(sig.fromUserId, payload);
-          else if (sig.type === 'ice-candidate') await handleIceCandidate(sig.fromUserId, payload);
+          if (sig.kind === 'audio') {
+            if (sig.type === 'offer') await handleAudioOffer(sig.fromUserId, payload);
+            else if (sig.type === 'answer') await handleAudioAnswer(sig.fromUserId, payload);
+            else if (sig.type === 'ice-candidate') await handleAudioIceCandidate(sig.fromUserId, payload);
+          } else {
+            if (sig.type === 'offer') await handleOffer(sig.fromUserId, payload);
+            else if (sig.type === 'answer') await handleAnswer(sig.fromUserId, payload);
+            else if (sig.type === 'ice-candidate') await handleIceCandidate(sig.fromUserId, payload);
+          }
         }
       } catch (error) {
         console.error('Error polling signals:', error);
@@ -216,6 +232,13 @@ export default function EStudioPage() {
       setIsScreenSharing(false);
       setRemoteScreenStream(null);
       presenterUserIdRef.current = null;
+
+      localAudioStreamRef.current?.getTracks().forEach(t => t.stop());
+      localAudioStreamRef.current = null;
+      audioPeerConnectionsRef.current.forEach(pc => pc.close());
+      audioPeerConnectionsRef.current.clear();
+      setIsAudioJoined(false);
+      setRemoteAudioStreams(new Map());
     };
   }, [selectedSessionId]);
 
@@ -226,6 +249,61 @@ export default function EStudioPage() {
   useEffect(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
   }, [isScreenSharing]);
+
+  // Découverte du mesh audio : à chaque rafraîchissement des participants,
+  // on se connecte à tout nouveau participant "connected", et on nettoie
+  // les connexions vers ceux qui sont partis. Règle anti-glare : seul celui
+  // dont l'userId est le plus petit envoie l'offre (l'autre attend/répond).
+  useEffect(() => {
+    if (!detail || !user || !isAudioJoined) return;
+
+    const connectedPeers = detail.participants.filter(
+      p => p.userId !== user.id && p.connectionState === 'connected'
+    );
+
+    for (const p of connectedPeers) {
+      if (!audioPeerConnectionsRef.current.has(p.userId) && user.id < p.userId) {
+        initiateAudioOffer(p.userId);
+      }
+    }
+
+    for (const peerId of Array.from(audioPeerConnectionsRef.current.keys())) {
+      if (!connectedPeers.some(p => p.userId === peerId)) {
+        audioPeerConnectionsRef.current.get(peerId)?.close();
+        audioPeerConnectionsRef.current.delete(peerId);
+        setRemoteAudioStreams(prev => {
+          const next = new Map(prev);
+          next.delete(peerId);
+          return next;
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail, user, isAudioJoined]);
+
+  // Synchronise mon micro avec l'état serveur (mon propre toggle, ou un mute
+  // forcé par l'hôte à distance)
+  useEffect(() => {
+    if (!detail || !user || !localAudioStreamRef.current) return;
+    const mine = detail.participants.find(p => p.userId === user.id);
+    if (!mine) return;
+    localAudioStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !mine.isMuted; });
+    setIsMuted(prev => (prev !== mine.isMuted ? mine.isMuted : prev));
+  }, [detail, user]);
+
+  // Lie chaque flux audio distant à son élément <audio> et applique le volume local
+  useEffect(() => {
+    remoteAudioStreams.forEach((stream, peerId) => {
+      const el = audioElsRef.current.get(peerId);
+      if (el && el.srcObject !== stream) el.srcObject = stream;
+    });
+  }, [remoteAudioStreams]);
+
+  const setRemoteVolume = (peerId: string, volume: number) => {
+    setRemoteVolumes(prev => new Map(prev).set(peerId, volume));
+    const el = audioElsRef.current.get(peerId);
+    if (el) el.volume = volume;
+  };
 
   const fetchSessions = async () => {
     try {
@@ -277,13 +355,13 @@ export default function EStudioPage() {
     return DEFAULT_ICE_SERVERS;
   };
 
-  const sendSignal = async (toUserId: string, type: string, payload: unknown) => {
+  const sendSignal = async (toUserId: string, type: string, payload: unknown, kind: 'screen' | 'audio' = 'screen') => {
     if (!selectedSessionId) return;
     try {
       await fetch(`/api/e-studio/sessions/${selectedSessionId}/signals`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toUserId, type, payload })
+        body: JSON.stringify({ toUserId, type, payload, kind })
       });
     } catch (error) {
       console.error('Error sending signal:', error);
@@ -322,6 +400,116 @@ export default function EStudioPage() {
         console.error('Error adding ICE candidate:', error);
       }
     }
+  };
+
+  // ─── Audio collaboratif (mesh complet, chacun connecté à chacun) ───
+
+  const createAudioPeerConnection = (peerUserId: string): RTCPeerConnection => {
+    const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+    audioPeerConnectionsRef.current.set(peerUserId, pc);
+
+    if (localAudioStreamRef.current) {
+      localAudioStreamRef.current.getTracks().forEach(track => {
+        pc.addTrack(track, localAudioStreamRef.current!);
+      });
+    }
+
+    pc.ontrack = (e) => {
+      setRemoteAudioStreams(prev => {
+        const next = new Map(prev);
+        next.set(peerUserId, e.streams[0]);
+        return next;
+      });
+    };
+    pc.onicecandidate = (e) => {
+      if (e.candidate) sendSignal(peerUserId, 'ice-candidate', e.candidate.toJSON(), 'audio');
+    };
+
+    return pc;
+  };
+
+  const initiateAudioOffer = async (peerUserId: string) => {
+    const pc = createAudioPeerConnection(peerUserId);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendSignal(peerUserId, 'offer', pc.localDescription, 'audio');
+  };
+
+  const handleAudioOffer = async (fromUserId: string, sdp: RTCSessionDescriptionInit) => {
+    audioPeerConnectionsRef.current.get(fromUserId)?.close();
+    const pc = createAudioPeerConnection(fromUserId);
+    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    sendSignal(fromUserId, 'answer', pc.localDescription, 'audio');
+  };
+
+  const handleAudioAnswer = async (fromUserId: string, sdp: RTCSessionDescriptionInit) => {
+    const pc = audioPeerConnectionsRef.current.get(fromUserId);
+    if (pc) await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+  };
+
+  const handleAudioIceCandidate = async (fromUserId: string, candidate: RTCIceCandidateInit) => {
+    const pc = audioPeerConnectionsRef.current.get(fromUserId);
+    if (pc) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (error) {
+        console.error('Error adding audio ICE candidate:', error);
+      }
+    }
+  };
+
+  const updateMyParticipant = async (data: Record<string, unknown>) => {
+    if (!selectedSessionId || !detail || !user) return;
+    const mine = detail.participants.find(p => p.userId === user.id);
+    if (!mine) return;
+    try {
+      await fetch(`/api/e-studio/sessions/${selectedSessionId}/participants/${mine.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    } catch (error) {
+      console.error('Error updating participant:', error);
+    }
+  };
+
+  const joinAudio = async () => {
+    if (!selectedSessionId) return;
+    setAudioError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localAudioStreamRef.current = stream;
+      setIsAudioJoined(true);
+      setIsMuted(false);
+      await updateMyParticipant({ connectionState: 'connected', isMuted: false });
+      fetchSessionDetail(selectedSessionId);
+    } catch (error) {
+      console.error('Error joining audio:', error);
+      setAudioError('Micro indisponible ou autorisation refusée');
+    }
+  };
+
+  const leaveAudio = async () => {
+    localAudioStreamRef.current?.getTracks().forEach(t => t.stop());
+    localAudioStreamRef.current = null;
+    audioPeerConnectionsRef.current.forEach(pc => pc.close());
+    audioPeerConnectionsRef.current.clear();
+    setRemoteAudioStreams(new Map());
+    setIsAudioJoined(false);
+    if (selectedSessionId) {
+      await updateMyParticipant({ connectionState: 'new' });
+      fetchSessionDetail(selectedSessionId);
+    }
+  };
+
+  const toggleMute = async () => {
+    if (!localAudioStreamRef.current) return;
+    const nextMuted = !isMuted;
+    localAudioStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !nextMuted; });
+    setIsMuted(nextMuted);
+    await updateMyParticipant({ isMuted: nextMuted });
   };
 
   const startScreenShare = async () => {
@@ -650,6 +838,54 @@ export default function EStudioPage() {
                 )}
               </div>
 
+              {/* Audio collaboratif */}
+              {detail.status !== 'ended' && (
+                <div className="mt-4 pt-4 border-t border-[#2a2a2a] flex items-center gap-3 flex-wrap">
+                  {!isAudioJoined ? (
+                    <button
+                      onClick={joinAudio}
+                      style={{ backgroundColor: accentColor }}
+                      className="flex items-center gap-2 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
+                    >
+                      <Mic className="w-3.5 h-3.5" />
+                      Rejoindre l'audio
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={toggleMute}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          isMuted ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-[#2a2a2a] text-white hover:bg-[#3a3a3a]'
+                        }`}
+                      >
+                        {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                        {isMuted ? 'Micro coupé' : 'Micro actif'}
+                      </button>
+                      <button
+                        onClick={leaveAudio}
+                        className="text-xs text-gray-400 hover:text-white underline underline-offset-2"
+                      >
+                        Quitter l'audio
+                      </button>
+                    </>
+                  )}
+                  <span className="text-gray-500 text-xs">
+                    {detail.participants.filter(p => p.connectionState === 'connected').length} en audio
+                  </span>
+                  {audioError && <span className="text-red-400 text-xs">{audioError}</span>}
+                </div>
+              )}
+
+              {/* Flux audio distants (invisibles, lecture automatique) */}
+              {Array.from(remoteAudioStreams.keys()).map((peerId) => (
+                <audio
+                  key={peerId}
+                  autoPlay
+                  ref={(el) => { if (el) audioElsRef.current.set(peerId, el); }}
+                  className="hidden"
+                />
+              ))}
+
               {inviteLink && (
                 <div className="mt-4 bg-[#121212] rounded-xl p-3 flex items-center gap-2">
                   <input
@@ -732,35 +968,73 @@ export default function EStudioPage() {
                   </h2>
                 </div>
                 <div className="divide-y divide-[#2a2a2a]">
-                  {detail.participants.map((p) => (
-                    <div key={p.id} className="p-3 flex items-center gap-3">
-                      <div
-                        style={{ backgroundColor: accentColor }}
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-                      >
-                        {p.user.name[0]}
+                  {detail.participants.map((p) => {
+                    const isConnectedAudio = p.connectionState === 'connected';
+                    const hasRemoteStream = remoteAudioStreams.has(p.userId);
+                    return (
+                      <div key={p.id} className="p-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            style={{ backgroundColor: accentColor }}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                          >
+                            {p.user.name[0]}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm truncate flex items-center gap-1">
+                              {p.user.name}
+                              {p.role === 'host' && <Crown className="w-3 h-3 text-yellow-400" />}
+                              {p.isScreenSharing && <MonitorUp className="w-3 h-3 text-[#6366f1]" />}
+                            </p>
+                            <p className="text-gray-500 text-xs flex items-center gap-1.5">
+                              {p.role === 'host' ? 'Hôte' : 'Participant'}
+                              {isConnectedAudio && (
+                                p.isMuted
+                                  ? <span className="flex items-center gap-0.5 text-red-400"><MicOff className="w-3 h-3" /> muet</span>
+                                  : <span className="flex items-center gap-0.5 text-green-400"><Mic className="w-3 h-3" /> audio</span>
+                              )}
+                            </p>
+                          </div>
+                          {isHost && p.userId !== user?.id && isConnectedAudio && !p.isMuted && (
+                            <button
+                              onClick={() => fetch(`/api/e-studio/sessions/${selectedSessionId}/participants/${p.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ isMuted: true })
+                              }).then(() => fetchSessionDetail(selectedSessionId!))}
+                              className="text-gray-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                              title="Couper son micro"
+                            >
+                              <MicOff className="w-4 h-4" />
+                            </button>
+                          )}
+                          {isHost && p.role !== 'host' && detail.status !== 'ended' && (
+                            <button
+                              onClick={() => handleExpel(p.id)}
+                              className="text-gray-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                              title="Expulser"
+                            >
+                              <UserX className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        {hasRemoteStream && (
+                          <div className="flex items-center gap-2 mt-2 pl-11">
+                            <Volume2 className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              defaultValue={1}
+                              onChange={(e) => setRemoteVolume(p.userId, parseFloat(e.target.value))}
+                              className="w-full accent-[#6366f1] h-1"
+                            />
+                          </div>
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm truncate flex items-center gap-1">
-                          {p.user.name}
-                          {p.role === 'host' && <Crown className="w-3 h-3 text-yellow-400" />}
-                          {p.isScreenSharing && <MonitorUp className="w-3 h-3 text-[#6366f1]" />}
-                        </p>
-                        <p className="text-gray-500 text-xs">
-                          {p.role === 'host' ? 'Hôte' : 'Participant'}
-                        </p>
-                      </div>
-                      {isHost && p.role !== 'host' && detail.status !== 'ended' && (
-                        <button
-                          onClick={() => handleExpel(p.id)}
-                          className="text-gray-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
-                          title="Expulser"
-                        >
-                          <UserX className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
