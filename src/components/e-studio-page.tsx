@@ -94,6 +94,7 @@ export default function EStudioPage() {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [remoteScreenStream, setRemoteScreenStream] = useState<MediaStream | null>(null);
   const [screenShareError, setScreenShareError] = useState<string | null>(null);
+  const [screenConnectionState, setScreenConnectionState] = useState<RTCPeerConnectionState | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localVideoRef = useRef<HTMLVideoElement>(null);
@@ -107,6 +108,7 @@ export default function EStudioPage() {
   const [audioError, setAudioError] = useState<string | null>(null);
   const [remoteAudioStreams, setRemoteAudioStreams] = useState<Map<string, MediaStream>>(new Map());
   const [remoteVolumes, setRemoteVolumes] = useState<Map<string, number>>(new Map());
+  const [audioConnectionStates, setAudioConnectionStates] = useState<Map<string, RTCPeerConnectionState>>(new Map());
   const localAudioStreamRef = useRef<MediaStream | null>(null);
   const audioPeerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const audioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
@@ -231,6 +233,7 @@ export default function EStudioPage() {
       peerConnectionsRef.current.clear();
       setIsScreenSharing(false);
       setRemoteScreenStream(null);
+      setScreenConnectionState(null);
       presenterUserIdRef.current = null;
 
       localAudioStreamRef.current?.getTracks().forEach(t => t.stop());
@@ -239,6 +242,7 @@ export default function EStudioPage() {
       audioPeerConnectionsRef.current.clear();
       setIsAudioJoined(false);
       setRemoteAudioStreams(new Map());
+      setAudioConnectionStates(new Map());
     };
   }, [selectedSessionId]);
 
@@ -272,6 +276,11 @@ export default function EStudioPage() {
         audioPeerConnectionsRef.current.get(peerId)?.close();
         audioPeerConnectionsRef.current.delete(peerId);
         setRemoteAudioStreams(prev => {
+          const next = new Map(prev);
+          next.delete(peerId);
+          return next;
+        });
+        setAudioConnectionStates(prev => {
           const next = new Map(prev);
           next.delete(peerId);
           return next;
@@ -378,6 +387,14 @@ export default function EStudioPage() {
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSignal(fromUserId, 'ice-candidate', e.candidate.toJSON());
     };
+    pc.onconnectionstatechange = () => {
+      setScreenConnectionState(pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        pc.close();
+        peerConnectionsRef.current.delete(fromUserId);
+        setRemoteScreenStream(null);
+      }
+    };
 
     await pc.setRemoteDescription(new RTCSessionDescription(sdp));
     const answer = await pc.createAnswer();
@@ -423,6 +440,21 @@ export default function EStudioPage() {
     };
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSignal(peerUserId, 'ice-candidate', e.candidate.toJSON(), 'audio');
+    };
+    pc.onconnectionstatechange = () => {
+      setAudioConnectionStates(prev => new Map(prev).set(peerUserId, pc.connectionState));
+      if (pc.connectionState === 'failed') {
+        // On abandonne cette connexion : le prochain cycle de découverte
+        // (déclenché par le polling des participants) la rétablira
+        // automatiquement si les deux côtés sont toujours en audio.
+        pc.close();
+        audioPeerConnectionsRef.current.delete(peerUserId);
+        setRemoteAudioStreams(prev => {
+          const next = new Map(prev);
+          next.delete(peerUserId);
+          return next;
+        });
+      }
     };
 
     return pc;
@@ -497,6 +529,7 @@ export default function EStudioPage() {
     audioPeerConnectionsRef.current.forEach(pc => pc.close());
     audioPeerConnectionsRef.current.clear();
     setRemoteAudioStreams(new Map());
+    setAudioConnectionStates(new Map());
     setIsAudioJoined(false);
     if (selectedSessionId) {
       await updateMyParticipant({ connectionState: 'new' });
@@ -510,6 +543,30 @@ export default function EStudioPage() {
     localAudioStreamRef.current.getAudioTracks().forEach(t => { t.enabled = !nextMuted; });
     setIsMuted(nextMuted);
     await updateMyParticipant({ isMuted: nextMuted });
+  };
+
+  // Envoie (ou renvoie, après une coupure) l'offre d'écran partagé à un spectateur précis
+  const offerScreenTo = async (peerUserId: string) => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    peerConnectionsRef.current.get(peerUserId)?.close();
+    const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+    peerConnectionsRef.current.set(peerUserId, pc);
+    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    pc.onicecandidate = (e) => {
+      if (e.candidate) sendSignal(peerUserId, 'ice-candidate', e.candidate.toJSON());
+    };
+    pc.onconnectionstatechange = () => {
+      setScreenConnectionState(pc.connectionState);
+      if (pc.connectionState === 'failed' && localStreamRef.current) {
+        // Reconnexion automatique vers ce spectateur
+        peerConnectionsRef.current.delete(peerUserId);
+        offerScreenTo(peerUserId);
+      }
+    };
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendSignal(peerUserId, 'offer', pc.localDescription);
   };
 
   const startScreenShare = async () => {
@@ -531,15 +588,7 @@ export default function EStudioPage() {
 
       const others = detail.participants.filter(p => p.userId !== user.id);
       for (const p of others) {
-        const pc = new RTCPeerConnection({ iceServers: getIceServers() });
-        peerConnectionsRef.current.set(p.userId, pc);
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
-        pc.onicecandidate = (e) => {
-          if (e.candidate) sendSignal(p.userId, 'ice-candidate', e.candidate.toJSON());
-        };
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        sendSignal(p.userId, 'offer', pc.localDescription);
+        await offerScreenTo(p.userId);
       }
 
       stream.getVideoTracks()[0].onended = () => {
@@ -560,6 +609,7 @@ export default function EStudioPage() {
     peerConnectionsRef.current.forEach(pc => pc.close());
     peerConnectionsRef.current.clear();
     setIsScreenSharing(false);
+    setScreenConnectionState(null);
 
     if (selectedSessionId && detail && user) {
       const myParticipant = detail.participants.find(p => p.userId === user.id);
@@ -797,12 +847,6 @@ export default function EStudioPage() {
                   <p className="text-gray-500 text-sm">
                     {sessionTypeLabel(detail.sessionType)} • Hôte : {detail.host.name}
                   </p>
-                  {detail.status === 'ended' && detail.startedAt && detail.endedAt && (
-                    <p className="text-gray-500 text-sm mt-1">
-                      Durée : {formatDuration(detail.startedAt, detail.endedAt)} •{' '}
-                      {detail.participants.length} participant{detail.participants.length > 1 ? 's' : ''}
-                    </p>
-                  )}
                 </div>
 
                 {isHost && detail.status !== 'ended' && (
@@ -837,6 +881,34 @@ export default function EStudioPage() {
                   </div>
                 )}
               </div>
+
+              {/* Récap de fin de session */}
+              {detail.status === 'ended' && (
+                <div className="mt-4 pt-4 border-t border-[#2a2a2a] grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-[#121212] rounded-xl p-3">
+                    <p className="text-gray-500 text-xs">Durée</p>
+                    <p className="text-white font-semibold">
+                      {detail.startedAt && detail.endedAt ? formatDuration(detail.startedAt, detail.endedAt) : '—'}
+                    </p>
+                  </div>
+                  <div className="bg-[#121212] rounded-xl p-3">
+                    <p className="text-gray-500 text-xs">Participants</p>
+                    <p className="text-white font-semibold">{detail.participants.length}</p>
+                  </div>
+                  <div className="bg-[#121212] rounded-xl p-3">
+                    <p className="text-gray-500 text-xs">Type</p>
+                    <p className="text-white font-semibold">{sessionTypeLabel(detail.sessionType)}</p>
+                  </div>
+                  <div className="bg-[#121212] rounded-xl p-3">
+                    <p className="text-gray-500 text-xs">Terminée le</p>
+                    <p className="text-white font-semibold">
+                      {detail.endedAt
+                        ? new Date(detail.endedAt).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Audio collaboratif */}
               {detail.status !== 'ended' && (
@@ -971,6 +1043,8 @@ export default function EStudioPage() {
                   {detail.participants.map((p) => {
                     const isConnectedAudio = p.connectionState === 'connected';
                     const hasRemoteStream = remoteAudioStreams.has(p.userId);
+                    const myConnStateToThem = p.userId !== user?.id ? audioConnectionStates.get(p.userId) : undefined;
+                    const isReconnecting = myConnStateToThem === 'failed' || myConnStateToThem === 'disconnected';
                     return (
                       <div key={p.id} className="p-3">
                         <div className="flex items-center gap-3">
@@ -992,6 +1066,24 @@ export default function EStudioPage() {
                                 p.isMuted
                                   ? <span className="flex items-center gap-0.5 text-red-400"><MicOff className="w-3 h-3" /> muet</span>
                                   : <span className="flex items-center gap-0.5 text-green-400"><Mic className="w-3 h-3" /> audio</span>
+                              )}
+                              {isAudioJoined && p.userId !== user?.id && isConnectedAudio && (
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                    myConnStateToThem === 'connected'
+                                      ? 'bg-green-400'
+                                      : isReconnecting
+                                        ? 'bg-orange-400 animate-pulse'
+                                        : 'bg-yellow-400 animate-pulse'
+                                  }`}
+                                  title={
+                                    myConnStateToThem === 'connected'
+                                      ? 'Connecté'
+                                      : isReconnecting
+                                        ? 'Reconnexion en cours...'
+                                        : 'Établissement de la connexion...'
+                                  }
+                                />
                               )}
                             </p>
                           </div>
