@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getCurrentUser } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession();
-    if (!session?.user?.id) {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 
@@ -16,7 +16,7 @@ export async function DELETE(
 
     // Get user's studios if they are a studio owner
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: currentUser.id },
       include: { studios: true }
     });
 
@@ -27,7 +27,7 @@ export async function DELETE(
       where: {
         id,
         OR: [
-          { userId: session.user.id },
+          { userId: currentUser.id },
           { studioId: { in: studioIds } }
         ]
       }

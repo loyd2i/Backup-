@@ -1,17 +1,54 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
 export async function GET() {
   try {
     const user = await getCurrentUser();
-    
+
     if (!user) {
       return NextResponse.json({ user: null });
     }
-    
+
     return NextResponse.json({ user });
   } catch (error) {
     console.error('Erreur récupération utilisateur:', error);
     return NextResponse.json({ user: null });
+  }
+}
+
+// PUT - Mettre à jour le profil (nom, téléphone)
+export async function PUT(request: NextRequest) {
+  try {
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { name, phone } = body;
+
+    const updated = await prisma.user.update({
+      where: { id: currentUser.id },
+      data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(phone !== undefined ? { phone } : {}),
+      }
+    });
+
+    return NextResponse.json({
+      user: {
+        id: updated.id,
+        email: updated.email,
+        name: updated.name,
+        role: updated.role,
+        phone: updated.phone,
+        avatar: updated.avatar,
+      }
+    });
+  } catch (error) {
+    console.error('Erreur mise à jour utilisateur:', error);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

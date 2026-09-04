@@ -18,6 +18,7 @@ import { useAppStore } from '@/lib/store';
 
 export default function ReglagesPage() {
   const user = useAppStore((state) => state.user);
+  const setUser = useAppStore((state) => state.setUser);
   const logout = useAppStore((state) => state.logout);
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState('');
@@ -31,9 +32,29 @@ export default function ReglagesPage() {
   };
 
   const handleSave = async () => {
-    setMessage('Profil mis à jour avec succès');
-    setIsEditing(false);
-    setTimeout(() => setMessage(''), 3000);
+    try {
+      const res = await fetch('/api/user', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName, phone: editPhone })
+      });
+
+      if (!res.ok) {
+        throw new Error('Échec de la mise à jour');
+      }
+
+      const data = await res.json();
+      if (user) {
+        setUser({ ...user, name: data.user.name, phone: data.user.phone });
+      }
+      setMessage('Profil mis à jour avec succès');
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setMessage('Erreur lors de la mise à jour du profil');
+    } finally {
+      setIsEditing(false);
+      setTimeout(() => setMessage(''), 3000);
+    }
   };
 
   const handleLogout = async () => {

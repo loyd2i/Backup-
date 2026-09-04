@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+  agentRules: false,
 };
 
 export default nextConfig;
