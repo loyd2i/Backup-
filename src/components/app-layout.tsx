@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAppStore, PageType } from '@/lib/store';
-import { Home, Calendar, Music, MessageSquare, Settings, Menu, X, MessageCircle, Building2, Users, FileText, BarChart3 } from 'lucide-react';
+import { Home, Calendar, Music, MessageSquare, Settings, Menu, X, MessageCircle, Building2, Users, FileText, BarChart3, Cast } from 'lucide-react';
 
 interface Props {
   children: React.ReactNode;
@@ -113,8 +113,8 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
             })}
           </ul>
           
-          {/* Forum Button */}
-          <div className="mt-6 pt-6 border-t border-[#2a2a2a]">
+          {/* Forum + E-Studio Buttons */}
+          <div className="mt-6 pt-6 border-t border-[#2a2a2a] space-y-2">
             <button
               onClick={() => handleNavClick('forum')}
               className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all ${
@@ -125,6 +125,17 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
             >
               <MessageCircle className="w-5 h-5" />
               <span className="font-medium">Forum Son</span>
+            </button>
+            <button
+              onClick={() => handleNavClick('e-studio')}
+              className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all ${
+                currentPage === 'e-studio'
+                  ? 'bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white'
+                  : 'bg-[#2a2a2a] text-white hover:bg-[#3a3a3a]'
+              }`}
+            >
+              <Cast className="w-5 h-5" />
+              <span className="font-medium">E-Studio</span>
             </button>
           </div>
         </nav>
@@ -180,6 +191,17 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
               }`}
             >
               <MessageCircle className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => handleNavClick('e-studio')}
+              className={`p-2 rounded-lg transition-colors ${
+                currentPage === 'e-studio'
+                  ? 'bg-[#6366f1] text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-[#2a2a2a]'
+              }`}
+              title="E-Studio"
+            >
+              <Cast className="w-5 h-5" />
             </button>
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -246,8 +268,8 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
             })}
           </ul>
           
-          {/* Forum in mobile menu */}
-          <div className="mt-4 pt-4 border-t border-[#2a2a2a]">
+          {/* Forum + E-Studio in mobile menu */}
+          <div className="mt-4 pt-4 border-t border-[#2a2a2a] space-y-2">
             <button
               onClick={() => handleNavClick('forum')}
               className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all ${
@@ -258,6 +280,17 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
             >
               <MessageCircle className="w-5 h-5" />
               <span className="font-medium">Forum Son</span>
+            </button>
+            <button
+              onClick={() => handleNavClick('e-studio')}
+              className={`flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all ${
+                currentPage === 'e-studio'
+                  ? 'bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white'
+                  : 'text-gray-400 hover:bg-[#2a2a2a] hover:text-white'
+              }`}
+            >
+              <Cast className="w-5 h-5" />
+              <span className="font-medium">E-Studio</span>
             </button>
           </div>
         </nav>

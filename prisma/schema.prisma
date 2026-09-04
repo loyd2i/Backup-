@@ -36,6 +36,12 @@ model User {
   emailLogs         EmailLog[]
   trackComments     TrackComment[]
   sharedTracks      TrackShare[]
+
+  // E-Studio (sessions collaboratives à distance)
+  hostedEStudioSessions EStudioSession[]     @relation("EStudioHost")
+  eStudioParticipations EStudioParticipant[] @relation("EStudioParticipations")
+  eStudioChatMessages   EStudioChatMessage[] @relation("EStudioChatMessages")
+  eStudioAnnotations    EStudioAnnotation[]  @relation("EStudioAnnotations")
 }
 
 // Studio d'enregistrement
@@ -415,4 +421,117 @@ model ForumLike {
 
   @@unique([userId, postId])
   @@unique([userId, commentId])
+}
+
+// ============================================
+// E-STUDIO - Sessions collaboratives à distance
+// ============================================
+
+model EStudioSession {
+  id                String    @id @default(cuid())
+  title             String
+  hostId            String
+  host              User      @relation("EStudioHost", fields: [hostId], references: [id])
+  status            String    @default("waiting") // waiting, live, ended
+  sessionType       String    @default("session_live") // mixing, mastering, session_live
+  audioQuality      String    @default("standard") // standard, high
+  enableVideo       Boolean   @default(false)
+  enableScreenShare Boolean   @default(true)
+  enableChat        Boolean   @default(true)
+  enableAnnotations Boolean   @default(false)
+  enableRecording   Boolean   @default(false)
+  maxParticipants   Int       @default(5)
+  iceServers        String?   // Config ICE servers (JSON stringifié)
+  signalingToken    String    @unique @default(cuid())
+  scheduledStart    DateTime?
+  scheduledEnd      DateTime?
+  startedAt         DateTime?
+  endedAt           DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  participants EStudioParticipant[]
+  messages     EStudioChatMessage[]
+  annotations  EStudioAnnotation[]
+  invitations  EStudioInvitation[]
+  recordings   EStudioRecording[]
+}
+
+model EStudioParticipant {
+  id              String    @id @default(cuid())
+  sessionId       String
+  session         EStudioSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation("EStudioParticipations", fields: [userId], references: [id])
+  role            String    @default("participant") // host, participant
+  peerId          String?   // Identifiant de peer WebRTC
+  connectionState String    @default("new") // new, connecting, connected, disconnected, failed
+  isMuted         Boolean   @default(false)
+  isVideoOff      Boolean   @default(true)
+  isScreenSharing Boolean   @default(false)
+  canShareAudio   Boolean   @default(true)
+  canShareVideo   Boolean   @default(true)
+  canShareScreen  Boolean   @default(true)
+  inputGain       Float     @default(1)
+  outputVolume    Float     @default(1)
+  joinedAt        DateTime  @default(now())
+  leftAt          DateTime?
+
+  @@unique([sessionId, userId])
+}
+
+model EStudioChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   EStudioSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("EStudioChatMessages", fields: [userId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model EStudioAnnotation {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   EStudioSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("EStudioAnnotations", fields: [userId], references: [id])
+  content   String
+  x         Float?
+  y         Float?
+  createdAt DateTime @default(now())
+}
+
+model EStudioInvitation {
+  id        String    @id @default(cuid())
+  sessionId String
+  session   EStudioSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  token     String    @unique @default(cuid())
+  createdBy String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model EStudioRecording {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   EStudioSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  fileUrl   String?
+  duration  Int?
+  createdAt DateTime @default(now())
+}
+
+model EStudioTemplate {
+  id                String   @id @default(cuid())
+  name              String
+  sessionType       String
+  audioQuality      String   @default("standard")
+  enableVideo       Boolean  @default(false)
+  enableScreenShare Boolean  @default(true)
+  enableChat        Boolean  @default(true)
+  enableAnnotations Boolean  @default(false)
+  enableRecording   Boolean  @default(false)
+  maxParticipants   Int      @default(5)
+  createdAt         DateTime @default(now())
 }

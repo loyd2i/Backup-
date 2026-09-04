@@ -9,6 +9,7 @@ import CreationsPage from './creations-page';
 import MessageriePage from './messagerie-page';
 import ReglagesPage from './reglages-page';
 import ForumPage from './forum-page';
+import EStudioPage from './e-studio-page';
 import AppLayout from './app-layout';
 import StudioDashboard from './studio-dashboard';
 import StudioMessages from './studio-messages';
@@ -139,6 +140,8 @@ export default function StudiolibApp() {
           return <ReglagesPage />;
         case 'forum':
           return <ForumPage />;
+        case 'e-studio':
+          return <EStudioPage />;
         default:
           return <StudioDashboard />;
       }
@@ -162,6 +165,8 @@ export default function StudiolibApp() {
         return <ReglagesPage />;
       case 'forum':
         return <ForumPage />;
+      case 'e-studio':
+        return <EStudioPage />;
       default:
         return <AccueilPage />;
     }
