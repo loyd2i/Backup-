@@ -5,21 +5,31 @@ import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 
-// GET - Messages de l'utilisateur
-export async function GET() {
+// GET - Messages de l'utilisateur (optionnellement filtrés sur une conversation via ?userId=)
+export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+
     const messages = await prisma.message.findMany({
-      where: {
-        OR: [
-          { senderId: user.id },
-          { receiverId: user.id }
-        ]
-      },
+      where: userId
+        ? {
+            OR: [
+              { senderId: user.id, receiverId: userId },
+              { senderId: userId, receiverId: user.id }
+            ]
+          }
+        : {
+            OR: [
+              { senderId: user.id },
+              { receiverId: user.id }
+            ]
+          },
       include: {
         sender: { select: { id: true, name: true, role: true } },
         receiver: { select: { id: true, name: true, role: true } },
