@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Calendar, FileText, MessageSquare, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Eye, Download, Send, Settings, Globe } from 'lucide-react';
+import { Calendar, FileText, MessageSquare, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Eye, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 import StudioHoursSettings from './studio-hours-settings';
 import StudioShowcasePage from './studio-showcase-page';
 
@@ -28,6 +28,16 @@ interface Studio {
   name: string;
   location: string;
   pricePerHour: number;
+  walletBalance: number;
+  totalEarnings: number;
+}
+
+interface WalletTransaction {
+  id: string;
+  type: string; // earning, fee
+  amount: number;
+  description: string | null;
+  createdAt: string;
 }
 
 interface Invoice {
@@ -56,6 +66,7 @@ export default function StudioDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'invoices' | 'projects' | 'hours' | 'vitrine'>('overview');
 
@@ -89,6 +100,11 @@ export default function StudioDashboard() {
         const tracksRes = await fetch('/api/tracks');
         const tracksData = await tracksRes.json();
         setProjects(tracksData.tracks || []);
+
+        // Fetch wallet transactions
+        const walletRes = await fetch(`/api/studios/${ownedStudio.id}/wallet`);
+        const walletData = await walletRes.json();
+        setWalletTransactions(walletData.transactions || []);
       }
     } catch (error) {
       console.error('Error fetching studio data:', error);
@@ -247,6 +263,59 @@ export default function StudioDashboard() {
       {/* Content */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          {/* Portefeuille */}
+          <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
+            <div className="p-5 border-b border-[#2a2a2a] flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-[#6366f1]" />
+                Portefeuille
+              </h2>
+              <span className="text-gray-500 text-sm">Commission plateforme : 3%</span>
+            </div>
+
+            <div className="grid grid-cols-2 divide-x divide-[#2a2a2a] border-b border-[#2a2a2a]">
+              <div className="p-5">
+                <p className="text-gray-400 text-sm mb-1">Solde disponible</p>
+                <p className="text-3xl font-bold text-white">{(studio?.walletBalance ?? 0).toFixed(2)}€</p>
+              </div>
+              <div className="p-5">
+                <p className="text-gray-400 text-sm mb-1">Gains cumulés</p>
+                <p className="text-3xl font-bold text-white">{(studio?.totalEarnings ?? 0).toFixed(2)}€</p>
+              </div>
+            </div>
+
+            {walletTransactions.length === 0 ? (
+              <div className="p-8 text-center">
+                <Wallet className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-400">Aucun mouvement pour le moment</p>
+                <p className="text-gray-500 text-sm mt-1">Le portefeuille se crédite automatiquement après chaque session terminée</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-[#2a2a2a]">
+                {walletTransactions.map((tx) => (
+                  <div key={tx.id} className="p-4 flex items-center gap-3">
+                    {tx.type === 'earning' ? (
+                      <ArrowDownCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    ) : (
+                      <ArrowUpCircle className="w-5 h-5 text-orange-400 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm truncate">
+                        {tx.description || (tx.type === 'earning' ? 'Crédit session' : 'Commission plateforme')}
+                      </p>
+                      <p className="text-gray-500 text-xs">
+                        {new Date(tx.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <p className={`font-semibold ${tx.type === 'earning' ? 'text-green-400' : 'text-orange-400'}`}>
+                      {tx.type === 'earning' ? '+' : '-'}{tx.amount.toFixed(2)}€
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Today's Schedule */}
           <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
             <div className="p-5 border-b border-[#2a2a2a] flex items-center justify-between">
