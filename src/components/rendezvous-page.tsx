@@ -196,6 +196,23 @@ export default function RendezvousPage() {
     }
   };
 
+  const handleCancelAppointment = async (id: string) => {
+    if (!window.confirm('Annuler ce rendez-vous ?')) return;
+
+    try {
+      const res = await fetch('/api/appointments', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: 'cancelled' })
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+    }
+  };
+
   const navigateDate = (direction: 'prev' | 'next') => {
     const newDate = new Date(selectedDate);
     newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
@@ -469,11 +486,19 @@ export default function RendezvousPage() {
                     {rdv.status === 'confirmed' ? 'Confirmé' : 'En attente'}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-400">
-                  <MapPin className="w-4 h-4" />
-                  <span className="text-sm">{rdv.studio.name}</span>
-                  <span className="text-gray-600">•</span>
-                  <span className="text-sm">{rdv.duration}h</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <MapPin className="w-4 h-4" />
+                    <span className="text-sm">{rdv.studio.name}</span>
+                    <span className="text-gray-600">•</span>
+                    <span className="text-sm">{rdv.duration}h</span>
+                  </div>
+                  <button
+                    onClick={() => handleCancelAppointment(rdv.id)}
+                    className="text-sm text-red-400 hover:text-red-300 hover:underline transition-colors"
+                  >
+                    Annuler
+                  </button>
                 </div>
               </div>
             ))

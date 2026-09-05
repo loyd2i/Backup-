@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Calendar, FileText, MessageSquare, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Eye, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X } from 'lucide-react';
 import StudioHoursSettings from './studio-hours-settings';
 import StudioShowcasePage from './studio-showcase-page';
 
@@ -110,6 +110,21 @@ export default function StudioDashboard() {
       console.error('Error fetching studio data:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (id: string, status: string) => {
+    try {
+      const res = await fetch('/api/appointments', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status })
+      });
+      if (res.ok) {
+        fetchStudioData();
+      }
+    } catch (error) {
+      console.error('Error updating appointment status:', error);
     }
   };
 
@@ -461,12 +476,45 @@ export default function StudioDashboard() {
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">
-                          <button className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-white transition-colors">
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-white transition-colors">
-                            <MessageSquare className="w-4 h-4" />
-                          </button>
+                          {apt.status === 'pending' && (
+                            <>
+                              <button
+                                onClick={() => handleStatusChange(apt.id, 'confirmed')}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg text-xs font-medium transition-colors"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                Confirmer
+                              </button>
+                              <button
+                                onClick={() => handleStatusChange(apt.id, 'cancelled')}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg text-xs font-medium transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                Refuser
+                              </button>
+                            </>
+                          )}
+                          {apt.status === 'confirmed' && (
+                            <>
+                              <button
+                                onClick={() => handleStatusChange(apt.id, 'completed')}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg text-xs font-medium transition-colors"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                Marquer terminée
+                              </button>
+                              <button
+                                onClick={() => handleStatusChange(apt.id, 'cancelled')}
+                                className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-red-400 transition-colors"
+                                title="Annuler"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                          {(apt.status === 'completed' || apt.status === 'cancelled') && (
+                            <span className="text-gray-600 text-sm">—</span>
+                          )}
                         </div>
                       </td>
                     </tr>

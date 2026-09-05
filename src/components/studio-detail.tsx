@@ -144,18 +144,8 @@ export default function StudioDetail({ studioId, onClose }: Props) {
       });
 
       if (res.ok) {
-        const data = await res.json();
-        
-        // Send confirmation email
-        await fetch('/api/email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'confirmation',
-            appointmentId: data.appointment.id
-          })
-        });
-        
+        // La demande envoyée / nouvelle demande studio partent automatiquement
+        // côté serveur (POST /api/appointments), pas besoin d'un appel séparé ici.
         setBookingSuccess(true);
         setTimeout(() => {
           onClose();
@@ -338,8 +328,8 @@ export default function StudioDetail({ studioId, onClose }: Props) {
             <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
               <Calendar className="w-10 h-10 text-green-400" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Réservation confirmée !</h2>
-            <p className="text-gray-400 mb-4">Un email de confirmation vous a été envoyé.</p>
+            <h2 className="text-2xl font-bold text-white mb-2">Demande envoyée !</h2>
+            <p className="text-gray-400 mb-4">Le studio doit confirmer votre créneau. Vous recevrez un email dès sa réponse.</p>
             <p className="text-gray-500 text-sm">Vous serez redirigé automatiquement...</p>
           </div>
         ) : (

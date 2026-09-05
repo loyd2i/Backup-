@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { PLATFORM_COMMISSION_RATE } from '@/lib/tax-config';
+import { sendAppointmentEmail } from '@/lib/appointment-emails';
 
 // GET - Rendez-vous de l'utilisateur ou du studio
 export async function GET(request: NextRequest) {
@@ -118,7 +119,11 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    return NextResponse.json({ 
+    // Notifie l'artiste (demande envoyée) et le studio (nouvelle demande à traiter)
+    await sendAppointmentEmail('request_sent', appointment.id);
+    await sendAppointmentEmail('new_request', appointment.id);
+
+    return NextResponse.json({
       appointment, 
       message: 'Rendez-vous créé',
       preAuthorization: {
@@ -171,6 +176,20 @@ export async function PUT(request: NextRequest) {
         user: { select: { id: true, name: true, email: true } }
       }
     });
+
+    // Notifie la partie qui n'a pas déclenché le changement de statut
+    if (status === 'confirmed') {
+      await sendAppointmentEmail('confirmation', id);
+    } else if (status === 'cancelled') {
+      if (isStudioOwner) {
+        await sendAppointmentEmail(
+          existingAppt.status === 'pending' ? 'refused' : 'cancelled_by_studio',
+          id
+        );
+      } else {
+        await sendAppointmentEmail('cancelled_by_artist', id);
+      }
+    }
 
     // Handle pre-authorization based on status
     const preAuth = await prisma.preAuthorization.findUnique({
