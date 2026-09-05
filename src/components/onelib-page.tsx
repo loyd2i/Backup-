@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import OnelibCollectionDetail from './onelib-collection-detail';
 import CoverDropzone from './cover-dropzone';
+import EmptyState from './ui/empty-state';
 import {
   Share2, Music2, ArrowLeft, Eye, CheckCircle2, PenLine, Trash2,
   Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users, ExternalLink, Clock,
@@ -1057,12 +1058,13 @@ export default function OnelibPage() {
       <div>
         <h2 className="text-white font-semibold mb-4">Tracks prêtes à publier</h2>
         {eligibleTracks.length === 0 ? (
-          <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-12 text-center">
-            <Music2 className="w-14 h-14 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400 text-lg">Aucune track terminée disponible</p>
-            <p className="text-gray-500 text-sm mt-1">
-              Passe une track au statut « Terminée » dans Créations pour pouvoir la publier sur Onelib
-            </p>
+          <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a]">
+            <EmptyState
+              icon={Music2}
+              title="Aucune track terminée disponible"
+              description="Passe une track au statut « Terminée » dans Créations pour pouvoir la publier sur Onelib"
+              size="lg"
+            />
           </div>
         ) : (
           <div className="space-y-3">

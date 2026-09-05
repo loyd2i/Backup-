@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Calendar, Clock, MapPin, ChevronLeft, ChevronRight, Star, AlertCircle, Check, X, Download } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import EmptyState from './ui/empty-state';
 
 interface Studio {
   id: string;
@@ -286,6 +287,7 @@ export default function RendezvousPage() {
         </button>
       </div>
 
+      <div key={activeTab} className="tab-fade-in">
       {/* Booking Tab */}
       {activeTab === 'booking' && (
         <>
@@ -466,9 +468,8 @@ export default function RendezvousPage() {
       {activeTab === 'upcoming' && (
         <div className="space-y-4">
           {upcomingRdvs.length === 0 ? (
-            <div className="text-center py-12 bg-[#1a1a1a] rounded-xl">
-              <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-400">Aucun rendez-vous à venir</p>
+            <div className="bg-[#1a1a1a] rounded-xl">
+              <EmptyState icon={Calendar} title="Aucun rendez-vous à venir" />
             </div>
           ) : (
             upcomingRdvs.map((rdv) => (
@@ -510,9 +511,8 @@ export default function RendezvousPage() {
       {activeTab === 'past' && (
         <div className="space-y-4">
           {pastRdvs.length === 0 ? (
-            <div className="text-center py-12 bg-[#1a1a1a] rounded-xl">
-              <Clock className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-400">Aucun historique</p>
+            <div className="bg-[#1a1a1a] rounded-xl">
+              <EmptyState icon={Clock} title="Aucun historique" />
             </div>
           ) : (
             pastRdvs.map((rdv) => (
@@ -546,6 +546,7 @@ export default function RendezvousPage() {
           )}
         </div>
       )}
+      </div>
 
       {/* Confirmation Modal */}
       {showConfirmation && confirmingSlot && selectedStudio && (

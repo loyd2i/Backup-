@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X } from 'lucide-react';
 import StudioHoursSettings from './studio-hours-settings';
+import EmptyState from './ui/empty-state';
 import StudioShowcasePage from './studio-showcase-page';
 
 interface Appointment {
@@ -276,6 +277,7 @@ export default function StudioDashboard() {
       </div>
 
       {/* Content */}
+      <div key={activeTab} className="tab-fade-in">
       {activeTab === 'overview' && (
         <div className="space-y-6">
           {/* Portefeuille */}
@@ -300,11 +302,11 @@ export default function StudioDashboard() {
             </div>
 
             {walletTransactions.length === 0 ? (
-              <div className="p-8 text-center">
-                <Wallet className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">Aucun mouvement pour le moment</p>
-                <p className="text-gray-500 text-sm mt-1">Le portefeuille se crédite automatiquement après chaque session terminée</p>
-              </div>
+              <EmptyState
+                icon={Wallet}
+                title="Aucun mouvement pour le moment"
+                description="Le portefeuille se crédite automatiquement après chaque session terminée"
+              />
             ) : (
               <div className="divide-y divide-[#2a2a2a]">
                 {walletTransactions.map((tx) => (
@@ -344,10 +346,7 @@ export default function StudioDashboard() {
             </div>
             
             {todayAppointments.length === 0 ? (
-              <div className="p-8 text-center">
-                <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">Aucun rendez-vous aujourd'hui</p>
-              </div>
+              <EmptyState icon={Calendar} title="Aucun rendez-vous aujourd'hui" size="sm" />
             ) : (
               <div className="divide-y divide-[#2a2a2a]">
                 {todayAppointments.map((apt) => (
@@ -388,10 +387,7 @@ export default function StudioDashboard() {
             </div>
             
             {upcomingAppointments.length === 0 ? (
-              <div className="p-8 text-center">
-                <Calendar className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-400">Aucun rendez-vous à venir</p>
-              </div>
+              <EmptyState icon={Calendar} title="Aucun rendez-vous à venir" size="sm" />
             ) : (
               <div className="divide-y divide-[#2a2a2a]">
                 {upcomingAppointments.slice(0, 5).map((apt) => (
@@ -427,11 +423,12 @@ export default function StudioDashboard() {
           </div>
           
           {appointments.length === 0 ? (
-            <div className="p-12 text-center">
-              <Calendar className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg">Aucun rendez-vous</p>
-              <p className="text-gray-500 text-sm mt-1">Les réservations apparaîtront ici</p>
-            </div>
+            <EmptyState
+              icon={Calendar}
+              title="Aucun rendez-vous"
+              description="Les réservations apparaîtront ici"
+              size="lg"
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -537,11 +534,12 @@ export default function StudioDashboard() {
           </div>
           
           {invoices.length === 0 ? (
-            <div className="p-12 text-center">
-              <FileText className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg">Aucune facture</p>
-              <p className="text-gray-500 text-sm mt-1">Les factures sont générées automatiquement après chaque session</p>
-            </div>
+            <EmptyState
+              icon={FileText}
+              title="Aucune facture"
+              description="Les factures sont générées automatiquement après chaque session"
+              size="lg"
+            />
           ) : (
             <div className="divide-y divide-[#2a2a2a]">
               {invoices.map((invoice) => (
@@ -591,11 +589,12 @@ export default function StudioDashboard() {
           </div>
           
           {projects.length === 0 ? (
-            <div className="p-12 text-center">
-              <Music className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg">Aucun projet</p>
-              <p className="text-gray-500 text-sm mt-1">Les projets audio apparaîtront ici</p>
-            </div>
+            <EmptyState
+              icon={Music}
+              title="Aucun projet"
+              description="Les projets audio apparaîtront ici"
+              size="lg"
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
               {projects.map((project) => (
@@ -644,6 +643,7 @@ export default function StudioDashboard() {
           <StudioShowcasePage studioId={studio.id} isOwner={true} />
         </div>
       )}
+      </div>
     </div>
   );
 }

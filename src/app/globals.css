@@ -268,3 +268,40 @@ body, .overflow-y-auto, .overflow-auto {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ============================================================
+   Micro-interactions : shimmer de chargement + transition d'onglet
+   ============================================================ */
+
+/* Remplace le simple fondu de .animate-pulse par un balayage lumineux :
+   un seul changement global, tous les squelettes de chargement de
+   l'appli (déjà écrits avec animate-pulse) en profitent automatiquement. */
+@keyframes shimmerSweep {
+  0% { background-position: -300% 0; }
+  100% { background-position: 300% 0; }
+}
+.animate-pulse {
+  animation: none !important;
+  background-image: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.06) 45%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.06) 55%,
+    transparent 70%
+  );
+  background-size: 300% 100%;
+  animation: shimmerSweep 1.8s ease-in-out infinite !important;
+}
+
+/* Transition d'apparition du contenu d'un onglet, à re-déclencher en
+   changeant la clé React du conteneur (key={activeTab}) à chaque bascule. */
+@media (prefers-reduced-motion: no-preference) {
+  .tab-fade-in {
+    animation: tabFadeIn 0.25s ease-out;
+  }
+}
+@keyframes tabFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

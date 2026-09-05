@@ -6,6 +6,7 @@ import CoverDropzone from './cover-dropzone';
 import AudioPlayer from './audio-player';
 import AudioPlayerWithVersions from './audio-player-with-versions';
 import { analyzeAudio, AudioAnalysisResult } from '@/lib/audio-analyzer';
+import EmptyState from './ui/empty-state';
 
 interface Studio {
   id: string;
@@ -776,8 +777,8 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
               Musiques en cours
             </h2>
             {inProgressTracks.length === 0 ? (
-              <div className="text-center py-8 bg-[#1a1a1a] rounded-xl">
-                <p className="text-gray-400">Aucune musique en cours</p>
+              <div className="bg-[#1a1a1a] rounded-xl">
+                <EmptyState icon={Music} title="Aucune musique en cours" size="sm" />
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -831,8 +832,8 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
               Textes
             </h2>
             {texts.length === 0 ? (
-              <div className="text-center py-8 bg-[#1a1a1a] rounded-xl">
-                <p className="text-gray-400">Aucun texte enregistré</p>
+              <div className="bg-[#1a1a1a] rounded-xl">
+                <EmptyState icon={FileText} title="Aucun texte enregistré" size="sm" />
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

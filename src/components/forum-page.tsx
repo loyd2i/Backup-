@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { MessageCircle, Heart, Eye, Clock, Plus, X, Send } from 'lucide-react';
+import EmptyState from './ui/empty-state';
 
 interface ForumCategory {
   id: string;
@@ -232,10 +233,13 @@ export default function ForumPage() {
           ))}
         </div>
       ) : posts.length === 0 ? (
-        <div className="text-center py-16 bg-[#1a1a1a] rounded-xl">
-          <MessageCircle className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-400 text-lg mb-2">Aucun sujet pour le moment</p>
-          <p className="text-gray-500 text-sm">Soyez le premier à lancer une discussion !</p>
+        <div className="bg-[#1a1a1a] rounded-xl">
+          <EmptyState
+            icon={MessageCircle}
+            title="Aucun sujet pour le moment"
+            description="Soyez le premier à lancer une discussion !"
+            size="lg"
+          />
         </div>
       ) : (
         <div className="space-y-4">

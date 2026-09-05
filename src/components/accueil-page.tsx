@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Search, Sparkles, MapPin, Star, Filter, List, X, SlidersHorizontal, Users, Clock, ChevronRight, Navigation } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import StudioDetail from './studio-detail';
+import EmptyState from './ui/empty-state';
 
 interface Studio {
   id: string;
@@ -301,20 +302,14 @@ export default function AccueilPage() {
               ))}
             </div>
           ) : filteredStudios.length === 0 ? (
-            <div className="text-center py-16 bg-[#1a1a1a] rounded-2xl">
-              <div className="w-16 h-16 bg-[#2a2a2a] rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className="w-8 h-8 text-gray-500" />
-              </div>
-              <p className="text-gray-400 text-lg font-medium mb-2">Aucun studio trouvé</p>
-              <p className="text-gray-500 text-sm mb-4">Essayez de modifier vos filtres</p>
-              {searchQuery && (
-                <button 
-                  onClick={() => setSearchQuery('')}
-                  className="text-[#6366f1] font-medium hover:underline"
-                >
-                  Effacer la recherche
-                </button>
-              )}
+            <div className="bg-[#1a1a1a] rounded-2xl">
+              <EmptyState
+                icon={Search}
+                title="Aucun studio trouvé"
+                description="Essayez de modifier vos filtres"
+                size="lg"
+                action={searchQuery ? { label: 'Effacer la recherche', onClick: () => setSearchQuery('') } : undefined}
+              />
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
