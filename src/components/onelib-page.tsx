@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
+import OnelibCollectionDetail from './onelib-collection-detail';
 import {
   Share2, Music2, ArrowLeft, Eye, CheckCircle2, PenLine, Trash2,
   Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users, ExternalLink, Clock,
+  Disc, ListMusic,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -49,6 +51,15 @@ interface Release {
   };
 }
 
+interface CollectionSummary {
+  id: string;
+  title: string;
+  kind: string; // album, playlist
+  status: string; // draft, scheduled, published
+  slug: string;
+  tracks: { id: string }[];
+}
+
 const COLLABORATOR_ROLES = [
   { value: 'compositeur', label: 'Compositeur' },
   { value: 'auteur', label: 'Auteur' },
@@ -67,6 +78,12 @@ export default function OnelibPage() {
   const [eligibleTracks, setEligibleTracks] = useState<EligibleTrack[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [creatingTrackId, setCreatingTrackId] = useState<string | null>(null);
+  const [collections, setCollections] = useState<CollectionSummary[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const [showCreateCollection, setShowCreateCollection] = useState(false);
+  const [newCollectionTitle, setNewCollectionTitle] = useState('');
+  const [newCollectionKind, setNewCollectionKind] = useState<'album' | 'playlist'>('album');
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false);
 
   const [selectedReleaseId, setSelectedReleaseId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Release | null>(null);
@@ -90,14 +107,17 @@ export default function OnelibPage() {
 
   const fetchAll = async () => {
     try {
-      const [releasesRes, tracksRes] = await Promise.all([
+      const [releasesRes, tracksRes, collectionsRes] = await Promise.all([
         fetch('/api/onelib/releases'),
         fetch('/api/onelib/eligible-tracks'),
+        fetch('/api/onelib/collections'),
       ]);
       const releasesData = await releasesRes.json();
       const tracksData = await tracksRes.json();
+      const collectionsData = await collectionsRes.json();
       setReleases(releasesData.releases || []);
       setEligibleTracks(tracksData.tracks || []);
+      setCollections(collectionsData.collections || []);
     } catch (error) {
       console.error('Error fetching Onelib data:', error);
     } finally {
@@ -235,6 +255,32 @@ export default function OnelibPage() {
       console.error('Error creating release:', error);
     } finally {
       setCreatingTrackId(null);
+    }
+  };
+
+  const handleCreateCollection = async () => {
+    if (!newCollectionTitle.trim()) return;
+    setIsCreatingCollection(true);
+    try {
+      const res = await fetch('/api/onelib/collections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newCollectionTitle, kind: newCollectionKind }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setShowCreateCollection(false);
+        setNewCollectionTitle('');
+        setNewCollectionKind('album');
+        await fetchAll();
+        setSelectedCollectionId(data.collection.id);
+      } else {
+        alert(data.error || 'Erreur lors de la création');
+      }
+    } catch (error) {
+      console.error('Error creating collection:', error);
+    } finally {
+      setIsCreatingCollection(false);
     }
   };
 
@@ -380,6 +426,17 @@ export default function OnelibPage() {
       <div className="p-6 lg:p-8">
         <p className="text-gray-400">Chargement...</p>
       </div>
+    );
+  }
+
+  // ─── Vue détail d'un album/playlist ───
+  if (selectedCollectionId) {
+    return (
+      <OnelibCollectionDetail
+        collectionId={selectedCollectionId}
+        onBack={() => setSelectedCollectionId(null)}
+        onDeleted={() => { setSelectedCollectionId(null); fetchAll(); }}
+      />
     );
   }
 
@@ -736,15 +793,70 @@ export default function OnelibPage() {
   // ─── Vue liste ───
   return (
     <div className="p-6 lg:p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl lg:text-3xl font-bold text-white flex items-center gap-3">
-          <Share2 className="w-7 h-7" style={{ color: accentColor }} />
-          Onelib
-        </h1>
-        <p className="text-gray-400 mt-1">
-          Le hub de diffusion de tes sorties : smart link, QR code et kit de distribution
-        </p>
+      <div className="flex items-start justify-between gap-4 mb-8 flex-wrap">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold text-white flex items-center gap-3">
+            <Share2 className="w-7 h-7" style={{ color: accentColor }} />
+            Onelib
+          </h1>
+          <p className="text-gray-400 mt-1">
+            Le hub de diffusion de tes sorties : smart link, QR code et kit de distribution
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreateCollection(true)}
+          style={{ backgroundColor: accentColor }}
+          className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl font-medium hover:opacity-90 transition-opacity"
+        >
+          <Plus className="w-5 h-5" />
+          Créer un album/playlist
+        </button>
       </div>
+
+      {collections.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-white font-semibold mb-4">Mes albums & playlists</h2>
+          <div className="space-y-3">
+            {collections.map((collection) => (
+              <div
+                key={collection.id}
+                className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-5 hover:border-[#3a3a3a] transition-colors flex items-center justify-between gap-4"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3 flex-wrap mb-1">
+                    <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-[#6366f1]/15 text-[#818cf8] flex-shrink-0">
+                      {collection.kind === 'album' ? <Disc className="w-3 h-3" /> : <ListMusic className="w-3 h-3" />}
+                      {collection.kind === 'album' ? 'Album' : 'Playlist'}
+                    </span>
+                    <h3 className="text-white font-semibold truncate">{collection.title}</h3>
+                    {collection.status === 'published' ? (
+                      <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-500/15 text-green-400">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Publiée
+                      </span>
+                    ) : collection.status === 'scheduled' ? (
+                      <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400">
+                        <Clock className="w-3.5 h-3.5" /> Programmée
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-500/15 text-gray-400">
+                        <PenLine className="w-3.5 h-3.5" /> Brouillon
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-500 text-sm">{collection.tracks.length} titre{collection.tracks.length > 1 ? 's' : ''}</p>
+                </div>
+                <button
+                  onClick={() => setSelectedCollectionId(collection.id)}
+                  style={{ backgroundColor: accentColor }}
+                  className="flex items-center gap-2 text-white px-4 py-2 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity flex-shrink-0"
+                >
+                  Gérer
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {releases.length > 0 && (
         <div className="mb-8">
@@ -820,6 +932,69 @@ export default function OnelibPage() {
           </div>
         )}
       </div>
+
+      {showCreateCollection && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-5 border-b border-[#2a2a2a]">
+              <h2 className="text-xl font-bold text-white">Créer un album ou une playlist</h2>
+              <button onClick={() => setShowCreateCollection(false)} className="text-gray-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="text-gray-400 text-sm mb-2 block">Titre</label>
+                <input
+                  type="text"
+                  value={newCollectionTitle}
+                  onChange={(e) => setNewCollectionTitle(e.target.value)}
+                  placeholder="Ex: Nuits Polaires (EP)"
+                  className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-gray-400 text-sm mb-2 block">Type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setNewCollectionKind('album')}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-colors ${
+                      newCollectionKind === 'album'
+                        ? 'border-[#6366f1] bg-[#6366f1]/10 text-white'
+                        : 'border-[#3a3a3a] text-gray-400 hover:border-[#4a4a4a]'
+                    }`}
+                  >
+                    <Disc className="w-4 h-4" /> Album
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewCollectionKind('playlist')}
+                    className={`flex items-center justify-center gap-2 p-3 rounded-xl border transition-colors ${
+                      newCollectionKind === 'playlist'
+                        ? 'border-[#6366f1] bg-[#6366f1]/10 text-white'
+                        : 'border-[#3a3a3a] text-gray-400 hover:border-[#4a4a4a]'
+                    }`}
+                  >
+                    <ListMusic className="w-4 h-4" /> Playlist
+                  </button>
+                </div>
+              </div>
+
+              <button
+                onClick={handleCreateCollection}
+                disabled={isCreatingCollection || !newCollectionTitle.trim()}
+                style={{ backgroundColor: accentColor }}
+                className="w-full text-white px-5 py-3 rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {isCreatingCollection ? 'Création...' : 'Créer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,26 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { promoteReleaseIfDue } from '@/lib/onelib';
-
-function slugify(text: string) {
-  return text
-    .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-    .slice(0, 40);
-}
-
-async function generateUniqueSlug(base: string) {
-  const root = slugify(base) || 'sortie';
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const candidate = attempt === 0 ? root : `${root}-${Math.random().toString(36).slice(2, 6)}`;
-    const existing = await prisma.onelibRelease.findUnique({ where: { slug: candidate } });
-    if (!existing) return candidate;
-  }
-  return `${root}-${Date.now()}`;
-}
+import { promoteReleaseIfDue, generateUniqueOnelibSlug } from '@/lib/onelib';
 
 // GET - Mes releases Onelib
 export async function GET() {
@@ -83,7 +64,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cette track a déjà une release Onelib' }, { status: 400 });
     }
 
-    const slug = await generateUniqueSlug(`${track.artist}-${track.title}`);
+    const slug = await generateUniqueOnelibSlug(`${track.artist}-${track.title}`);
 
     const release = await prisma.onelibRelease.create({
       data: {
