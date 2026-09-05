@@ -110,6 +110,10 @@ export async function POST(request: NextRequest) {
     const isPublic = formData.get('isPublic') === 'true';
     const duration = formData.get('duration') as string;
     const audioFile = formData.get('audioFile') as File | null;
+    const sampleRate = formData.get('sampleRate') as string;
+    const bitDepth = formData.get('bitDepth') as string;
+    const bitrate = formData.get('bitrate') as string;
+    const audioFormat = formData.get('audioFormat') as string;
 
     if (!title || !artist) {
       return NextResponse.json(
@@ -153,7 +157,11 @@ export async function POST(request: NextRequest) {
         status: status || 'in_progress',
         isPublic,
         audioUrl,
-        duration: duration ? parseInt(duration) : null
+        duration: duration ? parseInt(duration) : null,
+        sampleRate: sampleRate ? parseInt(sampleRate) : null,
+        bitDepth: bitDepth ? parseInt(bitDepth) : null,
+        bitrate: bitrate ? parseInt(bitrate) : null,
+        audioFormat: audioFormat || null,
       },
       include: {
         studio: { select: { id: true, name: true } }

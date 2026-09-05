@@ -236,6 +236,12 @@ model Track {
   coverUrl    String?  // Image de couverture
   views       Int      @default(0) // Nombre de vues
 
+  // Analyse technique automatique à l'upload
+  sampleRate  Int?     // Hz (ex: 44100)
+  bitDepth    Int?     // bits, uniquement pour les formats non compressés (WAV, FLAC)
+  bitrate     Int?     // kbps, uniquement pour les formats compressés (MP3, AAC...)
+  audioFormat String?  // WAV, MP3, FLAC, M4A, OGG...
+
   // Fiche Release
   genre         String?
   releaseDate   DateTime?

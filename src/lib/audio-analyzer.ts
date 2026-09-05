@@ -15,10 +15,73 @@ export interface AudioAnalysisResult {
   key: string;
   confidence: number;
   duration: number;
+  sampleRate: number;
+  audioFormat: string;
+  // Profondeur de bits réelle : uniquement pour les formats non compressés (WAV, AIFF).
+  // Pour un format compressé (MP3, AAC...), cette notion ne s'applique pas.
+  bitDepth: number | null;
+  // Débit binaire en kbps : uniquement pour les formats compressés. Estimé à partir
+  // de la taille du fichier et de sa durée (précis pour un encodage CBR, approximatif en VBR).
+  bitrate: number | null;
+}
+
+const FORMAT_LABELS: Record<string, string> = {
+  'audio/wav': 'WAV',
+  'audio/x-wav': 'WAV',
+  'audio/wave': 'WAV',
+  'audio/mpeg': 'MP3',
+  'audio/mp3': 'MP3',
+  'audio/flac': 'FLAC',
+  'audio/x-flac': 'FLAC',
+  'audio/mp4': 'AAC / M4A',
+  'audio/x-m4a': 'AAC / M4A',
+  'audio/aac': 'AAC',
+  'audio/ogg': 'OGG',
+  'audio/webm': 'WEBM',
+};
+
+// Formats non compressés (PCM) : la résolution en bits par échantillon est significative.
+const UNCOMPRESSED_MIME_TYPES = new Set(['audio/wav', 'audio/x-wav', 'audio/wave']);
+
+function detectAudioFormat(file: File): string {
+  if (FORMAT_LABELS[file.type]) return FORMAT_LABELS[file.type];
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  const byExt: Record<string, string> = {
+    wav: 'WAV', mp3: 'MP3', flac: 'FLAC', m4a: 'AAC / M4A', aac: 'AAC', ogg: 'OGG', webm: 'WEBM',
+  };
+  return (ext && byExt[ext]) || file.type || 'Inconnu';
 }
 
 /**
- * Analyse un fichier audio pour détecter BPM et tonalité
+ * Lit l'en-tête RIFF/WAVE pour extraire la profondeur de bits réelle (bitsPerSample).
+ * Renvoie null si le fichier n'est pas un WAV PCM valide.
+ */
+function parseWavBitDepth(arrayBuffer: ArrayBuffer): number | null {
+  const view = new DataView(arrayBuffer);
+  if (arrayBuffer.byteLength < 44) return null;
+
+  const riff = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+  const wave = String.fromCharCode(view.getUint8(8), view.getUint8(9), view.getUint8(10), view.getUint8(11));
+  if (riff !== 'RIFF' || wave !== 'WAVE') return null;
+
+  // Parcourt les sous-chunks à la recherche de "fmt "
+  let offset = 12;
+  while (offset + 8 <= arrayBuffer.byteLength) {
+    const chunkId = String.fromCharCode(
+      view.getUint8(offset), view.getUint8(offset + 1), view.getUint8(offset + 2), view.getUint8(offset + 3)
+    );
+    const chunkSize = view.getUint32(offset + 4, true);
+    if (chunkId === 'fmt ' && offset + 8 + 16 <= arrayBuffer.byteLength) {
+      return view.getUint16(offset + 8 + 14, true); // bitsPerSample
+    }
+    offset += 8 + chunkSize + (chunkSize % 2);
+  }
+  return null;
+}
+
+/**
+ * Analyse un fichier audio pour détecter BPM, tonalité et caractéristiques techniques
+ * (fréquence d'échantillonnage, format, résolution/bitrate)
  */
 export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
   return new Promise((resolve, reject) => {
@@ -28,7 +91,7 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
     reader.onload = async (e) => {
       try {
         const arrayBuffer = e.target?.result as ArrayBuffer;
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
 
         // Get the audio data (mono)
         const channelData = audioBuffer.getChannelData(0);
@@ -44,11 +107,22 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
         // Calculate confidence based on signal quality
         const confidence = calculateConfidence(channelData);
 
+        const audioFormat = detectAudioFormat(file);
+        const isUncompressed = UNCOMPRESSED_MIME_TYPES.has(file.type) || audioFormat === 'WAV';
+        const bitDepth = isUncompressed ? parseWavBitDepth(arrayBuffer) : null;
+        const bitrate = !isUncompressed && duration > 0
+          ? Math.round((file.size * 8) / duration / 1000)
+          : null;
+
         resolve({
           bpm: Math.round(bpm),
           key,
           confidence: Math.round(confidence * 100) / 100,
-          duration: Math.round(duration)
+          duration: Math.round(duration),
+          sampleRate,
+          audioFormat,
+          bitDepth,
+          bitrate,
         });
       } catch (error) {
         reject(error);
@@ -222,24 +296,64 @@ function detectKey(channelData: Float32Array, sampleRate: number): string {
 }
 
 /**
- * Calcule le spectre d'un signal avec FFT simplifiée
+ * FFT radix-2 itérative (Cooley-Tukey), en place. `n` doit être une puissance de 2.
+ * Remplace l'ancienne DFT en O(n²) — beaucoup trop lente sur un fichier réel
+ * (des minutes de blocage du thread principal pour un morceau de quelques
+ * secondes) — par un calcul en O(n log n), pour un résultat mathématiquement
+ * identique.
+ */
+function fft(real: Float64Array, imag: Float64Array): void {
+  const n = real.length;
+
+  // Bit-reversal permutation
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) {
+      j ^= bit;
+    }
+    j ^= bit;
+    if (i < j) {
+      [real[i], real[j]] = [real[j], real[i]];
+      [imag[i], imag[j]] = [imag[j], imag[i]];
+    }
+  }
+
+  // Butterfly stages
+  for (let size = 2; size <= n; size <<= 1) {
+    const halfSize = size >> 1;
+    const angleStep = (-2 * Math.PI) / size;
+    for (let start = 0; start < n; start += size) {
+      for (let k = 0; k < halfSize; k++) {
+        const angle = angleStep * k;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const evenIdx = start + k;
+        const oddIdx = start + k + halfSize;
+        const oddReal = real[oddIdx] * cos - imag[oddIdx] * sin;
+        const oddImag = real[oddIdx] * sin + imag[oddIdx] * cos;
+        real[oddIdx] = real[evenIdx] - oddReal;
+        imag[oddIdx] = imag[evenIdx] - oddImag;
+        real[evenIdx] += oddReal;
+        imag[evenIdx] += oddImag;
+      }
+    }
+  }
+}
+
+/**
+ * Calcule le spectre d'un signal via une vraie FFT
  */
 function computeSpectrum(frame: Float32Array): Float32Array {
   const n = frame.length;
+  const real = new Float64Array(n);
+  const imag = new Float64Array(n);
+  real.set(frame);
+
+  fft(real, imag);
+
   const spectrum = new Float32Array(n);
-
-  // FFT simplifiée (DFT)
   for (let k = 0; k < n / 2; k++) {
-    let real = 0;
-    let imag = 0;
-
-    for (let t = 0; t < n; t++) {
-      const angle = (2 * Math.PI * k * t) / n;
-      real += frame[t] * Math.cos(angle);
-      imag -= frame[t] * Math.sin(angle);
-    }
-
-    spectrum[k] = Math.sqrt(real * real + imag * imag);
+    spectrum[k] = Math.sqrt(real[k] * real[k] + imag[k] * imag[k]);
   }
 
   return spectrum;

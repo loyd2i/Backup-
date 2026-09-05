@@ -67,6 +67,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
   const [analysisProgress, setAnalysisProgress] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AudioAnalysisResult | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [newTrack, setNewTrack] = useState({ 
@@ -104,11 +105,12 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const AUDIO_EXTENSIONS = ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg', 'webm'];
 
-    if (!file.type.startsWith('audio/')) {
+  const processFile = async (file: File) => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const looksLikeAudio = file.type.startsWith('audio/') || (ext && AUDIO_EXTENSIONS.includes(ext));
+    if (!looksLikeAudio) {
       alert('Veuillez sélectionner un fichier audio');
       return;
     }
@@ -141,6 +143,33 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingFile) setIsDraggingFile(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  };
+
   const handleSubmitTrack = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -154,6 +183,10 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     // Studio tracks are always private
     formData.append('isPublic', isStudioMode ? 'false' : newTrack.isPublic.toString());
     formData.append('duration', analysisResult?.duration?.toString() || '');
+    formData.append('sampleRate', analysisResult?.sampleRate?.toString() || '');
+    formData.append('bitDepth', analysisResult?.bitDepth?.toString() || '');
+    formData.append('bitrate', analysisResult?.bitrate?.toString() || '');
+    formData.append('audioFormat', analysisResult?.audioFormat || '');
 
     if (uploadedFile) {
       formData.append('audioFile', uploadedFile);
@@ -382,13 +415,20 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-[#3a3a3a] rounded-xl p-8 text-center hover:border-[#6366f1] transition-colors group"
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`w-full border-2 border-dashed rounded-xl p-8 text-center transition-colors group ${
+                      isDraggingFile ? 'border-[#6366f1] bg-[#6366f1]/10' : 'border-[#3a3a3a] hover:border-[#6366f1]'
+                    }`}
                   >
                     <div className="w-16 h-16 bg-[#6366f1]/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-[#6366f1]/30 transition-colors">
                       <Upload className="w-8 h-8 text-[#6366f1]" />
                     </div>
-                    <p className="text-white font-medium mb-1">Déposez votre fichier audio</p>
-                    <p className="text-gray-500 text-sm">Analyse BPM & tonalité automatique</p>
+                    <p className="text-white font-medium mb-1">
+                      {isDraggingFile ? 'Déposez le fichier ici' : 'Glissez-déposez votre fichier audio, ou cliquez'}
+                    </p>
+                    <p className="text-gray-500 text-sm">BPM, tonalité, fréquence, format & résolution automatiques</p>
                     <div className="flex items-center justify-center gap-2 mt-3">
                       <Zap className="w-4 h-4 text-yellow-400" />
                       <span className="text-yellow-400 text-xs font-medium">Analyse automatique</span>
@@ -429,20 +469,38 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                     )}
 
                     {analysisResult && !analyzing && (
-                      <div className="mt-4 grid grid-cols-3 gap-3">
-                        <div className="bg-[#1a1a1a] rounded-lg p-3 text-center">
-                          <p className="text-2xl font-bold text-[#6366f1]">{analysisResult.bpm}</p>
-                          <p className="text-gray-500 text-xs">BPM</p>
+                      <>
+                        <div className="mt-4 grid grid-cols-3 gap-3">
+                          <div className="bg-[#1a1a1a] rounded-lg p-3 text-center">
+                            <p className="text-2xl font-bold text-[#6366f1]">{analysisResult.bpm}</p>
+                            <p className="text-gray-500 text-xs">BPM</p>
+                          </div>
+                          <div className="bg-[#1a1a1a] rounded-lg p-3 text-center">
+                            <p className="text-lg font-bold text-green-400">{analysisResult.key}</p>
+                            <p className="text-gray-500 text-xs">Tonalité</p>
+                          </div>
+                          <div className="bg-[#1a1a1a] rounded-lg p-3 text-center">
+                            <p className="text-lg font-bold text-white">{Math.floor(analysisResult.duration / 60)}:{(analysisResult.duration % 60).toString().padStart(2, '0')}</p>
+                            <p className="text-gray-500 text-xs">Durée</p>
+                          </div>
                         </div>
-                        <div className="bg-[#1a1a1a] rounded-lg p-3 text-center">
-                          <p className="text-lg font-bold text-green-400">{analysisResult.key}</p>
-                          <p className="text-gray-500 text-xs">Tonalité</p>
+                        <div className="mt-3 grid grid-cols-3 gap-3">
+                          <div className="bg-[#1a1a1a] rounded-lg p-3 text-center">
+                            <p className="text-sm font-bold text-white">{analysisResult.sampleRate.toLocaleString('fr-FR')} Hz</p>
+                            <p className="text-gray-500 text-xs">Fréquence</p>
+                          </div>
+                          <div className="bg-[#1a1a1a] rounded-lg p-3 text-center">
+                            <p className="text-sm font-bold text-white">{analysisResult.audioFormat}</p>
+                            <p className="text-gray-500 text-xs">Format</p>
+                          </div>
+                          <div className="bg-[#1a1a1a] rounded-lg p-3 text-center">
+                            <p className="text-sm font-bold text-white">
+                              {analysisResult.bitDepth ? `${analysisResult.bitDepth}-bit` : analysisResult.bitrate ? `${analysisResult.bitrate} kbps` : '—'}
+                            </p>
+                            <p className="text-gray-500 text-xs">{analysisResult.bitDepth ? 'Résolution' : 'Débit (estimé)'}</p>
+                          </div>
                         </div>
-                        <div className="bg-[#1a1a1a] rounded-lg p-3 text-center">
-                          <p className="text-lg font-bold text-white">{Math.floor(analysisResult.duration / 60)}:{(analysisResult.duration % 60).toString().padStart(2, '0')}</p>
-                          <p className="text-gray-500 text-xs">Durée</p>
-                        </div>
-                      </div>
+                      </>
                     )}
                   </div>
                 )}
