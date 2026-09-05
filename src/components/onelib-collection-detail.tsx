@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
+import CoverDropzone from './cover-dropzone';
 import {
   ArrowLeft, Eye, CheckCircle2, PenLine, Trash2, Link2, Check, QrCode, Download,
-  Plus, X, FileSignature, Package, Users, ExternalLink, Clock, ChevronUp, ChevronDown, Disc, ListMusic, ImageUp, Share2, Radio,
+  Plus, X, FileSignature, Package, Users, ExternalLink, Clock, ChevronUp, ChevronDown, Disc, ListMusic, Share2, Radio,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -93,7 +94,6 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
   const [isSigning, setIsSigning] = useState(false);
   const [isDownloadingKit, setIsDownloadingKit] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
-  const coverInputRef = useRef<HTMLInputElement>(null);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [isRequestingDistribution, setIsRequestingDistribution] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -148,9 +148,7 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
     }
   };
 
-  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleCoverUpload = async (file: File) => {
     setIsUploadingCover(true);
     try {
       const formData = new FormData();
@@ -166,7 +164,6 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
       console.error('Error uploading cover:', error);
     } finally {
       setIsUploadingCover(false);
-      if (coverInputRef.current) coverInputRef.current.value = '';
     }
   };
 
@@ -460,31 +457,13 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
       <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 mb-6">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex items-start gap-4">
-            <button
-              type="button"
-              onClick={() => coverInputRef.current?.click()}
-              disabled={isUploadingCover}
-              className="relative w-20 h-20 rounded-xl overflow-hidden bg-[#121212] border border-[#2a2a2a] flex-shrink-0 group"
-              title="Changer la pochette"
-            >
+            <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#121212] border border-[#2a2a2a] flex-shrink-0 flex items-center justify-center">
               {detail.coverUrl ? (
                 <img src={detail.coverUrl} alt={detail.title} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  {detail.kind === 'album' ? <Disc className="w-8 h-8 text-gray-600" /> : <ListMusic className="w-8 h-8 text-gray-600" />}
-                </div>
+                detail.kind === 'album' ? <Disc className="w-8 h-8 text-gray-600" /> : <ListMusic className="w-8 h-8 text-gray-600" />
               )}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <ImageUp className="w-5 h-5 text-white" />
-              </div>
-              <input
-                ref={coverInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleCoverUpload}
-                className="hidden"
-              />
-            </button>
+            </div>
             <div>
               <div className="flex items-center gap-3 flex-wrap mb-1">
                 <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-[#6366f1]/15 text-[#818cf8]">
@@ -651,6 +630,16 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
             </button>
           )}
         </div>
+      </div>
+
+      <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 mb-6">
+        <h2 className="text-white font-semibold mb-4">Pochette</h2>
+        <CoverDropzone
+          currentUrl={detail.coverUrl}
+          onFileSelected={handleCoverUpload}
+          isUploading={isUploadingCover}
+          accentColor={accentColor}
+        />
       </div>
 
       <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 space-y-4 mb-6">

@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Music, FileText, Pencil, Plus, X, Save, Globe, Lock, Upload, Loader2, Zap, Disc, Building2, Eye, MessageCircle, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Music, FileText, Pencil, Plus, X, Save, Globe, Lock, Upload, Loader2, Zap, Disc, Building2, Eye, MessageCircle, Trash2 } from 'lucide-react';
+import CoverDropzone from './cover-dropzone';
 import AudioPlayer from './audio-player';
 import AudioPlayerWithVersions from './audio-player-with-versions';
 import { analyzeAudio, AudioAnalysisResult } from '@/lib/audio-analyzer';
@@ -67,7 +68,6 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
   const [analysisProgress, setAnalysisProgress] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
-  const coverInputRef = useRef<HTMLInputElement>(null);
   const [analysisResult, setAnalysisResult] = useState<AudioAnalysisResult | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -414,35 +414,11 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
               {/* Pochette (optionnelle) */}
               <div>
                 <label className="text-gray-400 text-sm mb-2 block">Pochette (optionnel)</label>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => coverInputRef.current?.click()}
-                    className="w-16 h-16 rounded-xl overflow-hidden bg-[#2a2a2a] border border-[#3a3a3a] hover:border-[#6366f1] transition-colors flex-shrink-0 flex items-center justify-center"
-                  >
-                    {coverFile ? (
-                      <img src={URL.createObjectURL(coverFile)} alt="Pochette" className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageIcon className="w-6 h-6 text-gray-500" />
-                    )}
-                  </button>
-                  <input
-                    ref={coverInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setCoverFile(e.target.files?.[0] || null)}
-                    className="hidden"
-                  />
-                  {coverFile && (
-                    <button
-                      type="button"
-                      onClick={() => setCoverFile(null)}
-                      className="text-gray-500 hover:text-red-400 text-sm"
-                    >
-                      Retirer
-                    </button>
-                  )}
-                </div>
+                <CoverDropzone
+                  onFileSelected={(file) => setCoverFile(file)}
+                  onRemove={() => setCoverFile(null)}
+                  accentColor="#6366f1"
+                />
               </div>
 
               {/* Audio Upload Zone */}

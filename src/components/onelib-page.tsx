@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import OnelibCollectionDetail from './onelib-collection-detail';
+import CoverDropzone from './cover-dropzone';
 import {
   Share2, Music2, ArrowLeft, Eye, CheckCircle2, PenLine, Trash2,
   Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users, ExternalLink, Clock,
-  Disc, ListMusic, ImageUp, Radio,
+  Disc, ListMusic, Radio,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -105,7 +106,6 @@ export default function OnelibPage() {
   const [showScheduler, setShowScheduler] = useState(false);
   const [scheduledAtInput, setScheduledAtInput] = useState('');
   const [isUploadingCover, setIsUploadingCover] = useState(false);
-  const coverInputRef = useRef<HTMLInputElement>(null);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [isRequestingDistribution, setIsRequestingDistribution] = useState(false);
 
@@ -326,9 +326,8 @@ export default function OnelibPage() {
     }
   };
 
-  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!detail || !file) return;
+  const handleCoverUpload = async (file: File) => {
+    if (!detail) return;
     setIsUploadingCover(true);
     try {
       const formData = new FormData();
@@ -348,7 +347,6 @@ export default function OnelibPage() {
       console.error('Error uploading cover:', error);
     } finally {
       setIsUploadingCover(false);
-      if (coverInputRef.current) coverInputRef.current.value = '';
     }
   };
 
@@ -536,31 +534,13 @@ export default function OnelibPage() {
         <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 mb-6">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex items-start gap-4">
-              <button
-                type="button"
-                onClick={() => coverInputRef.current?.click()}
-                disabled={isUploadingCover}
-                className="relative w-20 h-20 rounded-xl overflow-hidden bg-[#121212] border border-[#2a2a2a] flex-shrink-0 group"
-                title="Changer la pochette"
-              >
+              <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#121212] border border-[#2a2a2a] flex-shrink-0 flex items-center justify-center">
                 {(detail.coverUrl || detail.track.coverUrl) ? (
                   <img src={detail.coverUrl || detail.track.coverUrl || ''} alt={detail.track.title} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Music2 className="w-8 h-8 text-gray-600" />
-                  </div>
+                  <Music2 className="w-8 h-8 text-gray-600" />
                 )}
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <ImageUp className="w-5 h-5 text-white" />
-                </div>
-                <input
-                  ref={coverInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleCoverUpload}
-                  className="hidden"
-                />
-              </button>
+              </div>
               <div>
                 <div className="flex items-center gap-3 flex-wrap mb-1">
                   <h1 className="text-2xl font-bold text-white">{detail.track.title}</h1>
@@ -731,6 +711,16 @@ export default function OnelibPage() {
               </button>
             )}
           </div>
+        </div>
+
+        <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 mb-6">
+          <h2 className="text-white font-semibold mb-4">Pochette</h2>
+          <CoverDropzone
+            currentUrl={detail.coverUrl || detail.track.coverUrl}
+            onFileSelected={handleCoverUpload}
+            isUploading={isUploadingCover}
+            accentColor={accentColor}
+          />
         </div>
 
         <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 space-y-4">
