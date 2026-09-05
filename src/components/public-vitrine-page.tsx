@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import {
   MapPin, Star, Clock, Phone, Globe, Instagram, Twitter, Facebook, Youtube, Music, Headphones,
   Camera, Calendar, ChevronLeft, ChevronRight, X, ExternalLink, Share2, Heart, Play, Pause,
-  Eye, ArrowLeft, Mail
+  Eye, ArrowLeft, Mail, QrCode, Copy, Check
 } from 'lucide-react';
 
 interface StudioPhoto {
@@ -90,17 +90,31 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [playingTrack, setPlayingTrack] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     fetchStudioData();
+    fetch(`/api/studios/${studioId}/qrcode`)
+      .then(res => res.json())
+      .then(data => setQrDataUrl(data.dataUrl || null))
+      .catch(() => {});
   }, [studioId]);
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
 
   const fetchStudioData = async () => {
     try {
       const [studioRes, tracksRes] = await Promise.all([
         fetch(`/api/studios/${studioId}`),
-        fetch(`/api/tracks?studioId=${studioId}&public=true`)
+        fetch(`/api/tracks/public?studioId=${studioId}`)
       ]);
       const studioData = await studioRes.json();
       const tracksData = await tracksRes.json();
@@ -192,14 +206,21 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-[#121212]/50 to-transparent" />
 
-        {/* Back Button */}
-        {onBack && (
+        {/* Back Button / Studiolib home link */}
+        {onBack ? (
           <button
             onClick={onBack}
             className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-xl hover:bg-black/70 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" /> Retour
           </button>
+        ) : (
+          <a
+            href="/"
+            className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-xl hover:bg-black/70 transition-colors font-semibold"
+          >
+            Studiolib
+          </a>
         )}
 
         {/* Photo Count */}
@@ -301,6 +322,32 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
                 </div>
               </div>
             )}
+
+            {/* QR Code / Partage */}
+            <div className="bg-[#1a1a1a] rounded-2xl p-4 border border-[#2a2a2a]">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => qrDataUrl && setShowQrModal(true)}
+                  className="w-16 h-16 rounded-xl overflow-hidden bg-white flex items-center justify-center flex-shrink-0"
+                >
+                  {qrDataUrl ? (
+                    <img src={qrDataUrl} alt="QR code de cette fiche" className="w-full h-full object-cover" />
+                  ) : (
+                    <QrCode className="w-6 h-6 text-gray-400" />
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium">Fiche studio</p>
+                  <button
+                    onClick={copyLink}
+                    className="flex items-center gap-1.5 text-gray-400 hover:text-white text-xs transition-colors mt-1"
+                  >
+                    {linkCopied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {linkCopied ? 'Lien copié' : 'Copier le lien'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -452,6 +499,29 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
 
           <div className="absolute bottom-4 text-gray-400 text-sm">
             {activePhotoIndex + 1} / {allPhotos.length}
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {showQrModal && qrDataUrl && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+          <button
+            onClick={() => setShowQrModal(false)}
+            className="absolute top-4 right-4 text-white/70 hover:text-white z-10"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <div className="bg-white rounded-2xl p-6 max-w-xs w-full text-center">
+            <img src={qrDataUrl} alt="QR code de cette fiche" className="w-full rounded-xl mb-4" />
+            <p className="text-[#121212] font-semibold mb-4">{studio.name}</p>
+            <a
+              href={qrDataUrl}
+              download={`qrcode-${studio.name.toLowerCase().replace(/\s+/g, '-')}.png`}
+              className="inline-block w-full bg-[#121212] text-white py-3 rounded-xl font-medium hover:bg-black transition-colors"
+            >
+              Télécharger le QR code
+            </a>
           </div>
         </div>
       )}
