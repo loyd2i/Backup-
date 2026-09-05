@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {
   ArrowLeft, Eye, CheckCircle2, PenLine, Trash2, Link2, Check, QrCode, Download,
-  Plus, X, FileSignature, Package, Users, ExternalLink, Clock, ChevronUp, ChevronDown, Disc, ListMusic, ImageUp, Share2,
+  Plus, X, FileSignature, Package, Users, ExternalLink, Clock, ChevronUp, ChevronDown, Disc, ListMusic, ImageUp, Share2, Radio,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -50,6 +50,8 @@ interface Collection {
   views: number;
   authorLegalName: string | null;
   authorSignedAt: string | null;
+  distributionStatus: string; // none, requested, in_review, live
+  distributionRequestedAt: string | null;
   tracks: TrackEntry[];
   collaborators: Collaborator[];
 }
@@ -93,6 +95,7 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [shareSuccess, setShareSuccess] = useState(false);
+  const [isRequestingDistribution, setIsRequestingDistribution] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [showScheduler, setShowScheduler] = useState(false);
   const [scheduledAtInput, setScheduledAtInput] = useState('');
@@ -381,6 +384,33 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
       console.error('Error downloading kit:', error);
     } finally {
       setIsDownloadingKit(false);
+    }
+  };
+
+  const handleRequestDistribution = async () => {
+    setIsRequestingDistribution(true);
+    try {
+      const res = await fetch(`/api/onelib/collections/${collectionId}/request-distribution`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) setDetail(data.collection);
+      else alert(data.error || 'Erreur lors de la demande');
+    } catch (error) {
+      console.error('Error requesting distribution:', error);
+    } finally {
+      setIsRequestingDistribution(false);
+    }
+  };
+
+  const handleCancelDistributionRequest = async () => {
+    setIsRequestingDistribution(true);
+    try {
+      const res = await fetch(`/api/onelib/collections/${collectionId}/request-distribution`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) setDetail(data.collection);
+    } catch (error) {
+      console.error('Error cancelling distribution request:', error);
+    } finally {
+      setIsRequestingDistribution(false);
     }
   };
 
@@ -802,6 +832,52 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
           <Download className="w-4 h-4" />
           {isDownloadingKit ? 'Préparation...' : 'Télécharger le kit de distribution'}
         </button>
+      </div>
+
+      <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 mt-6">
+        <h2 className="text-white font-semibold flex items-center gap-2 mb-1">
+          <Radio className="w-4 h-4" /> Distribution sur les plateformes de streaming
+        </h2>
+        <p className="text-gray-500 text-xs mb-4">
+          Envoie une demande d&apos;hébergement à l&apos;équipe Studiolib pour lancer la mise en ligne sur
+          Spotify, Apple Music, Deezer... Il ne s&apos;agit pas d&apos;une soumission automatique : une
+          personne traite ta demande manuellement, ce qui permet de t&apos;y prendre à l&apos;avance
+          (les plateformes demandent généralement plusieurs semaines de délai).
+        </p>
+        {detail.distributionStatus === 'none' && (
+          <button
+            onClick={handleRequestDistribution}
+            disabled={isRequestingDistribution}
+            style={{ backgroundColor: accentColor }}
+            className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {isRequestingDistribution ? 'Envoi...' : 'Demander la distribution'}
+          </button>
+        )}
+        {detail.distributionStatus === 'requested' && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-sm flex items-center justify-between gap-3 flex-wrap">
+            <span className="text-amber-400">
+              Demande envoyée{detail.distributionRequestedAt ? ` le ${new Date(detail.distributionRequestedAt).toLocaleDateString('fr-FR')}` : ''} — en attente de traitement
+            </span>
+            <button
+              onClick={handleCancelDistributionRequest}
+              disabled={isRequestingDistribution}
+              className="text-xs underline hover:no-underline disabled:opacity-50 text-gray-400"
+            >
+              Annuler la demande
+            </button>
+          </div>
+        )}
+        {detail.distributionStatus === 'in_review' && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 text-sm text-blue-400">
+            Demande en cours de traitement par l&apos;équipe Studiolib
+          </div>
+        )}
+        {detail.distributionStatus === 'live' && (
+          <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 text-sm text-green-400 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4" /> En ligne sur les plateformes de streaming
+          </div>
+        )}
       </div>
     </div>
   );
