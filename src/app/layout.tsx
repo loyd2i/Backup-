@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { SITE_URL } from "@/lib/site-config";
 
 const geistSans = Inter({
   variable: "--font-geist-sans",
@@ -14,6 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Studiolib - Gérez vos sessions studio",
   description: "Plateforme tout-en-un pour gérer vos rendez-vous studio, créations musicales et échanges avec les studios.",
   keywords: ["studio", "enregistrement", "musique", "rendez-vous", "artistes", "Studiolib"],
