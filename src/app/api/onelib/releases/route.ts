@@ -81,7 +81,8 @@ export async function POST(request: NextRequest) {
         slug,
       },
       include: {
-        track: { select: { id: true, title: true, artist: true, coverUrl: true, genre: true, status: true } }
+        track: { select: { id: true, title: true, artist: true, coverUrl: true, genre: true, status: true } },
+        collaborators: true
       }
     });
 

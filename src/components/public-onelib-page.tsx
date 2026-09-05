@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Music2, ExternalLink, Music, Youtube, Apple, Disc3 } from 'lucide-react';
 
+interface PublicCollaborator {
+  name: string;
+  role: string;
+}
+
 interface PublicRelease {
   slug: string;
   description: string | null;
@@ -20,6 +25,7 @@ interface PublicRelease {
     appleMusicUrl: string | null;
     deezerUrl: string | null;
   };
+  collaborators: PublicCollaborator[];
 }
 
 interface PublicOnelibPageProps {
@@ -108,6 +114,11 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
 
         <h1 className="text-2xl font-bold text-white">{track.title}</h1>
         <p className="text-gray-400 mt-1">{track.artist}{track.genre ? ` • ${track.genre}` : ''}</p>
+        {release.collaborators.length > 0 && (
+          <p className="text-gray-500 text-sm mt-1">
+            avec {release.collaborators.map(c => c.name).join(', ')}
+          </p>
+        )}
 
         {release.description && (
           <p className="text-gray-300 text-sm mt-4 leading-relaxed">{release.description}</p>

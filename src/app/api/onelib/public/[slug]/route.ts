@@ -18,7 +18,8 @@ export async function GET(
             title: true, artist: true, genre: true, coverUrl: true,
             spotifyUrl: true, youtubeUrl: true, appleMusicUrl: true, deezerUrl: true,
           }
-        }
+        },
+        collaborators: { orderBy: { createdAt: 'asc' }, select: { name: true, role: true } }
       }
     });
 

@@ -16,7 +16,7 @@ export async function GET(
     const { id } = await params;
     const release = await prisma.onelibRelease.findUnique({
       where: { id },
-      include: { track: true }
+      include: { track: true, collaborators: { orderBy: { createdAt: 'asc' } } }
     });
 
     if (!release || release.userId !== user.id) {
@@ -76,7 +76,7 @@ export async function PATCH(
     const updated = await prisma.onelibRelease.update({
       where: { id },
       data,
-      include: { track: true }
+      include: { track: true, collaborators: { orderBy: { createdAt: 'asc' } } }
     });
 
     return NextResponse.json({ release: updated });

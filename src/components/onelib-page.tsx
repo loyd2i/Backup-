@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {
   Share2, Music2, ArrowLeft, Eye, CheckCircle2, PenLine, Trash2,
-  Link2, Check, Music, Youtube, QrCode, Download,
+  Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -13,6 +13,12 @@ interface EligibleTrack {
   artist: string;
   coverUrl: string | null;
   genre: string | null;
+}
+
+interface Collaborator {
+  id: string;
+  name: string;
+  role: string;
 }
 
 interface Release {
@@ -26,6 +32,9 @@ interface Release {
   views: number;
   publishedAt: string | null;
   createdAt: string;
+  authorLegalName: string | null;
+  authorSignedAt: string | null;
+  collaborators: Collaborator[];
   track: {
     id: string;
     title: string;
@@ -37,6 +46,18 @@ interface Release {
     appleMusicUrl?: string | null;
     deezerUrl?: string | null;
   };
+}
+
+const COLLABORATOR_ROLES = [
+  { value: 'compositeur', label: 'Compositeur' },
+  { value: 'auteur', label: 'Auteur' },
+  { value: 'featuring', label: 'Featuring' },
+  { value: 'producteur', label: 'Producteur' },
+  { value: 'ingenieur_son', label: 'Ingénieur son' },
+];
+
+function roleLabel(role: string) {
+  return COLLABORATOR_ROLES.find(r => r.value === role)?.label || role;
 }
 
 export default function OnelibPage() {
@@ -54,6 +75,12 @@ export default function OnelibPage() {
   const [copySuccess, setCopySuccess] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [isLoadingQr, setIsLoadingQr] = useState(false);
+  const [newCollabName, setNewCollabName] = useState('');
+  const [newCollabRole, setNewCollabRole] = useState('compositeur');
+  const [isAddingCollab, setIsAddingCollab] = useState(false);
+  const [legalNameInput, setLegalNameInput] = useState('');
+  const [isSigning, setIsSigning] = useState(false);
+  const [isDownloadingKit, setIsDownloadingKit] = useState(false);
 
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
 
@@ -85,6 +112,9 @@ export default function OnelibPage() {
     setSoundcloudUrl(release.soundcloudUrl || '');
     setCopySuccess(false);
     setQrDataUrl(null);
+    setNewCollabName('');
+    setNewCollabRole('compositeur');
+    setLegalNameInput(release.authorLegalName || '');
   };
 
   const loadQrCode = async (releaseId: string) => {
@@ -97,6 +127,85 @@ export default function OnelibPage() {
       console.error('Error loading QR code:', error);
     } finally {
       setIsLoadingQr(false);
+    }
+  };
+
+  const handleAddCollaborator = async () => {
+    if (!detail || !newCollabName.trim()) return;
+    setIsAddingCollab(true);
+    try {
+      const res = await fetch(`/api/onelib/releases/${detail.id}/collaborators`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newCollabName, role: newCollabRole }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDetail(prev => prev ? { ...prev, collaborators: [...prev.collaborators, data.collaborator] } : prev);
+        setNewCollabName('');
+        setNewCollabRole('compositeur');
+      }
+    } catch (error) {
+      console.error('Error adding collaborator:', error);
+    } finally {
+      setIsAddingCollab(false);
+    }
+  };
+
+  const handleDeleteCollaborator = async (collaboratorId: string) => {
+    if (!detail) return;
+    try {
+      const res = await fetch(`/api/onelib/releases/${detail.id}/collaborators/${collaboratorId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setDetail(prev => prev ? { ...prev, collaborators: prev.collaborators.filter(c => c.id !== collaboratorId) } : prev);
+      }
+    } catch (error) {
+      console.error('Error deleting collaborator:', error);
+    }
+  };
+
+  const handleSign = async () => {
+    if (!detail || !legalNameInput.trim()) return;
+    setIsSigning(true);
+    try {
+      const res = await fetch(`/api/onelib/releases/${detail.id}/sign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ legalName: legalNameInput }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDetail(data.release);
+        setReleases(prev => prev.map(r => (r.id === data.release.id ? data.release : r)));
+      }
+    } catch (error) {
+      console.error('Error signing attestation:', error);
+    } finally {
+      setIsSigning(false);
+    }
+  };
+
+  const handleDownloadKit = async () => {
+    if (!detail) return;
+    setIsDownloadingKit(true);
+    try {
+      const res = await fetch(`/api/onelib/releases/${detail.id}/kit`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `onelib-${detail.slug}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading distribution kit:', error);
+    } finally {
+      setIsDownloadingKit(false);
     }
   };
 
@@ -357,6 +466,120 @@ export default function OnelibPage() {
             className="text-white px-5 py-2.5 rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {isSaving ? 'Enregistrement...' : 'Enregistrer'}
+          </button>
+        </div>
+
+        <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 space-y-4 mt-6">
+          <h2 className="text-white font-semibold flex items-center gap-2">
+            <Users className="w-4 h-4" /> Collaborateurs
+          </h2>
+          <p className="text-gray-500 text-xs -mt-2">
+            Tous les collaborateurs crédités sur ce titre doivent figurer ici : ils apparaîtront sur la page
+            de diffusion publique et dans l&apos;attestation d&apos;auteur.
+          </p>
+
+          {detail.collaborators.length > 0 && (
+            <div className="space-y-2">
+              {detail.collaborators.map((c) => (
+                <div key={c.id} className="flex items-center justify-between bg-[#121212] rounded-lg p-3 border border-[#2a2a2a]">
+                  <div>
+                    <span className="text-white text-sm font-medium">{c.name}</span>
+                    <span className="text-gray-500 text-xs ml-2">{roleLabel(c.role)}</span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteCollaborator(c.id)}
+                    className="text-gray-500 hover:text-red-400 transition-colors"
+                    title="Retirer ce collaborateur"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newCollabName}
+              onChange={(e) => setNewCollabName(e.target.value)}
+              placeholder="Nom du collaborateur"
+              className="flex-1 bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+            />
+            <select
+              value={newCollabRole}
+              onChange={(e) => setNewCollabRole(e.target.value)}
+              className="bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] text-sm"
+            >
+              {COLLABORATOR_ROLES.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleAddCollaborator}
+              disabled={isAddingCollab || !newCollabName.trim()}
+              className="flex items-center gap-1 text-sm px-3 py-2.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors disabled:opacity-50 flex-shrink-0"
+            >
+              <Plus className="w-4 h-4" /> Ajouter
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 space-y-4 mt-6">
+          <h2 className="text-white font-semibold flex items-center gap-2">
+            <FileSignature className="w-4 h-4" /> Attestation d&apos;auteur
+          </h2>
+          <p className="text-gray-500 text-xs -mt-2">
+            Déclaration écrite et horodatée attestant que tu es l&apos;auteur(e) de cette œuvre (avec les
+            collaborateurs listés ci-dessus). Il s&apos;agit d&apos;une preuve d&apos;antériorité auto-déclarée,
+            pas d&apos;un dépôt officiel auprès de la SACEM ou d&apos;un huissier.
+          </p>
+
+          {detail.authorLegalName && detail.authorSignedAt ? (
+            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-sm">
+              <p className="text-green-400 font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" /> Signée par {detail.authorLegalName}
+              </p>
+              <p className="text-gray-400 text-xs mt-1">
+                le {new Date(detail.authorSignedAt).toLocaleDateString('fr-FR')} à {new Date(detail.authorSignedAt).toLocaleTimeString('fr-FR')}
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={legalNameInput}
+                onChange={(e) => setLegalNameInput(e.target.value)}
+                placeholder="Ton nom légal complet"
+                className="flex-1 bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none"
+              />
+              <button
+                onClick={handleSign}
+                disabled={isSigning || !legalNameInput.trim()}
+                style={{ backgroundColor: accentColor }}
+                className="flex items-center gap-2 text-white px-4 py-3 rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex-shrink-0"
+              >
+                Signer
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 mt-6">
+          <h2 className="text-white font-semibold flex items-center gap-2 mb-1">
+            <Package className="w-4 h-4" /> Kit de distribution
+          </h2>
+          <p className="text-gray-500 text-xs mb-4">
+            Pochette, liens de diffusion, QR code, fiche technique et attestation d&apos;auteur (si signée),
+            réunis dans un fichier ZIP.
+          </p>
+          <button
+            onClick={handleDownloadKit}
+            disabled={isDownloadingKit}
+            className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            {isDownloadingKit ? 'Préparation...' : 'Télécharger le kit de distribution'}
           </button>
         </div>
       </div>

@@ -557,18 +557,34 @@ model EStudioSignal {
 
 // Onelib : hub de diffusion d'une track terminée (smart link, QR code, kit de distribution)
 model OnelibRelease {
-  id            String    @id @default(cuid())
-  trackId       String    @unique
-  track         Track     @relation(fields: [trackId], references: [id], onDelete: Cascade)
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
-  slug          String    @unique // URL publique de la page smart link : /o/{slug}
-  status        String    @default("draft") // draft, published
-  description   String?
-  soundcloudUrl String?
-  coverUrl      String?   // override optionnel (sinon on reprend track.coverUrl)
-  views         Int       @default(0)
-  publishedAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  trackId         String    @unique
+  track           Track     @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  slug            String    @unique // URL publique de la page smart link : /o/{slug}
+  status          String    @default("draft") // draft, published
+  description     String?
+  soundcloudUrl   String?
+  coverUrl        String?   // override optionnel (sinon on reprend track.coverUrl)
+  views           Int       @default(0)
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Attestation d'auteur (preuve d'antériorité écrite, horodatée — pas un dépôt officiel SACEM)
+  authorLegalName String?
+  authorSignedAt  DateTime?
+
+  collaborators   OnelibCollaborator[]
+}
+
+// Collaborateur crédité sur une release Onelib (doit figurer sur le titre et l'attestation)
+model OnelibCollaborator {
+  id        String        @id @default(cuid())
+  releaseId String
+  release   OnelibRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  name      String
+  role      String        @default("compositeur") // compositeur, auteur, featuring, producteur, ingenieur_son
+  createdAt DateTime      @default(now())
 }
