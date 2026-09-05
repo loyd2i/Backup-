@@ -45,6 +45,7 @@ model User {
 
   // Onelib (hub de diffusion des sorties)
   onelibReleases        OnelibRelease[]
+  onelibCollections     OnelibCollection[]
 }
 
 // Studio d'enregistrement
@@ -257,6 +258,7 @@ model Track {
   comments        TrackComment[]
   sharedWith      TrackShare[]
   onelibRelease   OnelibRelease?
+  collectionEntries OnelibCollectionTrack[]
 }
 
 // Version d'une track (V1, V2, etc.)
@@ -569,7 +571,8 @@ model OnelibRelease {
   userId          String
   user            User      @relation(fields: [userId], references: [id])
   slug            String    @unique // URL publique de la page smart link : /o/{slug}
-  status          String    @default("draft") // draft, published
+  status          String    @default("draft") // draft, scheduled, published
+  scheduledAt     DateTime? // programmation d'une publication future (promue automatiquement à la lecture)
   description     String?
   soundcloudUrl   String?
   coverUrl        String?   // override optionnel (sinon on reprend track.coverUrl)
@@ -582,6 +585,10 @@ model OnelibRelease {
   authorLegalName String?
   authorSignedAt  DateTime?
 
+  // Demande de distribution (suivi interne : pas de soumission automatique aux vraies plateformes)
+  distributionStatus      String    @default("none") // none, requested, in_review, live
+  distributionRequestedAt DateTime?
+
   collaborators   OnelibCollaborator[]
 }
 
@@ -593,4 +600,56 @@ model OnelibCollaborator {
   name      String
   role      String        @default("compositeur") // compositeur, auteur, featuring, producteur, ingenieur_son
   createdAt DateTime      @default(now())
+}
+
+// Bibliothèque Onelib : regroupement de plusieurs tracks en album ou playlist
+model OnelibCollection {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  title           String
+  kind            String    // album, playlist
+  description     String?
+  coverUrl        String?
+  slug            String    @unique // URL publique : /o/{slug}
+  status          String    @default("draft") // draft, scheduled, published
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  views           Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Attestation d'auteur (préuve d'antériorité écrite, horodatée — pas un dépôt officiel SACEM)
+  authorLegalName String?
+  authorSignedAt  DateTime?
+
+  // Demande de distribution (suivi interne : pas de soumission automatique aux vraies plateformes)
+  distributionStatus      String    @default("none") // none, requested, in_review, live
+  distributionRequestedAt DateTime?
+
+  tracks        OnelibCollectionTrack[]
+  collaborators OnelibCollectionCollaborator[]
+}
+
+// Track appartenant à un album/playlist Onelib, avec son ordre
+model OnelibCollectionTrack {
+  id           String           @id @default(cuid())
+  collectionId String
+  collection   OnelibCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  trackId      String
+  track        Track            @relation(fields: [trackId], references: [id])
+  order        Int              @default(0)
+  createdAt    DateTime         @default(now())
+
+  @@unique([collectionId, trackId])
+}
+
+// Collaborateur crédité sur un album/playlist Onelib
+model OnelibCollectionCollaborator {
+  id           String           @id @default(cuid())
+  collectionId String
+  collection   OnelibCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  name         String
+  role         String           @default("compositeur")
+  createdAt    DateTime         @default(now())
 }

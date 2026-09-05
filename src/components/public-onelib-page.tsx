@@ -37,6 +37,7 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
   const [release, setRelease] = useState<PublicRelease | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -47,6 +48,7 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
           setRelease(data.release);
         } else {
           setNotFound(true);
+          setScheduledAt(data.scheduledAt || null);
         }
       } catch {
         setNotFound(true);
@@ -65,8 +67,20 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
       <div className="min-h-screen bg-[#121212] flex items-center justify-center p-6">
         <div className="text-center">
           <Music2 className="w-14 h-14 text-gray-600 mx-auto mb-4" />
-          <p className="text-white text-lg font-semibold">Cette sortie n&apos;est pas disponible</p>
-          <p className="text-gray-500 text-sm mt-1">Le lien est invalide ou la release n&apos;a pas encore été publiée</p>
+          {scheduledAt ? (
+            <>
+              <p className="text-white text-lg font-semibold">Bientôt disponible</p>
+              <p className="text-gray-500 text-sm mt-1">
+                Cette sortie sera en ligne le {new Date(scheduledAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                {' '}à {new Date(scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-white text-lg font-semibold">Cette sortie n&apos;est pas disponible</p>
+              <p className="text-gray-500 text-sm mt-1">Le lien est invalide ou la release n&apos;a pas encore été publiée</p>
+            </>
+          )}
           {onBack && (
             <button onClick={onBack} className="mt-4 text-[#6366f1] hover:text-[#818cf8] text-sm">
               Retour à Studiolib

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { promoteReleaseIfDue } from '@/lib/onelib';
 
 // GET - Détail d'une release Onelib (propriétaire uniquement)
 export async function GET(
@@ -14,7 +15,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const release = await prisma.onelibRelease.findUnique({
+    let release = await prisma.onelibRelease.findUnique({
       where: { id },
       include: { track: true, collaborators: { orderBy: { createdAt: 'asc' } } }
     });
@@ -22,6 +23,8 @@ export async function GET(
     if (!release || release.userId !== user.id) {
       return NextResponse.json({ error: 'Release non trouvée' }, { status: 404 });
     }
+
+    release = (await promoteReleaseIfDue(release)) || release;
 
     return NextResponse.json({ release });
   } catch (error) {
@@ -50,13 +53,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Release non trouvée' }, { status: 404 });
     }
 
-    const { description, soundcloudUrl, coverUrl, status } = await request.json();
+    const { description, soundcloudUrl, coverUrl, status, scheduledAt } = await request.json();
     const data: {
       description?: string | null;
       soundcloudUrl?: string | null;
       coverUrl?: string | null;
       status?: string;
       publishedAt?: Date | null;
+      scheduledAt?: Date | null;
     } = {};
 
     if (description !== undefined) data.description = description || null;
@@ -64,10 +68,10 @@ export async function PATCH(
     if (coverUrl !== undefined) data.coverUrl = coverUrl || null;
 
     if (status !== undefined) {
-      if (!['draft', 'published'].includes(status)) {
+      if (!['draft', 'scheduled', 'published'].includes(status)) {
         return NextResponse.json({ error: 'Statut invalide' }, { status: 400 });
       }
-      if (status === 'published') {
+      if (status === 'published' || status === 'scheduled') {
         const effectiveSoundcloudUrl = soundcloudUrl !== undefined ? soundcloudUrl : release.soundcloudUrl;
         const hasAnyLink = !!(
           release.track.spotifyUrl || release.track.youtubeUrl ||
@@ -80,12 +84,25 @@ export async function PATCH(
           );
         }
       }
+      if (status === 'scheduled') {
+        if (!scheduledAt) {
+          return NextResponse.json({ error: 'Date de programmation requise' }, { status: 400 });
+        }
+        const date = new Date(scheduledAt);
+        if (isNaN(date.getTime()) || date <= new Date()) {
+          return NextResponse.json({ error: 'La date de programmation doit être dans le futur' }, { status: 400 });
+        }
+        data.scheduledAt = date;
+        data.publishedAt = null;
+      }
       data.status = status;
       if (status === 'published' && release.status !== 'published') {
         data.publishedAt = new Date();
+        data.scheduledAt = null;
       }
       if (status === 'draft') {
         data.publishedAt = null;
+        data.scheduledAt = null;
       }
     }
 

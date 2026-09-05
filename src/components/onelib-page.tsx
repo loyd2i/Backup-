@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {
   Share2, Music2, ArrowLeft, Eye, CheckCircle2, PenLine, Trash2,
-  Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users, ExternalLink,
+  Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users, ExternalLink, Clock,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -25,7 +25,8 @@ interface Release {
   id: string;
   trackId: string;
   slug: string;
-  status: string; // draft, published
+  status: string; // draft, scheduled, published
+  scheduledAt: string | null;
   description: string | null;
   soundcloudUrl: string | null;
   coverUrl: string | null;
@@ -82,6 +83,8 @@ export default function OnelibPage() {
   const [isSigning, setIsSigning] = useState(false);
   const [isDownloadingKit, setIsDownloadingKit] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [scheduledAtInput, setScheduledAtInput] = useState('');
 
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
 
@@ -117,6 +120,8 @@ export default function OnelibPage() {
     setNewCollabRole('compositeur');
     setLegalNameInput(release.authorLegalName || '');
     setPublishError(null);
+    setShowScheduler(false);
+    setScheduledAtInput('');
   };
 
   const loadQrCode = async (releaseId: string) => {
@@ -290,6 +295,59 @@ export default function OnelibPage() {
     }
   };
 
+  const handleSchedule = async () => {
+    if (!detail || !scheduledAtInput) return;
+    setPublishError(null);
+
+    if (!hasAnyDistributionLink(detail)) {
+      setPublishError('Ajoute au moins un lien de diffusion (Spotify, YouTube, Apple Music, Deezer ou SoundCloud) avant de programmer.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/onelib/releases/${detail.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'scheduled', scheduledAt: new Date(scheduledAtInput).toISOString() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDetail(data.release);
+        setReleases(prev => prev.map(r => (r.id === data.release.id ? data.release : r)));
+        setShowScheduler(false);
+      } else {
+        setPublishError(data.error || 'Erreur lors de la programmation');
+      }
+    } catch (error) {
+      console.error('Error scheduling release:', error);
+      setPublishError('Erreur lors de la programmation');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelSchedule = async () => {
+    if (!detail) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/onelib/releases/${detail.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'draft' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDetail(data.release);
+        setReleases(prev => prev.map(r => (r.id === data.release.id ? data.release : r)));
+      }
+    } catch (error) {
+      console.error('Error cancelling schedule:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!detail) return;
     if (!confirm('Supprimer cette release Onelib ? Cette action est définitive.')) return;
@@ -346,6 +404,10 @@ export default function OnelibPage() {
                   <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-500/15 text-green-400">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Publiée
                   </span>
+                ) : detail.status === 'scheduled' ? (
+                  <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400">
+                    <Clock className="w-3.5 h-3.5" /> Programmée
+                  </span>
                 ) : (
                   <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-500/15 text-gray-400">
                     <PenLine className="w-3.5 h-3.5" /> Brouillon
@@ -363,19 +425,64 @@ export default function OnelibPage() {
             </button>
           </div>
 
-          <div className="flex items-center gap-3 mb-5">
+          {detail.status === 'scheduled' && detail.scheduledAt && (
+            <div className="bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl p-3 text-sm mb-4 flex items-center justify-between gap-3 flex-wrap">
+              <span className="flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Publication programmée le {new Date(detail.scheduledAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} à {new Date(detail.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              <button
+                onClick={handleCancelSchedule}
+                disabled={isSaving}
+                className="text-xs underline hover:no-underline disabled:opacity-50"
+              >
+                Annuler la programmation
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 mb-5 flex-wrap">
             <button
               onClick={handleTogglePublish}
               disabled={isSaving}
               style={{ backgroundColor: accentColor }}
               className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {detail.status === 'published' ? 'Dépublier' : 'Publier la release'}
+              {detail.status === 'published' ? 'Dépublier' : 'Publier maintenant'}
             </button>
+            {detail.status !== 'published' && (
+              <button
+                onClick={() => setShowScheduler(prev => !prev)}
+                disabled={isSaving}
+                className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors disabled:opacity-50"
+              >
+                <Clock className="w-4 h-4" />
+                Programmer
+              </button>
+            )}
             <span className="flex items-center gap-1 text-gray-500 text-sm">
               <Eye className="w-4 h-4" /> {detail.views} vue{detail.views > 1 ? 's' : ''}
             </span>
           </div>
+
+          {showScheduler && (
+            <div className="flex items-center gap-2 flex-wrap bg-[#121212] rounded-xl p-3 border border-[#2a2a2a] mb-4">
+              <input
+                type="datetime-local"
+                value={scheduledAtInput}
+                onChange={(e) => setScheduledAtInput(e.target.value)}
+                className="flex-1 min-w-[180px] bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+              />
+              <button
+                onClick={handleSchedule}
+                disabled={isSaving || !scheduledAtInput}
+                style={{ backgroundColor: accentColor }}
+                className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex-shrink-0"
+              >
+                Confirmer la programmation
+              </button>
+            </div>
+          )}
 
           {publishError && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3 text-sm mb-4">
@@ -654,6 +761,10 @@ export default function OnelibPage() {
                     {release.status === 'published' ? (
                       <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-500/15 text-green-400">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Publiée
+                      </span>
+                    ) : release.status === 'scheduled' ? (
+                      <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400">
+                        <Clock className="w-3.5 h-3.5" /> Programmée
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-500/15 text-gray-400">

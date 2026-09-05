@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { promoteReleaseIfDue } from '@/lib/onelib';
 
 function slugify(text: string) {
   return text
@@ -43,7 +44,11 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }
     });
 
-    return NextResponse.json({ releases });
+    const resolvedReleases = await Promise.all(
+      releases.map(async (release) => (await promoteReleaseIfDue(release)) || release)
+    );
+
+    return NextResponse.json({ releases: resolvedReleases });
   } catch (error) {
     console.error('Erreur récupération releases Onelib:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
