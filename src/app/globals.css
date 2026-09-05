@@ -46,37 +46,37 @@
 /* Studiolib Dark Theme */
 :root {
   --radius: 0.75rem;
-  --background: #0a0e1c;
+  --background: #06080f;
   --foreground: #ffffff;
-  --card: #121a2e;
+  --card: #0d1424;
   --card-foreground: #ffffff;
-  --popover: #121a2e;
+  --popover: #0d1424;
   --popover-foreground: #ffffff;
   --primary: #ffffff;
-  --primary-foreground: #0a0e1c;
-  --secondary: #1b2440;
+  --primary-foreground: #06080f;
+  --secondary: #151d36;
   --secondary-foreground: #ffffff;
-  --muted: #1b2440;
-  --muted-foreground: #a0a0a0;
-  --accent: #4c5cf5;
+  --muted: #151d36;
+  --muted-foreground: #8f97ad;
+  --accent: #2952d9;
   --accent-foreground: #ffffff;
   --destructive: #ef4444;
-  --border: #232d4d;
-  --input: #1b2440;
-  --ring: #4c5cf5;
-  --chart-1: #4c5cf5;
+  --border: #1a2340;
+  --input: #151d36;
+  --ring: #2952d9;
+  --chart-1: #2952d9;
   --chart-2: #22c55e;
-  --chart-3: #f59e0b;
+  --chart-3: #ca8a04;
   --chart-4: #ef4444;
   --chart-5: #8b5cf6;
-  --sidebar: #121a2e;
+  --sidebar: #0d1424;
   --sidebar-foreground: #ffffff;
-  --sidebar-primary: #4c5cf5;
+  --sidebar-primary: #2952d9;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1b2440;
+  --sidebar-accent: #151d36;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #232d4d;
-  --sidebar-ring: #4c5cf5;
+  --sidebar-border: #1a2340;
+  --sidebar-ring: #2952d9;
 }
 
 /* Stripe pattern background for login */
@@ -97,16 +97,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #121a2e;
+  background: #0d1424;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2d3a63;
+  background: #232d52;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a4980;
+  background: #2d3a70;
 }
 
 /* Safe area for mobile devices */
@@ -153,33 +153,80 @@
    d'image ni PNG existant, uniquement aux couleurs de surface.
    ============================================================ */
 
-/* Fond de page et cartes : gris neutre -> bleu nuit */
-.bg-\[\#121212\] { background-color: #0a0e1c !important; }
-.bg-\[\#1a1a1a\] { background-color: #121a2e !important; }
-.bg-\[\#2a2a2a\] { background-color: #1b2440 !important; }
-.bg-\[\#3a3a3a\] { background-color: #253052 !important; }
-.hover\:bg-\[\#1a1a1a\]:hover { background-color: #121a2e !important; }
-.hover\:bg-\[\#2a2a2a\]:hover { background-color: #1b2440 !important; }
-.hover\:bg-\[\#3a3a3a\]:hover { background-color: #253052 !important; }
-.bg-\[\#2a2a3a\] { background-color: #1f2947 !important; }
-.bg-\[\#222\] { background-color: #141c33 !important; }
-.hover\:bg-\[\#222\]:hover { background-color: #141c33 !important; }
-.bg-\[\#0d0d0d\] { background-color: #060911 !important; }
-.border-\[\#1a1a1a\] { border-color: #121a2e !important; }
-.border-\[\#4a4a4a\] { border-color: #3a4980 !important; }
+/* Fond de page et cartes : gris neutre -> bleu nuit (assombri) */
+.bg-\[\#121212\] { background-color: #06080f !important; }
+.bg-\[\#1a1a1a\] { background-color: #0d1424 !important; }
+.bg-\[\#2a2a2a\] { background-color: #151d36 !important; }
+.bg-\[\#3a3a3a\] { background-color: #1c2542 !important; }
+.hover\:bg-\[\#1a1a1a\]:hover { background-color: #0d1424 !important; }
+.hover\:bg-\[\#2a2a2a\]:hover { background-color: #151d36 !important; }
+.hover\:bg-\[\#3a3a3a\]:hover { background-color: #1c2542 !important; }
+.bg-\[\#2a2a3a\] { background-color: #172038 !important; }
+.bg-\[\#222\] { background-color: #0f1526 !important; }
+.hover\:bg-\[\#222\]:hover { background-color: #0f1526 !important; }
+.bg-\[\#0d0d0d\] { background-color: #04050a !important; }
+.border-\[\#1a1a1a\] { border-color: #0d1424 !important; }
+.border-\[\#4a4a4a\] { border-color: #2d3a70 !important; }
 
-/* Accent indigo -> teinte légèrement plus profonde, cohérente avec le bleu nuit */
-.bg-\[\#6366f1\] { background-color: #4c5cf5 !important; }
-.bg-\[\#5558e3\] { background-color: #3c4de0 !important; }
-.hover\:bg-\[\#5558e3\]:hover { background-color: #3c4de0 !important; }
-.border-\[\#6366f1\] { border-color: #6b78f7 !important; }
+/* Accent indigo -> bleu nuit sérieux, moins violet */
+.bg-\[\#6366f1\] { background-color: #2952d9 !important; }
+.bg-\[\#5558e3\] { background-color: #2145b8 !important; }
+.hover\:bg-\[\#5558e3\]:hover { background-color: #2145b8 !important; }
+.border-\[\#6366f1\] { border-color: #4f74e8 !important; }
+.text-\[\#6366f1\] { color: #5b82f2 !important; }
+.text-\[\#818cf8\] { color: #7fa0f5 !important; }
+.ring-\[\#6366f1\] { --tw-ring-color: #2952d9 !important; }
+.from-\[\#6366f1\] { --tw-gradient-from: #2952d9 !important; }
+.to-\[\#6366f1\] { --tw-gradient-to: #2952d9 !important; }
 
-/* Bordures : gris neutre -> bleu ardoise */
-.border-\[\#2a2a2a\] { border-color: #232d4d !important; }
-.border-\[\#3a3a3a\] { border-color: #2d3a63 !important; }
-.hover\:border-\[\#3a3a3a\]:hover { border-color: #2d3a63 !important; }
-.hover\:border-\[\#4a4a4a\]:hover { border-color: #3a4980 !important; }
-.hover\:border-\[\#6366f1\]:hover { border-color: #7c8bff !important; }
+/* Dégradés violets (to-[#8b5cf6], via-[#7c3aed]) utilisés pour les états actifs
+   du menu et un bandeau promo : ramenés dans la même famille bleu nuit. */
+.to-\[\#8b5cf6\] { --tw-gradient-to: #2145b8 !important; }
+.via-\[\#7c3aed\] { --tw-gradient-via: #2547c4 !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-via), var(--tw-gradient-to) !important; }
+.text-\[\#8b5cf6\] { color: #5b82f2 !important; }
+
+/* Variantes avec opacité (badges, halos) de l'accent indigo */
+.bg-\[\#6366f1\]\/5 { background-color: color-mix(in oklab, #2952d9 5%, transparent) !important; }
+.bg-\[\#6366f1\]\/10 { background-color: color-mix(in oklab, #2952d9 10%, transparent) !important; }
+.bg-\[\#6366f1\]\/15 { background-color: color-mix(in oklab, #2952d9 15%, transparent) !important; }
+.bg-\[\#6366f1\]\/20 { background-color: color-mix(in oklab, #2952d9 20%, transparent) !important; }
+.bg-\[\#6366f1\]\/30 { background-color: color-mix(in oklab, #2952d9 30%, transparent) !important; }
+.bg-\[\#6366f1\]\/50 { background-color: color-mix(in oklab, #2952d9 50%, transparent) !important; }
+.border-\[\#6366f1\]\/30 { border-color: color-mix(in oklab, #4f74e8 30%, transparent) !important; }
+.border-\[\#6366f1\]\/50 { border-color: color-mix(in oklab, #4f74e8 50%, transparent) !important; }
+
+/* Accent ambre -> jaune plus sérieux, moins orange */
+.bg-\[\#f59e0b\] { background-color: #ca8a04 !important; }
+.border-\[\#f59e0b\] { border-color: #ca8a04 !important; }
+.text-\[\#f59e0b\] { color: #d6a90f !important; }
+.bg-\[\#d97706\] { background-color: #a16207 !important; }
+.border-\[\#d97706\] { border-color: #a16207 !important; }
+.from-\[\#f59e0b\] { --tw-gradient-from: #ca8a04 !important; }
+.to-\[\#f59e0b\] { --tw-gradient-to: #ca8a04 !important; }
+
+/* Variantes avec opacité de l'accent ambre/jaune */
+.bg-\[\#f59e0b\]\/10 { background-color: color-mix(in oklab, #ca8a04 10%, transparent) !important; }
+.bg-\[\#f59e0b\]\/20 { background-color: color-mix(in oklab, #ca8a04 20%, transparent) !important; }
+.bg-\[\#f59e0b\]\/30 { background-color: color-mix(in oklab, #ca8a04 30%, transparent) !important; }
+.bg-\[\#f59e0b\]\/50 { background-color: color-mix(in oklab, #ca8a04 50%, transparent) !important; }
+.bg-\[\#f59e0b\]\/70 { background-color: color-mix(in oklab, #ca8a04 70%, transparent) !important; }
+.border-\[\#f59e0b\]\/30 { border-color: color-mix(in oklab, #ca8a04 30%, transparent) !important; }
+.border-\[\#f59e0b\]\/50 { border-color: color-mix(in oklab, #ca8a04 50%, transparent) !important; }
+
+/* Boutons dont la couleur est calculée en JS (style inline accentColor) :
+   le navigateur normalise le hex en rgb() dans l'attribut style, d'où ce
+   ciblage par sélecteur d'attribut plutôt que par classe. */
+[style*="background-color: rgb(99, 102, 241)"] { background-color: #2952d9 !important; }
+[style*="background-color: rgb(245, 158, 11)"] { background-color: #ca8a04 !important; }
+[style*="color: rgb(99, 102, 241)"]:not([style*="background-color: rgb(99, 102, 241)"]) { color: #5b82f2 !important; }
+[style*="color: rgb(245, 158, 11)"]:not([style*="background-color: rgb(245, 158, 11)"]) { color: #d6a90f !important; }
+
+/* Bordures : gris neutre -> bleu ardoise (assombri) */
+.border-\[\#2a2a2a\] { border-color: #1a2340 !important; }
+.border-\[\#3a3a3a\] { border-color: #26326a !important; }
+.hover\:border-\[\#3a3a3a\]:hover { border-color: #26326a !important; }
+.hover\:border-\[\#4a4a4a\]:hover { border-color: #2d3a70 !important; }
+.hover\:border-\[\#6366f1\]:hover { border-color: #5f82f0 !important; }
 
 /* Effet de relief : les cartes (fond + bordure) ressortent du fond */
 .border-\[\#2a2a2a\], .border-\[\#3a3a3a\] {
