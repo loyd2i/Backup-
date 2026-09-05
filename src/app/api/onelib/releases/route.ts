@@ -32,7 +32,13 @@ export async function GET() {
     const releases = await prisma.onelibRelease.findMany({
       where: { userId: user.id },
       include: {
-        track: { select: { id: true, title: true, artist: true, coverUrl: true, genre: true, status: true } }
+        track: {
+          select: {
+            id: true, title: true, artist: true, coverUrl: true, genre: true, status: true,
+            spotifyUrl: true, youtubeUrl: true, appleMusicUrl: true, deezerUrl: true,
+          }
+        },
+        collaborators: { orderBy: { createdAt: 'asc' } }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -81,7 +87,12 @@ export async function POST(request: NextRequest) {
         slug,
       },
       include: {
-        track: { select: { id: true, title: true, artist: true, coverUrl: true, genre: true, status: true } },
+        track: {
+          select: {
+            id: true, title: true, artist: true, coverUrl: true, genre: true, status: true,
+            spotifyUrl: true, youtubeUrl: true, appleMusicUrl: true, deezerUrl: true,
+          }
+        },
         collaborators: true
       }
     });

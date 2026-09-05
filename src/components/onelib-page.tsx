@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {
   Share2, Music2, ArrowLeft, Eye, CheckCircle2, PenLine, Trash2,
-  Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users,
+  Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users, ExternalLink,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -81,6 +81,7 @@ export default function OnelibPage() {
   const [legalNameInput, setLegalNameInput] = useState('');
   const [isSigning, setIsSigning] = useState(false);
   const [isDownloadingKit, setIsDownloadingKit] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
 
@@ -115,6 +116,7 @@ export default function OnelibPage() {
     setNewCollabName('');
     setNewCollabRole('compositeur');
     setLegalNameInput(release.authorLegalName || '');
+    setPublishError(null);
   };
 
   const loadQrCode = async (releaseId: string) => {
@@ -252,9 +254,20 @@ export default function OnelibPage() {
     }
   };
 
+  const hasAnyDistributionLink = (release: Release) =>
+    !!(release.track.spotifyUrl || release.track.youtubeUrl || release.track.appleMusicUrl ||
+       release.track.deezerUrl || release.soundcloudUrl);
+
   const handleTogglePublish = async () => {
     if (!detail) return;
+    setPublishError(null);
     const nextStatus = detail.status === 'published' ? 'draft' : 'published';
+
+    if (nextStatus === 'published' && !hasAnyDistributionLink(detail)) {
+      setPublishError('Ajoute au moins un lien de diffusion (Spotify, YouTube, Apple Music, Deezer ou SoundCloud) avant de publier.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const res = await fetch(`/api/onelib/releases/${detail.id}`, {
@@ -266,9 +279,12 @@ export default function OnelibPage() {
       if (res.ok) {
         setDetail(data.release);
         setReleases(prev => prev.map(r => (r.id === data.release.id ? data.release : r)));
+      } else {
+        setPublishError(data.error || 'Erreur lors de la publication');
       }
     } catch (error) {
       console.error('Error toggling publish state:', error);
+      setPublishError('Erreur lors de la publication');
     } finally {
       setIsSaving(false);
     }
@@ -361,13 +377,37 @@ export default function OnelibPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2 bg-[#121212] rounded-xl p-3 border border-[#2a2a2a]">
+          {publishError && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl p-3 text-sm mb-4">
+              {publishError}
+            </div>
+          )}
+
+          {detail.status === 'draft' && !detail.authorSignedAt && (
+            <div className="bg-[#121212] border border-[#2a2a2a] text-gray-400 rounded-xl p-3 text-xs mb-4">
+              💡 Pense à signer l&apos;attestation d&apos;auteur (plus bas) avant de publier, pour une preuve
+              d&apos;antériorité datée dès la mise en ligne.
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 flex-wrap bg-[#121212] rounded-xl p-3 border border-[#2a2a2a]">
             <Link2 className="w-4 h-4 text-gray-500 flex-shrink-0" />
             <input
               readOnly
               value={smartLinkUrl}
-              className="flex-1 bg-transparent text-gray-300 text-sm outline-none truncate"
+              className="flex-1 min-w-0 bg-transparent text-gray-300 text-sm outline-none truncate"
             />
+            {detail.status === 'published' && (
+              <a
+                href={smartLinkUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors flex-shrink-0"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Voir
+              </a>
+            )}
             <button
               onClick={copyLink}
               className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors flex-shrink-0"
@@ -498,18 +538,18 @@ export default function OnelibPage() {
             </div>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               type="text"
               value={newCollabName}
               onChange={(e) => setNewCollabName(e.target.value)}
               placeholder="Nom du collaborateur"
-              className="flex-1 bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+              className="flex-1 min-w-[140px] bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
             />
             <select
               value={newCollabRole}
               onChange={(e) => setNewCollabRole(e.target.value)}
-              className="bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] text-sm"
+              className="bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] text-sm flex-shrink-0"
             >
               {COLLABORATOR_ROLES.map(r => (
                 <option key={r.value} value={r.value}>{r.label}</option>
@@ -545,13 +585,13 @@ export default function OnelibPage() {
               </p>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <input
                 type="text"
                 value={legalNameInput}
                 onChange={(e) => setLegalNameInput(e.target.value)}
                 placeholder="Ton nom légal complet"
-                className="flex-1 bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none"
+                className="flex-1 min-w-[140px] bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none"
               />
               <button
                 onClick={handleSign}

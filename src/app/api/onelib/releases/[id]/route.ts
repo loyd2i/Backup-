@@ -42,7 +42,10 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const release = await prisma.onelibRelease.findUnique({ where: { id } });
+    const release = await prisma.onelibRelease.findUnique({
+      where: { id },
+      include: { track: { select: { spotifyUrl: true, youtubeUrl: true, appleMusicUrl: true, deezerUrl: true } } }
+    });
     if (!release || release.userId !== user.id) {
       return NextResponse.json({ error: 'Release non trouvée' }, { status: 404 });
     }
@@ -63,6 +66,19 @@ export async function PATCH(
     if (status !== undefined) {
       if (!['draft', 'published'].includes(status)) {
         return NextResponse.json({ error: 'Statut invalide' }, { status: 400 });
+      }
+      if (status === 'published') {
+        const effectiveSoundcloudUrl = soundcloudUrl !== undefined ? soundcloudUrl : release.soundcloudUrl;
+        const hasAnyLink = !!(
+          release.track.spotifyUrl || release.track.youtubeUrl ||
+          release.track.appleMusicUrl || release.track.deezerUrl || effectiveSoundcloudUrl
+        );
+        if (!hasAnyLink) {
+          return NextResponse.json(
+            { error: 'Ajoute au moins un lien de diffusion avant de publier' },
+            { status: 400 }
+          );
+        }
       }
       data.status = status;
       if (status === 'published' && release.status !== 'published') {
