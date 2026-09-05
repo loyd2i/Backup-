@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {
   ArrowLeft, Eye, CheckCircle2, PenLine, Trash2, Link2, Check, QrCode, Download,
-  Plus, X, FileSignature, Package, Users, ExternalLink, Clock, ChevronUp, ChevronDown, Disc, ListMusic,
+  Plus, X, FileSignature, Package, Users, ExternalLink, Clock, ChevronUp, ChevronDown, Disc, ListMusic, ImageUp,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -90,6 +90,8 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
   const [legalNameInput, setLegalNameInput] = useState('');
   const [isSigning, setIsSigning] = useState(false);
   const [isDownloadingKit, setIsDownloadingKit] = useState(false);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [showScheduler, setShowScheduler] = useState(false);
   const [scheduledAtInput, setScheduledAtInput] = useState('');
@@ -139,6 +141,28 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
       console.error('Error saving collection:', error);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingCover(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/onelib/collections/${collectionId}/cover`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) setDetail(data.collection);
+      else alert(data.error || 'Erreur lors du téléversement');
+    } catch (error) {
+      console.error('Error uploading cover:', error);
+    } finally {
+      setIsUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = '';
     }
   };
 
@@ -391,28 +415,55 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
 
       <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 mb-6">
         <div className="flex items-start justify-between gap-4 mb-4">
-          <div>
-            <div className="flex items-center gap-3 flex-wrap mb-1">
-              <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-[#6366f1]/15 text-[#818cf8]">
-                {detail.kind === 'album' ? <Disc className="w-3.5 h-3.5" /> : <ListMusic className="w-3.5 h-3.5" />}
-                {detail.kind === 'album' ? 'Album' : 'Playlist'}
-              </span>
-              <h1 className="text-2xl font-bold text-white">{detail.title}</h1>
-              {detail.status === 'published' ? (
-                <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-500/15 text-green-400">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Publiée
-                </span>
-              ) : detail.status === 'scheduled' ? (
-                <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400">
-                  <Clock className="w-3.5 h-3.5" /> Programmée
-                </span>
+          <div className="flex items-start gap-4">
+            <button
+              type="button"
+              onClick={() => coverInputRef.current?.click()}
+              disabled={isUploadingCover}
+              className="relative w-20 h-20 rounded-xl overflow-hidden bg-[#121212] border border-[#2a2a2a] flex-shrink-0 group"
+              title="Changer la pochette"
+            >
+              {detail.coverUrl ? (
+                <img src={detail.coverUrl} alt={detail.title} className="w-full h-full object-cover" />
               ) : (
-                <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-500/15 text-gray-400">
-                  <PenLine className="w-3.5 h-3.5" /> Brouillon
-                </span>
+                <div className="w-full h-full flex items-center justify-center">
+                  {detail.kind === 'album' ? <Disc className="w-8 h-8 text-gray-600" /> : <ListMusic className="w-8 h-8 text-gray-600" />}
+                </div>
               )}
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <ImageUp className="w-5 h-5 text-white" />
+              </div>
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleCoverUpload}
+                className="hidden"
+              />
+            </button>
+            <div>
+              <div className="flex items-center gap-3 flex-wrap mb-1">
+                <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-[#6366f1]/15 text-[#818cf8]">
+                  {detail.kind === 'album' ? <Disc className="w-3.5 h-3.5" /> : <ListMusic className="w-3.5 h-3.5" />}
+                  {detail.kind === 'album' ? 'Album' : 'Playlist'}
+                </span>
+                <h1 className="text-2xl font-bold text-white">{detail.title}</h1>
+                {detail.status === 'published' ? (
+                  <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-500/15 text-green-400">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Publiée
+                  </span>
+                ) : detail.status === 'scheduled' ? (
+                  <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400">
+                    <Clock className="w-3.5 h-3.5" /> Programmée
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-500/15 text-gray-400">
+                    <PenLine className="w-3.5 h-3.5" /> Brouillon
+                  </span>
+                )}
+              </div>
+              <p className="text-gray-500 text-sm">{detail.tracks.length} titre{detail.tracks.length > 1 ? 's' : ''}</p>
             </div>
-            <p className="text-gray-500 text-sm">{detail.tracks.length} titre{detail.tracks.length > 1 ? 's' : ''}</p>
           </div>
           <button
             onClick={handleDelete}
