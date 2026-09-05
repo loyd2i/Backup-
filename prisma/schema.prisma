@@ -19,6 +19,17 @@ model User {
   phone        String?
   role         String   @default("artiste") // artiste, ingenieur, gestionnaire, studio_owner
   avatar       String?
+
+  // Fiche publique artiste (vitrine)
+  bio          String?  // Courte présentation
+  city         String?  // Ville / région
+  genre        String?  // Genre musical / spécialité
+  instagram    String?
+  spotify      String?
+  soundcloud   String?
+  youtube      String?
+  website      String?
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
