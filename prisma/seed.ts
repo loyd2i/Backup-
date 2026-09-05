@@ -28,6 +28,10 @@ async function main() {
       name: 'Artiste Demo',
       phone: '+33 6 12 34 56 78',
       role: 'artiste',
+      bio: 'Auteur-compositeur, ambiances electro-pop. En studio quand je ne suis pas sur scène.',
+      city: 'Paris',
+      genre: 'Electro-pop',
+      instagram: '@artistedemo',
     },
   });
 
