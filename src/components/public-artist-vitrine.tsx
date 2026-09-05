@@ -139,12 +139,23 @@ export default function PublicArtistVitrine({ artistId }: PublicArtistVitrinePro
 
   const accentColor = artist.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
 
+  // Défense en profondeur : même si l'API valide déjà ces champs à l'écriture,
+  // on ne rend jamais un lien dont le schéma n'est pas http(s) (ex: javascript:).
+  const isSafeHttpUrl = (value: string) => {
+    try {
+      const { protocol } = new URL(value);
+      return protocol === 'http:' || protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
   const socialLinks = [
-    artist.website && { icon: Globe, url: artist.website, label: 'Site web' },
+    artist.website && isSafeHttpUrl(artist.website) && { icon: Globe, url: artist.website, label: 'Site web' },
     artist.instagram && { icon: Instagram, url: `https://instagram.com/${artist.instagram.replace('@', '')}`, label: 'Instagram' },
-    artist.spotify && { icon: Music, url: artist.spotify, label: 'Spotify' },
-    artist.soundcloud && { icon: Headphones, url: artist.soundcloud, label: 'SoundCloud' },
-    artist.youtube && { icon: Youtube, url: artist.youtube, label: 'YouTube' },
+    artist.spotify && isSafeHttpUrl(artist.spotify) && { icon: Music, url: artist.spotify, label: 'Spotify' },
+    artist.soundcloud && isSafeHttpUrl(artist.soundcloud) && { icon: Headphones, url: artist.soundcloud, label: 'SoundCloud' },
+    artist.youtube && isSafeHttpUrl(artist.youtube) && { icon: Youtube, url: artist.youtube, label: 'YouTube' },
   ].filter(Boolean) as { icon: typeof Globe; url: string; label: string }[];
 
   return (

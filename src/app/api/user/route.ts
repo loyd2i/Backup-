@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
+// N'autorise que http(s) : ces champs sont rendus tels quels en href sur la
+// fiche artiste publique - un schéma comme javascript: y exécuterait du code
+// arbitraire chez tout visiteur cliquant le lien.
+function isSafeHttpUrl(value: string): boolean {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
   try {
     const user = await getCurrentUser();
@@ -28,6 +40,12 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json();
     const { name, phone, bio, city, genre, instagram, spotify, soundcloud, youtube, website } = body;
+
+    for (const [field, value] of Object.entries({ spotify, soundcloud, youtube, website })) {
+      if (value && !isSafeHttpUrl(value)) {
+        return NextResponse.json({ error: `Lien ${field} invalide (http/https requis)` }, { status: 400 });
+      }
+    }
 
     const updated = await prisma.user.update({
       where: { id: currentUser.id },
