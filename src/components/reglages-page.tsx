@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   User,
   Mail,
@@ -14,9 +14,28 @@ import {
   ChevronRight,
   Save,
   Percent,
+  QrCode,
+  Copy,
+  Check,
+  X,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { PLATFORM_COMMISSION_RATE } from '@/lib/tax-config';
+
+interface PublicProfile {
+  bio: string;
+  city: string;
+  genre: string;
+  instagram: string;
+  spotify: string;
+  soundcloud: string;
+  youtube: string;
+  website: string;
+}
+
+const emptyProfile: PublicProfile = {
+  bio: '', city: '', genre: '', instagram: '', spotify: '', soundcloud: '', youtube: '', website: '',
+};
 
 export default function ReglagesPage() {
   const user = useAppStore((state) => state.user);
@@ -26,10 +45,54 @@ export default function ReglagesPage() {
   const [message, setMessage] = useState('');
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [profile, setProfile] = useState<PublicProfile>(emptyProfile);
+  const [editProfile, setEditProfile] = useState<PublicProfile>(emptyProfile);
+  const [studioId, setStudioId] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const isStudioOwner = user?.role === 'studio_owner';
+  const publicPath = isStudioOwner ? (studioId ? `/studio/${studioId}` : null) : `/artiste/${user?.id}`;
+
+  useEffect(() => {
+    if (!user) return;
+    fetch('/api/user').then(res => res.json()).then(data => {
+      if (data.user) {
+        setProfile({
+          bio: data.user.bio || '', city: data.user.city || '', genre: data.user.genre || '',
+          instagram: data.user.instagram || '', spotify: data.user.spotify || '',
+          soundcloud: data.user.soundcloud || '', youtube: data.user.youtube || '', website: data.user.website || '',
+        });
+      }
+    }).catch(() => {});
+
+    if (isStudioOwner) {
+      fetch('/api/studios').then(res => res.json()).then(data => {
+        const owned = data.studios?.find((s: any) => s.ownerId === user.id || s.owner?.id === user.id);
+        if (owned) setStudioId(owned.id);
+      }).catch(() => {});
+    }
+  }, [user, isStudioOwner]);
+
+  useEffect(() => {
+    if (!publicPath) return;
+    const qrEndpoint = isStudioOwner ? `/api/studios/${studioId}/qrcode` : `/api/artists/${user?.id}/qrcode`;
+    fetch(qrEndpoint).then(res => res.json()).then(data => setQrDataUrl(data.dataUrl || null)).catch(() => {});
+  }, [publicPath, isStudioOwner, studioId, user?.id]);
+
+  const copyPublicLink = () => {
+    if (!publicPath) return;
+    navigator.clipboard.writeText(`${window.location.origin}${publicPath}`).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
 
   const handleEdit = () => {
     setEditName(user?.name || '');
     setEditPhone(user?.phone || '');
+    setEditProfile(profile);
     setIsEditing(true);
   };
 
@@ -38,7 +101,11 @@ export default function ReglagesPage() {
       const res = await fetch('/api/user', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editName, phone: editPhone })
+        body: JSON.stringify({
+          name: editName,
+          phone: editPhone,
+          ...(!isStudioOwner ? editProfile : {}),
+        })
       });
 
       if (!res.ok) {
@@ -48,6 +115,9 @@ export default function ReglagesPage() {
       const data = await res.json();
       if (user) {
         setUser({ ...user, name: data.user.name, phone: data.user.phone });
+      }
+      if (!isStudioOwner) {
+        setProfile(editProfile);
       }
       setMessage('Profil mis à jour avec succès');
     } catch (error) {
@@ -164,9 +234,147 @@ export default function ReglagesPage() {
                 placeholder="+33 6 12 34 56 78"
               />
             </div>
+
+            {!isStudioOwner && (
+              <>
+                <div className="pt-2 border-t border-[#2a2a2a]">
+                  <p className="text-gray-400 text-sm mb-3">Fiche publique artiste</p>
+                </div>
+                <div>
+                  <label className="text-gray-400 text-sm mb-2 block">Bio</label>
+                  <textarea
+                    value={editProfile.bio}
+                    onChange={(e) => setEditProfile({ ...editProfile, bio: e.target.value })}
+                    className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full min-h-[80px]"
+                    placeholder="Courte présentation visible sur votre fiche publique..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-gray-400 text-sm mb-2 block">Ville</label>
+                    <input
+                      type="text"
+                      value={editProfile.city}
+                      onChange={(e) => setEditProfile({ ...editProfile, city: e.target.value })}
+                      className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full"
+                      placeholder="Paris"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-gray-400 text-sm mb-2 block">Genre musical</label>
+                    <input
+                      type="text"
+                      value={editProfile.genre}
+                      onChange={(e) => setEditProfile({ ...editProfile, genre: e.target.value })}
+                      className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full"
+                      placeholder="Rap, Pop, Electro..."
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-gray-400 text-sm mb-2 block">Instagram</label>
+                    <input
+                      type="text"
+                      value={editProfile.instagram}
+                      onChange={(e) => setEditProfile({ ...editProfile, instagram: e.target.value })}
+                      className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full"
+                      placeholder="@pseudo"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-gray-400 text-sm mb-2 block">Site web</label>
+                    <input
+                      type="text"
+                      value={editProfile.website}
+                      onChange={(e) => setEditProfile({ ...editProfile, website: e.target.value })}
+                      className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full"
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-gray-400 text-sm mb-2 block">Spotify</label>
+                    <input
+                      type="text"
+                      value={editProfile.spotify}
+                      onChange={(e) => setEditProfile({ ...editProfile, spotify: e.target.value })}
+                      className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full"
+                      placeholder="https://open.spotify.com/artist/..."
+                    />
+                  </div>
+                  <div>
+                    <label className="text-gray-400 text-sm mb-2 block">SoundCloud</label>
+                    <input
+                      type="text"
+                      value={editProfile.soundcloud}
+                      onChange={(e) => setEditProfile({ ...editProfile, soundcloud: e.target.value })}
+                      className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full"
+                      placeholder="https://soundcloud.com/..."
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-gray-400 text-sm mb-2 block">YouTube</label>
+                  <input
+                    type="text"
+                    value={editProfile.youtube}
+                    onChange={(e) => setEditProfile({ ...editProfile, youtube: e.target.value })}
+                    className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full"
+                    placeholder="https://youtube.com/..."
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
+
+      {/* Fiche publique / QR code */}
+      {publicPath && (
+        <div className="mb-8 bg-[#1a1a1a] rounded-xl p-6 border border-[#2a2a2a]">
+          <h2 className="text-white font-semibold mb-4">
+            {isStudioOwner ? 'Ma vitrine publique' : 'Ma fiche publique'}
+          </h2>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => qrDataUrl && setShowQrModal(true)}
+              className="w-20 h-20 rounded-xl overflow-hidden bg-white flex items-center justify-center flex-shrink-0"
+            >
+              {qrDataUrl ? (
+                <img src={qrDataUrl} alt="QR code" className="w-full h-full object-cover" />
+              ) : (
+                <QrCode className="w-7 h-7 text-gray-400" />
+              )}
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-gray-400 text-sm mb-2">
+                {isStudioOwner
+                  ? 'Cette page est visible par tous, sans connexion. Partagez-la ou affichez son QR code.'
+                  : 'Votre fiche artiste est visible par tous, sans connexion. Partagez-la ou affichez son QR code.'}
+              </p>
+              <div className="flex flex-wrap items-center gap-3">
+                <a
+                  href={publicPath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#6366f1] hover:text-[#818cf8] text-sm font-medium"
+                >
+                  Voir la page →
+                </a>
+                <button
+                  onClick={copyPublicLink}
+                  className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm transition-colors"
+                >
+                  {linkCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                  {linkCopied ? 'Lien copié' : 'Copier le lien'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Settings Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -224,6 +432,29 @@ export default function ReglagesPage() {
           Se déconnecter
         </button>
       </div>
+
+      {/* QR Code Modal */}
+      {showQrModal && qrDataUrl && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+          <button
+            onClick={() => setShowQrModal(false)}
+            className="absolute top-4 right-4 text-white/70 hover:text-white z-10"
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <div className="bg-white rounded-2xl p-6 max-w-xs w-full text-center">
+            <img src={qrDataUrl} alt="QR code" className="w-full rounded-xl mb-4" />
+            <p className="text-[#121212] font-semibold mb-4">{user?.name}</p>
+            <a
+              href={qrDataUrl}
+              download={`qrcode-${(user?.name || 'studiolib').toLowerCase().replace(/\s+/g, '-')}.png`}
+              className="inline-block w-full bg-[#121212] text-white py-3 rounded-xl font-medium hover:bg-black transition-colors"
+            >
+              Télécharger le QR code
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

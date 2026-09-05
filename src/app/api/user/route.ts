@@ -17,7 +17,7 @@ export async function GET() {
   }
 }
 
-// PUT - Mettre à jour le profil (nom, téléphone)
+// PUT - Mettre à jour le profil (nom, téléphone, fiche publique artiste)
 export async function PUT(request: NextRequest) {
   try {
     const currentUser = await getCurrentUser();
@@ -27,13 +27,21 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, phone } = body;
+    const { name, phone, bio, city, genre, instagram, spotify, soundcloud, youtube, website } = body;
 
     const updated = await prisma.user.update({
       where: { id: currentUser.id },
       data: {
         ...(name !== undefined ? { name } : {}),
         ...(phone !== undefined ? { phone } : {}),
+        ...(bio !== undefined ? { bio } : {}),
+        ...(city !== undefined ? { city } : {}),
+        ...(genre !== undefined ? { genre } : {}),
+        ...(instagram !== undefined ? { instagram } : {}),
+        ...(spotify !== undefined ? { spotify } : {}),
+        ...(soundcloud !== undefined ? { soundcloud } : {}),
+        ...(youtube !== undefined ? { youtube } : {}),
+        ...(website !== undefined ? { website } : {}),
       }
     });
 
@@ -45,6 +53,14 @@ export async function PUT(request: NextRequest) {
         role: updated.role,
         phone: updated.phone,
         avatar: updated.avatar,
+        bio: updated.bio,
+        city: updated.city,
+        genre: updated.genre,
+        instagram: updated.instagram,
+        spotify: updated.spotify,
+        soundcloud: updated.soundcloud,
+        youtube: updated.youtube,
+        website: updated.website,
       }
     });
   } catch (error) {

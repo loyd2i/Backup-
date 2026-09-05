@@ -22,18 +22,26 @@ export async function createSession(userId: string): Promise<string> {
   return token;
 }
 
-export async function getCurrentUser(): Promise<{ id: string; email: string; name: string; role: string; phone?: string | null; avatar?: string | null } | null> {
+export async function getCurrentUser(): Promise<{
+  id: string; email: string; name: string; role: string; phone?: string | null; avatar?: string | null;
+  bio?: string | null; city?: string | null; genre?: string | null;
+  instagram?: string | null; spotify?: string | null; soundcloud?: string | null; youtube?: string | null; website?: string | null;
+} | null> {
   try {
     const cookieStore = await cookies();
     const userId = cookieStore.get('user_id')?.value;
-    
+
     if (!userId) return null;
-    
+
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, role: true, phone: true, avatar: true }
+      select: {
+        id: true, email: true, name: true, role: true, phone: true, avatar: true,
+        bio: true, city: true, genre: true,
+        instagram: true, spotify: true, soundcloud: true, youtube: true, website: true,
+      }
     });
-    
+
     return user;
   } catch {
     return null;
