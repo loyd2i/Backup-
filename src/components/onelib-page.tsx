@@ -104,6 +104,7 @@ export default function OnelibPage() {
   const [scheduledAtInput, setScheduledAtInput] = useState('');
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const [shareSuccess, setShareSuccess] = useState(false);
 
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
 
@@ -438,12 +439,25 @@ export default function OnelibPage() {
   };
 
   const smartLinkUrl = detail ? `${typeof window !== 'undefined' ? window.location.origin : ''}/?public=onelib&slug=${detail.slug}` : '';
+  const artistPageUrl = detail && user
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/?public=onelib-artist&artist=${user.id}&slug=${detail.slug}`
+    : '';
 
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(smartLinkUrl);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const shareArtistPage = async () => {
+    try {
+      await navigator.clipboard.writeText(artistPageUrl);
+      setShareSuccess(true);
+      setTimeout(() => setShareSuccess(false), 2000);
     } catch {
       // ignore
     }
@@ -635,6 +649,17 @@ export default function OnelibPage() {
               {copySuccess ? 'Copié !' : 'Copier'}
             </button>
           </div>
+
+          {detail.status === 'published' && (
+            <button
+              onClick={shareArtistPage}
+              style={{ backgroundColor: accentColor }}
+              className="flex items-center gap-2 text-white px-3 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity mt-3"
+            >
+              {shareSuccess ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+              {shareSuccess ? 'Lien copié !' : 'Partager ma page artiste'}
+            </button>
+          )}
 
           <div className="mt-4">
             {qrDataUrl ? (

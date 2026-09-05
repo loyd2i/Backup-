@@ -18,6 +18,7 @@ import PublicCreationsPage from './public-creations-page';
 import PublicStudiosPage from './public-studios-page';
 import PublicVitrinePage from './public-vitrine-page';
 import PublicOnelibPage from './public-onelib-page';
+import PublicOnelibArtistPage from './public-onelib-artist-page';
 
 export default function StudiolibApp() {
   const currentPage = useAppStore((state) => state.currentPage);
@@ -31,6 +32,7 @@ export default function StudiolibApp() {
   const [publicPage, setPublicPage] = useState<string | null>(null);
   const [publicStudioId, setPublicStudioId] = useState<string | null>(null);
   const [publicSlug, setPublicSlug] = useState<string | null>(null);
+  const [publicArtistId, setPublicArtistId] = useState<string | null>(null);
 
   // Parse URL query parameters on mount
   useEffect(() => {
@@ -38,11 +40,13 @@ export default function StudiolibApp() {
     const publicParam = params.get('public');
     const studioParam = params.get('studio');
     const slugParam = params.get('slug');
+    const artistParam = params.get('artist');
 
     if (publicParam) {
       setPublicPage(publicParam);
       if (studioParam) setPublicStudioId(studioParam);
       if (slugParam) setPublicSlug(slugParam);
+      if (artistParam) setPublicArtistId(artistParam);
     }
   }, []);
 
@@ -53,15 +57,18 @@ export default function StudiolibApp() {
       const publicParam = params.get('public');
       const studioParam = params.get('studio');
       const slugParam = params.get('slug');
+      const artistParam = params.get('artist');
 
       if (publicParam) {
         setPublicPage(publicParam);
         if (studioParam) setPublicStudioId(studioParam);
         if (slugParam) setPublicSlug(slugParam);
+        if (artistParam) setPublicArtistId(artistParam);
       } else {
         setPublicPage(null);
         setPublicStudioId(null);
         setPublicSlug(null);
+        setPublicArtistId(null);
       }
     };
 
@@ -77,6 +84,15 @@ export default function StudiolibApp() {
     setPublicPage(page);
     if (studioId) setPublicStudioId(studioId);
     else setPublicStudioId(null);
+  };
+
+  // Navigate to a smart link page (release ou collection) depuis la page artiste
+  const navigateToOnelibSlug = (slug: string) => {
+    const url = `?public=onelib&slug=${slug}`;
+    window.history.pushState({}, '', url);
+    setPublicPage('onelib');
+    setPublicSlug(slug);
+    setPublicArtistId(null);
   };
 
   // ─── Auth Check ───
@@ -137,6 +153,19 @@ export default function StudiolibApp() {
             <PublicOnelibPage
               slug={publicSlug}
               onBack={() => navigatePublic('creations')}
+            />
+          );
+        }
+        return <PublicCreationsPage />;
+
+      case 'onelib-artist':
+        if (publicArtistId) {
+          return (
+            <PublicOnelibArtistPage
+              userId={publicArtistId}
+              currentSlug={publicSlug}
+              onBack={() => navigatePublic('creations')}
+              onNavigate={navigateToOnelibSlug}
             />
           );
         }

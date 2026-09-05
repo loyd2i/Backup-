@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import {
   ArrowLeft, Eye, CheckCircle2, PenLine, Trash2, Link2, Check, QrCode, Download,
-  Plus, X, FileSignature, Package, Users, ExternalLink, Clock, ChevronUp, ChevronDown, Disc, ListMusic, ImageUp,
+  Plus, X, FileSignature, Package, Users, ExternalLink, Clock, ChevronUp, ChevronDown, Disc, ListMusic, ImageUp, Share2,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -92,6 +92,7 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
   const [isDownloadingKit, setIsDownloadingKit] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const [shareSuccess, setShareSuccess] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
   const [showScheduler, setShowScheduler] = useState(false);
   const [scheduledAtInput, setScheduledAtInput] = useState('');
@@ -392,12 +393,25 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
   }
 
   const smartLinkUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/?public=onelib&slug=${detail.slug}`;
+  const artistPageUrl = user
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/?public=onelib-artist&artist=${user.id}&slug=${detail.slug}`
+    : '';
 
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(smartLinkUrl);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const shareArtistPage = async () => {
+    try {
+      await navigator.clipboard.writeText(artistPageUrl);
+      setShareSuccess(true);
+      setTimeout(() => setShareSuccess(false), 2000);
     } catch {
       // ignore
     }
@@ -568,6 +582,17 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
             {copySuccess ? 'Copié !' : 'Copier'}
           </button>
         </div>
+
+        {detail.status === 'published' && (
+          <button
+            onClick={shareArtistPage}
+            style={{ backgroundColor: accentColor }}
+            className="flex items-center gap-2 text-white px-3 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity mt-3"
+          >
+            {shareSuccess ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+            {shareSuccess ? 'Lien copié !' : 'Partager ma page artiste'}
+          </button>
+        )}
 
         <div className="mt-4">
           {qrDataUrl ? (
