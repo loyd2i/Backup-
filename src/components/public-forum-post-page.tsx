@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MessageCircle, Heart, Eye, Clock, Send, LogIn, ArrowLeft } from 'lucide-react';
+import { MessageCircle, Heart, Eye, Clock, Send, LogIn, ArrowLeft, Pencil, Trash2, X, Check } from 'lucide-react';
 
 interface ForumPost {
   id: string;
@@ -32,6 +32,7 @@ interface PublicForumPostPageProps {
 
 export default function PublicForumPostPage({ slug, onBack }: PublicForumPostPageProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [post, setPost] = useState<ForumPost | null>(null);
   const [comments, setComments] = useState<ForumComment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,9 +40,17 @@ export default function PublicForumPostPage({ slug, onBack }: PublicForumPostPag
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLiking, setIsLiking] = useState(false);
+  const [isEditingPost, setIsEditingPost] = useState(false);
+  const [editPostTitle, setEditPostTitle] = useState('');
+  const [editPostContent, setEditPostContent] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentContent, setEditCommentContent] = useState('');
 
   useEffect(() => {
-    fetch('/api/user').then(res => res.json()).then(data => setIsLoggedIn(!!data.user)).catch(() => {});
+    fetch('/api/user').then(res => res.json()).then(data => {
+      setIsLoggedIn(!!data.user);
+      setCurrentUserId(data.user?.id || null);
+    }).catch(() => {});
     fetchPost();
     fetchComments();
   }, [slug]);
@@ -121,6 +130,76 @@ export default function PublicForumPostPage({ slug, onBack }: PublicForumPostPag
     });
   };
 
+  const startEditPost = () => {
+    if (!post) return;
+    setEditPostTitle(post.title);
+    setEditPostContent(post.content);
+    setIsEditingPost(true);
+  };
+
+  const handleSaveEditPost = async () => {
+    if (!editPostTitle.trim() || !editPostContent.trim()) return;
+    try {
+      const res = await fetch(`/api/forum/posts/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editPostTitle, content: editPostContent })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPost(data.post);
+        setIsEditingPost(false);
+      }
+    } catch (error) {
+      console.error('Error updating post:', error);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!confirm('Supprimer définitivement ce sujet et ses commentaires ?')) return;
+    try {
+      const res = await fetch(`/api/forum/posts/${slug}`, { method: 'DELETE' });
+      if (res.ok) {
+        if (onBack) onBack();
+        else window.location.href = '/forum';
+      }
+    } catch (error) {
+      console.error('Error deleting post:', error);
+    }
+  };
+
+  const startEditComment = (comment: ForumComment) => {
+    setEditingCommentId(comment.id);
+    setEditCommentContent(comment.content);
+  };
+
+  const handleSaveEditComment = async (commentId: string) => {
+    if (!editCommentContent.trim()) return;
+    try {
+      const res = await fetch(`/api/forum/posts/${slug}/comments/${commentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editCommentContent })
+      });
+      if (res.ok) {
+        setEditingCommentId(null);
+        fetchComments();
+      }
+    } catch (error) {
+      console.error('Error updating comment:', error);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm('Supprimer ce commentaire ?')) return;
+    try {
+      const res = await fetch(`/api/forum/posts/${slug}/comments/${commentId}`, { method: 'DELETE' });
+      if (res.ok) fetchComments();
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#121212] p-6">
@@ -174,13 +253,56 @@ export default function PublicForumPostPage({ slug, onBack }: PublicForumPostPag
       <div className="max-w-2xl mx-auto px-4 pb-12">
         {/* Post */}
         <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a] mb-6">
-          <span className="text-xs bg-[#2a2a2a] text-gray-400 px-2 py-1 rounded mb-3 inline-block">
-            {post.category.name}
-          </span>
-          <h1 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-            {post.isPinned && <span className="text-yellow-400">📌</span>}
-            {post.title}
-          </h1>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <span className="text-xs bg-[#2a2a2a] text-gray-400 px-2 py-1 rounded inline-block">
+              {post.category.name}
+            </span>
+            {currentUserId === post.author.id && !isEditingPost && (
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={startEditPost} className="p-1.5 text-gray-500 hover:text-white transition-colors" title="Modifier">
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button onClick={handleDeletePost} className="p-1.5 text-gray-500 hover:text-red-500 transition-colors" title="Supprimer">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {isEditingPost ? (
+            <div className="space-y-3 mb-4">
+              <input
+                type="text"
+                value={editPostTitle}
+                onChange={(e) => setEditPostTitle(e.target.value)}
+                className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a] focus:outline-none focus:border-[#6366f1] font-bold text-xl"
+              />
+              <textarea
+                value={editPostContent}
+                onChange={(e) => setEditPostContent(e.target.value)}
+                className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a] focus:outline-none focus:border-[#6366f1] min-h-[120px]"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveEditPost}
+                  className="flex items-center gap-2 bg-[#6366f1] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#5558e3] transition-colors"
+                >
+                  <Check className="w-4 h-4" /> Enregistrer
+                </button>
+                <button
+                  onClick={() => setIsEditingPost(false)}
+                  className="flex items-center gap-2 bg-[#2a2a2a] text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#3a3a3a] transition-colors"
+                >
+                  <X className="w-4 h-4" /> Annuler
+                </button>
+              </div>
+            </div>
+          ) : (
+            <h1 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+              {post.isPinned && <span className="text-yellow-400">📌</span>}
+              {post.title}
+            </h1>
+          )}
 
           <div className="flex items-center gap-3 mb-5">
             <div className="w-9 h-9 bg-[#6366f1] rounded-full flex items-center justify-center flex-shrink-0">
@@ -196,7 +318,9 @@ export default function PublicForumPostPage({ slug, onBack }: PublicForumPostPag
             </div>
           </div>
 
-          <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+          {!isEditingPost && (
+            <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+          )}
 
           <div className="flex items-center gap-4 text-xs text-gray-500 mt-5 pt-5 border-t border-[#2a2a2a]">
             <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {post.views}</span>
@@ -223,16 +347,52 @@ export default function PublicForumPostPage({ slug, onBack }: PublicForumPostPag
         <div className="space-y-4 mb-6">
           {comments.map((comment) => (
             <div key={comment.id} className="bg-[#1a1a1a] rounded-xl p-4 border border-[#2a2a2a]">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-7 h-7 bg-[#2a2a2a] rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-semibold text-xs">
-                    {comment.author.name.charAt(0).toUpperCase()}
-                  </span>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 bg-[#2a2a2a] rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-white font-semibold text-xs">
+                      {comment.author.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-white text-sm font-medium">{comment.author.name}</span>
+                  <span className="text-gray-500 text-xs">{formatDate(comment.createdAt)}</span>
                 </div>
-                <span className="text-white text-sm font-medium">{comment.author.name}</span>
-                <span className="text-gray-500 text-xs">{formatDate(comment.createdAt)}</span>
+                {currentUserId === comment.author.id && editingCommentId !== comment.id && (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => startEditComment(comment)} className="p-1 text-gray-500 hover:text-white transition-colors" title="Modifier">
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => handleDeleteComment(comment.id)} className="p-1 text-gray-500 hover:text-red-500 transition-colors" title="Supprimer">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
-              <p className="text-gray-300 text-sm whitespace-pre-wrap">{comment.content}</p>
+              {editingCommentId === comment.id ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={editCommentContent}
+                    onChange={(e) => setEditCommentContent(e.target.value)}
+                    className="w-full bg-[#2a2a2a] text-white rounded-lg p-2 border border-[#3a3a3a] focus:outline-none focus:border-[#6366f1] text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSaveEditComment(comment.id)}
+                      className="flex items-center gap-1 bg-[#6366f1] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#5558e3] transition-colors"
+                    >
+                      <Check className="w-3.5 h-3.5" /> Enregistrer
+                    </button>
+                    <button
+                      onClick={() => setEditingCommentId(null)}
+                      className="flex items-center gap-1 bg-[#2a2a2a] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#3a3a3a] transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" /> Annuler
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-300 text-sm whitespace-pre-wrap">{comment.content}</p>
+              )}
             </div>
           ))}
           {comments.length === 0 && (

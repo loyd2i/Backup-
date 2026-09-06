@@ -124,7 +124,12 @@ export default function ForumPage() {
   };
 
   if (selectedSlug) {
-    return <PublicForumPostPage slug={selectedSlug} onBack={() => setSelectedSlug(null)} />;
+    return (
+      <PublicForumPostPage
+        slug={selectedSlug}
+        onBack={() => { setSelectedSlug(null); fetchPosts(); }}
+      />
+    );
   }
 
   return (
