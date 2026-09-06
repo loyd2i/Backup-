@@ -14,7 +14,12 @@ export default function LoginPage() {
   const [isRegister, setIsRegister] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotResetLink, setForgotResetLink] = useState('');
+  const [isSendingForgot, setIsSendingForgot] = useState(false);
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -83,6 +88,30 @@ export default function LoginPage() {
     } catch (err) {
       setError('Erreur de connexion au serveur');
       setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSendingForgot(true);
+    setForgotMessage('');
+    setForgotResetLink('');
+
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail })
+      });
+      const data = await res.json();
+      setForgotMessage(data.message || 'Une erreur est survenue');
+      if (data.resetLink) {
+        setForgotResetLink(data.resetLink);
+      }
+    } catch {
+      setForgotMessage('Erreur de connexion au serveur');
+    } finally {
+      setIsSendingForgot(false);
     }
   };
 
@@ -241,7 +270,16 @@ export default function LoginPage() {
 
         {!isRegister && (
           <div className="text-center">
-            <button className="text-gray-400 text-sm hover:text-white transition-colors">
+            <button
+              type="button"
+              onClick={() => {
+                setShowForgotPassword(true);
+                setForgotEmail(formData.email);
+                setForgotMessage('');
+                setForgotResetLink('');
+              }}
+              className="text-gray-400 text-sm hover:text-white transition-colors"
+            >
               Mot de passe oublié ?
             </button>
           </div>
@@ -259,6 +297,60 @@ export default function LoginPage() {
         </p>
       </div>
       </div>
+
+      {showForgotPassword && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-sm p-6 space-y-4">
+            <h2 className="text-white font-semibold text-lg">Mot de passe oublié</h2>
+
+            {forgotResetLink ? (
+              <div className="space-y-3">
+                <p className="text-gray-400 text-sm">{forgotMessage}</p>
+                <p className="text-gray-500 text-xs">
+                  Pas d&apos;envoi d&apos;e-mail réel en démo : voici le lien directement.
+                </p>
+                <a
+                  href={forgotResetLink}
+                  className="block bg-[#2a2a2a] text-[#818cf8] text-sm rounded-lg p-3 break-all hover:text-white transition-colors"
+                >
+                  {forgotResetLink}
+                </a>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-3">
+                <p className="text-gray-400 text-sm">
+                  Indiquez votre adresse e-mail, un lien de réinitialisation sera généré.
+                </p>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  placeholder="votre@email.com"
+                  className="w-full bg-[#2a2a2a] text-white placeholder:text-gray-500 rounded-lg h-11 px-4 focus:outline-none focus:ring-2 focus:ring-[#6366f1]"
+                  required
+                />
+                {forgotMessage && (
+                  <p className="text-gray-400 text-sm">{forgotMessage}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={isSendingForgot}
+                  className="w-full bg-[#6366f1] text-white h-11 rounded-lg font-medium hover:bg-[#5558e3] transition-colors disabled:opacity-50"
+                >
+                  {isSendingForgot ? 'Envoi...' : 'Envoyer le lien'}
+                </button>
+              </form>
+            )}
+
+            <button
+              onClick={() => setShowForgotPassword(false)}
+              className="w-full text-center text-gray-500 text-sm hover:text-white transition-colors"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

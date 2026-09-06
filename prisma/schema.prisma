@@ -57,6 +57,19 @@ model User {
   // Onelib (hub de diffusion des sorties)
   onelibReleases        OnelibRelease[]
   onelibCollections     OnelibCollection[]
+
+  passwordResetTokens   PasswordResetToken[]
+}
+
+// Jeton de réinitialisation de mot de passe (flux "Mot de passe oublié")
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 // Studio d'enregistrement
