@@ -83,6 +83,8 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     isPublic: false 
   });
   const [newText, setNewText] = useState({ title: '', artist: '', content: '' });
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [editText, setEditText] = useState({ title: '', artist: '', content: '' });
 
   useEffect(() => {
     fetchData();
@@ -242,6 +244,28 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
       }
     } catch (error) {
       console.error('Error creating text:', error);
+    }
+  };
+
+  const startEditText = (text: TextItem) => {
+    setEditingTextId(text.id);
+    setEditText({ title: text.title, artist: text.artist, content: text.content || '' });
+  };
+
+  const handleSaveEditText = async (id: string) => {
+    if (!editText.title.trim() || !editText.artist.trim()) return;
+    try {
+      const res = await fetch('/api/texts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...editText })
+      });
+      if (res.ok) {
+        setEditingTextId(null);
+        fetchData();
+      }
+    } catch (error) {
+      console.error('Error updating text:', error);
     }
   };
 
@@ -839,18 +863,61 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {texts.map((text) => (
                   <div key={text.id} className="bg-[#1a1a1a] rounded-xl p-5 border border-[#2a2a2a] hover:border-[#6366f1]/30 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 bg-[#2a2a2a] rounded-lg flex items-center justify-center">
-                        <FileText className="w-7 h-7 text-gray-400" />
+                    {editingTextId === text.id ? (
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={editText.artist}
+                          onChange={(e) => setEditText({ ...editText, artist: e.target.value })}
+                          placeholder="Artiste"
+                          className="w-full bg-[#2a2a2a] text-white rounded-lg p-2 border border-[#3a3a3a] focus:outline-none focus:border-[#6366f1] text-sm font-medium"
+                        />
+                        <input
+                          type="text"
+                          value={editText.title}
+                          onChange={(e) => setEditText({ ...editText, title: e.target.value })}
+                          placeholder="Titre"
+                          className="w-full bg-[#2a2a2a] text-white rounded-lg p-2 border border-[#3a3a3a] focus:outline-none focus:border-[#6366f1] text-sm"
+                        />
+                        <textarea
+                          value={editText.content}
+                          onChange={(e) => setEditText({ ...editText, content: e.target.value })}
+                          placeholder="Contenu"
+                          className="w-full bg-[#2a2a2a] text-white rounded-lg p-2 border border-[#3a3a3a] focus:outline-none focus:border-[#6366f1] text-sm min-h-[80px]"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleSaveEditText(text.id)}
+                            className="text-xs bg-[#6366f1] text-white px-3 py-1.5 rounded-lg hover:bg-[#5558e3]"
+                          >
+                            Enregistrer
+                          </button>
+                          <button
+                            onClick={() => setEditingTextId(null)}
+                            className="text-xs bg-[#2a2a2a] text-white px-3 py-1.5 rounded-lg hover:bg-[#3a3a3a]"
+                          >
+                            Annuler
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium truncate">{text.artist}</p>
-                        <p className="text-gray-400 text-sm truncate">{text.title}</p>
-                      </div>
-                      <button className="p-2 hover:bg-[#2a2a2a] rounded-lg"><Pencil className="w-4 h-4 text-gray-400" /></button>
-                    </div>
-                    {text.content && (
-                      <p className="text-gray-500 text-sm mt-3 line-clamp-2">{text.content}</p>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 bg-[#2a2a2a] rounded-lg flex items-center justify-center">
+                            <FileText className="w-7 h-7 text-gray-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white font-medium truncate">{text.artist}</p>
+                            <p className="text-gray-400 text-sm truncate">{text.title}</p>
+                          </div>
+                          <button onClick={() => startEditText(text)} className="p-2 hover:bg-[#2a2a2a] rounded-lg">
+                            <Pencil className="w-4 h-4 text-gray-400" />
+                          </button>
+                        </div>
+                        {text.content && (
+                          <p className="text-gray-500 text-sm mt-3 line-clamp-2">{text.content}</p>
+                        )}
+                      </>
                     )}
                   </div>
                 ))}
