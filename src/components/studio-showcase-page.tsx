@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import {
   MapPin, Star, Clock, Phone, Globe, Instagram, Twitter, Facebook, Youtube, Music, Headphones,
   Camera, Calendar, ChevronLeft, ChevronRight, X, Plus, GripVertical, Pencil, ExternalLink,
-  Share2, Heart, MessageCircle, Play, Pause
+  Share2, Heart, Play, Pause
 } from 'lucide-react';
 import { SUPPORTED_COUNTRIES } from '@/lib/tax-config';
 
@@ -165,6 +165,25 @@ export default function StudioShowcasePage({ studioId, isOwner = false, onBook }
     return icons[iconName.toLowerCase()] || ExternalLink;
   };
 
+  const handleShare = async () => {
+    if (!studio) return;
+    const url = `${window.location.origin}/studio/${studio.id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: studio.name, url });
+      } catch {
+        // Partage annulé par l'utilisateur, rien à faire
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        alert('Lien copié dans le presse-papiers');
+      } catch {
+        alert(url);
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#121212] p-6">
@@ -287,20 +306,29 @@ export default function StudioShowcasePage({ studioId, isOwner = false, onBook }
 
           {/* Quick Actions */}
           <div className="flex gap-3 mt-6">
+            {!isOwner && (
+              <>
+                <button
+                  onClick={onBook}
+                  className="flex-1 bg-[#6366f1] text-white py-3 px-6 rounded-xl font-semibold hover:bg-[#5558e3] transition-colors flex items-center justify-center gap-2"
+                >
+                  <Calendar className="w-5 h-5" />
+                  Réserver
+                </button>
+                <button
+                  disabled
+                  title="Bientôt disponible"
+                  className="bg-[#1a1a1a] text-gray-600 py-3 px-4 rounded-xl cursor-not-allowed"
+                >
+                  <Heart className="w-5 h-5" />
+                </button>
+              </>
+            )}
             <button
-              onClick={onBook}
-              className="flex-1 bg-[#6366f1] text-white py-3 px-6 rounded-xl font-semibold hover:bg-[#5558e3] transition-colors flex items-center justify-center gap-2"
+              onClick={handleShare}
+              className="bg-[#1a1a1a] text-white py-3 px-4 rounded-xl hover:bg-[#2a2a2a] transition-colors"
+              title={isOwner ? 'Partager ma fiche' : 'Partager'}
             >
-              <Calendar className="w-5 h-5" />
-              Réserver
-            </button>
-            <button className="bg-[#1a1a1a] text-white py-3 px-4 rounded-xl hover:bg-[#2a2a2a] transition-colors">
-              <MessageCircle className="w-5 h-5" />
-            </button>
-            <button className="bg-[#1a1a1a] text-white py-3 px-4 rounded-xl hover:bg-[#2a2a2a] transition-colors">
-              <Heart className="w-5 h-5" />
-            </button>
-            <button className="bg-[#1a1a1a] text-white py-3 px-4 rounded-xl hover:bg-[#2a2a2a] transition-colors">
               <Share2 className="w-5 h-5" />
             </button>
           </div>
