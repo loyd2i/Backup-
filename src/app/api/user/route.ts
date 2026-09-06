@@ -1,18 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-
-// N'autorise que http(s) : ces champs sont rendus tels quels en href sur la
-// fiche artiste publique - un schéma comme javascript: y exécuterait du code
-// arbitraire chez tout visiteur cliquant le lien.
-function isSafeHttpUrl(value: string): boolean {
-  try {
-    const { protocol } = new URL(value);
-    return protocol === 'http:' || protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
+import { isSafeHttpUrl } from '@/lib/url-safety';
 
 export async function GET() {
   try {

@@ -6,6 +6,7 @@ import {
   Camera, Calendar, ChevronLeft, ChevronRight, X, ExternalLink, Share2, Heart, Play, Pause,
   Eye, ArrowLeft, Mail, QrCode, Copy, Check
 } from 'lucide-react';
+import { isSafeHttpUrl } from '@/lib/url-safety';
 
 interface StudioPhoto {
   id: string;
@@ -144,13 +145,13 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
   const getSocialLinks = () => {
     if (!studio) return [];
     const links = [];
-    if (studio.website) links.push({ icon: Globe, url: studio.website, label: 'Site web' });
+    if (studio.website && isSafeHttpUrl(studio.website)) links.push({ icon: Globe, url: studio.website, label: 'Site web' });
     if (studio.instagram) links.push({ icon: Instagram, url: `https://instagram.com/${studio.instagram.replace('@', '')}`, label: 'Instagram' });
     if (studio.twitter) links.push({ icon: Twitter, url: `https://twitter.com/${studio.twitter.replace('@', '')}`, label: 'Twitter' });
-    if (studio.facebook) links.push({ icon: Facebook, url: studio.facebook, label: 'Facebook' });
-    if (studio.youtube) links.push({ icon: Youtube, url: studio.youtube, label: 'YouTube' });
-    if (studio.spotify) links.push({ icon: Music, url: studio.spotify, label: 'Spotify' });
-    if (studio.soundcloud) links.push({ icon: Headphones, url: studio.soundcloud, label: 'SoundCloud' });
+    if (studio.facebook && isSafeHttpUrl(studio.facebook)) links.push({ icon: Facebook, url: studio.facebook, label: 'Facebook' });
+    if (studio.youtube && isSafeHttpUrl(studio.youtube)) links.push({ icon: Youtube, url: studio.youtube, label: 'YouTube' });
+    if (studio.spotify && isSafeHttpUrl(studio.spotify)) links.push({ icon: Music, url: studio.spotify, label: 'Spotify' });
+    if (studio.soundcloud && isSafeHttpUrl(studio.soundcloud)) links.push({ icon: Headphones, url: studio.soundcloud, label: 'SoundCloud' });
     return links;
   };
 
@@ -191,7 +192,7 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
   ];
 
   const socialLinks = getSocialLinks();
-  const activeLinks = (studio.links || []).filter(l => l.isActive).sort((a, b) => a.order - b.order);
+  const activeLinks = (studio.links || []).filter(l => l.isActive && isSafeHttpUrl(l.url)).sort((a, b) => a.order - b.order);
   const activeAvailabilities = (studio.availabilities || []).filter(a => a.isActive).sort((a, b) => a.dayOfWeek - b.dayOfWeek);
 
   return (

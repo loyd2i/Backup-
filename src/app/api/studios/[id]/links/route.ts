@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { isSafeHttpUrl } from '@/lib/url-safety';
 
 // POST - Add a custom link
 export async function POST(
@@ -16,6 +17,10 @@ export async function POST(
     const { id } = await params;
     const body = await request.json();
     const { title, url, icon } = body;
+
+    if (!url || !isSafeHttpUrl(url)) {
+      return NextResponse.json({ error: 'Lien invalide (http/https requis)' }, { status: 400 });
+    }
 
     // Verify ownership
     const studio = await prisma.studio.findFirst({

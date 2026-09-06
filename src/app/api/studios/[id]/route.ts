@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { isSafeHttpUrl } from '@/lib/url-safety';
 
 // GET - Get studio details with photos and links
 export async function GET(
@@ -56,6 +57,20 @@ export async function PUT(
 
     if (!studio) {
       return NextResponse.json({ error: 'Studio non trouvé' }, { status: 404 });
+    }
+
+    // Rendus tels quels en href sur la fiche publique du studio - contrairement
+    // à instagram/twitter, toujours interpolés dans un gabarit fixe.
+    for (const [field, value] of Object.entries({
+      website: body.website,
+      facebook: body.facebook,
+      youtube: body.youtube,
+      spotify: body.spotify,
+      soundcloud: body.soundcloud,
+    })) {
+      if (value && !isSafeHttpUrl(value)) {
+        return NextResponse.json({ error: `Lien ${field} invalide (http/https requis)` }, { status: 400 });
+      }
     }
 
     const updated = await prisma.studio.update({

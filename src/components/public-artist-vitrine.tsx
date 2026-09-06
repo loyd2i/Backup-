@@ -5,6 +5,7 @@ import {
   MapPin, Music2, Globe, Instagram, Youtube, Headphones, Music,
   Play, Pause, Eye, Disc, ListMusic, QrCode, Copy, Check, X, User as UserIcon
 } from 'lucide-react';
+import { isSafeHttpUrl } from '@/lib/url-safety';
 
 interface PublicTrack {
   id: string;
@@ -138,17 +139,6 @@ export default function PublicArtistVitrine({ artistId }: PublicArtistVitrinePro
   }
 
   const accentColor = artist.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
-
-  // Défense en profondeur : même si l'API valide déjà ces champs à l'écriture,
-  // on ne rend jamais un lien dont le schéma n'est pas http(s) (ex: javascript:).
-  const isSafeHttpUrl = (value: string) => {
-    try {
-      const { protocol } = new URL(value);
-      return protocol === 'http:' || protocol === 'https:';
-    } catch {
-      return false;
-    }
-  };
 
   const socialLinks = [
     artist.website && isSafeHttpUrl(artist.website) && { icon: Globe, url: artist.website, label: 'Site web' },
