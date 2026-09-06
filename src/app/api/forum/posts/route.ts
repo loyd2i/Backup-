@@ -35,7 +35,19 @@ export async function GET(request: NextRequest) {
       take: 20
     });
 
-    return NextResponse.json({ posts });
+    const user = await getCurrentUser();
+    let likedPostIds = new Set<string>();
+    if (user && posts.length > 0) {
+      const likes = await prisma.forumLike.findMany({
+        where: { userId: user.id, postId: { in: posts.map(p => p.id) } },
+        select: { postId: true }
+      });
+      likedPostIds = new Set(likes.map(l => l.postId as string));
+    }
+
+    return NextResponse.json({
+      posts: posts.map(p => ({ ...p, likedByMe: likedPostIds.has(p.id) }))
+    });
   } catch (error) {
     console.error('Erreur récupération posts:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { getCurrentUser } from '@/lib/auth';
 
 // GET - Détail d'un post (par slug), pas d'auth requise. Incrémente les vues.
 export async function GET(
@@ -27,7 +28,16 @@ export async function GET(
       data: { views: { increment: 1 } }
     });
 
-    return NextResponse.json({ post });
+    const user = await getCurrentUser();
+    let likedByMe = false;
+    if (user) {
+      const like = await prisma.forumLike.findUnique({
+        where: { userId_postId: { userId: user.id, postId: post.id } }
+      });
+      likedByMe = !!like;
+    }
+
+    return NextResponse.json({ post: { ...post, likedByMe } });
   } catch (error) {
     console.error('Erreur récupération post:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

@@ -26,6 +26,7 @@ interface ForumPost {
   author: { id: string; name: string; avatar?: string | null };
   category: { id: string; name: string; slug: string };
   _count?: { comments: number; likes: number };
+  likedByMe?: boolean;
 }
 
 export default function ForumPage() {
@@ -92,6 +93,23 @@ export default function ForumPage() {
       }
     } catch (error) {
       console.error('Error creating post:', error);
+    }
+  };
+
+  const handleToggleLike = async (e: React.MouseEvent, post: ForumPost) => {
+    e.stopPropagation();
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/forum/posts/${post.slug}/like`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setPosts(prev => prev.map(p => p.id === post.id
+          ? { ...p, likedByMe: data.liked, _count: { comments: p._count?.comments || 0, likes: data.likesCount } }
+          : p
+        ));
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
     }
   };
 
@@ -295,10 +313,17 @@ export default function ForumPage() {
                       <MessageCircle className="w-3 h-3" />
                       {post._count?.comments || 0}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Heart className="w-3 h-3" />
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleLike(e, post)}
+                      disabled={!user}
+                      className={`flex items-center gap-1 transition-colors ${
+                        post.likedByMe ? 'text-red-500' : 'hover:text-white'
+                      } ${!user ? 'cursor-default' : ''}`}
+                    >
+                      <Heart className={`w-3 h-3 ${post.likedByMe ? 'fill-red-500' : ''}`} />
                       {post._count?.likes || 0}
-                    </span>
+                    </button>
                   </div>
                 </div>
               </div>

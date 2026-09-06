@@ -14,6 +14,7 @@ interface ForumPost {
   author: { id: string; name: string; avatar?: string | null };
   category: { id: string; name: string; slug: string };
   _count?: { comments: number; likes: number };
+  likedByMe?: boolean;
 }
 
 interface ForumComment {
@@ -37,6 +38,7 @@ export default function PublicForumPostPage({ slug, onBack }: PublicForumPostPag
   const [notFound, setNotFound] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
 
   useEffect(() => {
     fetch('/api/user').then(res => res.json()).then(data => setIsLoggedIn(!!data.user)).catch(() => {});
@@ -89,6 +91,26 @@ export default function PublicForumPostPage({ slug, onBack }: PublicForumPostPag
       console.error('Error posting comment:', error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleLike = async () => {
+    if (!isLoggedIn || !post || isLiking) return;
+    setIsLiking(true);
+    try {
+      const res = await fetch(`/api/forum/posts/${slug}/like`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setPost({
+          ...post,
+          likedByMe: data.liked,
+          _count: { comments: post._count?.comments || 0, likes: data.likesCount }
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    } finally {
+      setIsLiking(false);
     }
   };
 
@@ -179,7 +201,17 @@ export default function PublicForumPostPage({ slug, onBack }: PublicForumPostPag
           <div className="flex items-center gap-4 text-xs text-gray-500 mt-5 pt-5 border-t border-[#2a2a2a]">
             <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {post.views}</span>
             <span className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" /> {comments.length}</span>
-            <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5" /> {post._count?.likes || 0}</span>
+            <button
+              type="button"
+              onClick={handleToggleLike}
+              disabled={!isLoggedIn || isLiking}
+              className={`flex items-center gap-1 transition-colors ${
+                post.likedByMe ? 'text-red-500' : 'hover:text-white'
+              } ${!isLoggedIn ? 'cursor-default' : ''}`}
+            >
+              <Heart className={`w-3.5 h-3.5 ${post.likedByMe ? 'fill-red-500' : ''}`} />
+              {post._count?.likes || 0}
+            </button>
           </div>
         </div>
 
