@@ -60,6 +60,7 @@ export default function MessageriePage() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
@@ -376,13 +377,13 @@ export default function MessageriePage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button className="p-2.5 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-full transition-colors">
+                <button disabled title="Bientôt disponible" className="p-2.5 text-gray-600 rounded-full cursor-not-allowed">
                   <Phone className="w-5 h-5" />
                 </button>
-                <button className="p-2.5 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-full transition-colors">
+                <button disabled title="Bientôt disponible" className="p-2.5 text-gray-600 rounded-full cursor-not-allowed">
                   <VideoIcon className="w-5 h-5" />
                 </button>
-                <button className="p-2.5 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-full transition-colors">
+                <button disabled title="Bientôt disponible" className="p-2.5 text-gray-600 rounded-full cursor-not-allowed">
                   <MoreVertical className="w-5 h-5" />
                 </button>
               </div>
@@ -418,9 +419,13 @@ export default function MessageriePage() {
                                     <p className="text-white text-sm font-medium truncate">{att.fileName}</p>
                                     <p className="text-gray-500 text-xs">{formatFileSize(att.fileSize)}</p>
                                   </div>
-                                  <button className="text-[#6366f1] hover:bg-[#6366f1]/10 p-2 rounded-lg transition-colors">
+                                  <a
+                                    href={att.fileUrl}
+                                    download={att.fileName}
+                                    className="text-[#6366f1] hover:bg-[#6366f1]/10 p-2 rounded-lg transition-colors"
+                                  >
                                     <Download className="w-5 h-5" />
-                                  </button>
+                                  </a>
                                 </div>
                               ))}
                             </div>
@@ -534,12 +539,23 @@ export default function MessageriePage() {
                   />
                   <button
                     type="button"
-                    className="p-3 text-gray-400 hover:text-white transition-colors"
+                    disabled
+                    title="Bientôt disponible"
+                    className="p-3 text-gray-600 cursor-not-allowed"
                   >
                     <Smile className="w-5 h-5" />
                   </button>
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
                   <button
                     type="button"
+                    onClick={() => cameraInputRef.current?.click()}
                     className="p-3 text-gray-400 hover:text-white transition-colors lg:hidden"
                   >
                     <Camera className="w-5 h-5" />

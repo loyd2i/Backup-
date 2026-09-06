@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { 
-  Search, Send, Plus, X, Paperclip, Image as ImageIcon, Music, File, 
-  Video, Mic, CheckCheck, Smile, Phone, VideoIcon, MoreVertical, 
+import {
+  Search, Send, Plus, X, Paperclip, Image as ImageIcon, Music, File, Download,
+  Video, Mic, CheckCheck, Smile, Phone, VideoIcon, MoreVertical,
   ChevronLeft, Clock, Calendar
 } from 'lucide-react';
 
@@ -39,7 +39,9 @@ export default function StudioMessages() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [messageInput, setMessageInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchClients();
@@ -83,26 +85,65 @@ export default function StudioMessages() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageInput.trim() || !selectedClient) return;
+    if ((!messageInput.trim() && selectedFiles.length === 0) || !selectedClient) return;
 
     try {
+      const formData = new FormData();
+      formData.append('content', messageInput);
+      formData.append('receiverId', selectedClient.id);
+      formData.append('type', 'message');
+      selectedFiles.forEach((file, index) => {
+        formData.append(`file-${index}`, file);
+      });
+
       const res = await fetch('/api/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: messageInput,
-          receiverId: selectedClient.id,
-          type: 'message'
-        })
+        body: formData
       });
 
       if (res.ok) {
         setMessageInput('');
+        setSelectedFiles([]);
         fetchMessages(selectedClient.id);
       }
     } catch (error) {
       console.error('Error sending message:', error);
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedFiles(prev => [...prev, ...files]);
+    e.target.value = '';
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const getFileIcon = (fileType: string) => {
+    switch (fileType) {
+      case 'image': return <ImageIcon className="w-5 h-5" />;
+      case 'audio': return <Music className="w-5 h-5" />;
+      case 'video': return <Video className="w-5 h-5" />;
+      default: return <File className="w-5 h-5" />;
+    }
+  };
+
+  const getFileColor = (fileType: string) => {
+    switch (fileType) {
+      case 'image': return 'bg-green-500';
+      case 'audio': return 'bg-orange-500';
+      case 'video': return 'bg-red-500';
+      default: return 'bg-[#6366f1]';
+    }
+  };
+
+  const formatFileSize = (bytes: number | null | undefined): string => {
+    if (!bytes) return '';
+    const sizes = ['o', 'Ko', 'Mo', 'Go'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
   };
 
   const formatTime = (dateStr: string) => {
@@ -193,13 +234,13 @@ export default function StudioMessages() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button className="p-2.5 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-full transition-colors">
+                <button disabled title="Bientôt disponible" className="p-2.5 text-gray-600 rounded-full cursor-not-allowed">
                   <Phone className="w-5 h-5" />
                 </button>
-                <button className="p-2.5 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-full transition-colors">
+                <button disabled title="Bientôt disponible" className="p-2.5 text-gray-600 rounded-full cursor-not-allowed">
                   <VideoIcon className="w-5 h-5" />
                 </button>
-                <button className="p-2.5 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-full transition-colors">
+                <button disabled title="Bientôt disponible" className="p-2.5 text-gray-600 rounded-full cursor-not-allowed">
                   <MoreVertical className="w-5 h-5" />
                 </button>
               </div>
@@ -220,6 +261,28 @@ export default function StudioMessages() {
               ) : (
                 messages.map((msg) => {
                   const isFromClient = msg.senderId === selectedClient.id;
+                  const attachmentsBlock = msg.attachments && msg.attachments.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {msg.attachments.map((att) => (
+                        <div key={att.id} className="bg-[#1a1a1a] rounded-xl p-3 flex items-center gap-3">
+                          <div className={`w-10 h-10 ${getFileColor(att.fileType)} rounded-lg flex items-center justify-center text-white`}>
+                            {getFileIcon(att.fileType)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm font-medium truncate">{att.fileName}</p>
+                            <p className="text-gray-500 text-xs">{formatFileSize(att.fileSize)}</p>
+                          </div>
+                          <a
+                            href={att.fileUrl}
+                            download={att.fileName}
+                            className="text-[#6366f1] hover:bg-[#6366f1]/10 p-2 rounded-lg transition-colors"
+                          >
+                            <Download className="w-5 h-5" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  );
                   return isFromClient ? (
                     <div key={msg.id} className="flex gap-2 max-w-[85%]">
                       <div className="w-8 h-8 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold">
@@ -227,7 +290,8 @@ export default function StudioMessages() {
                       </div>
                       <div>
                         <div className="bg-[#2a2a2a] rounded-2xl rounded-tl-sm p-3">
-                          <p className="text-white">{msg.content}</p>
+                          {msg.content && <p className="text-white">{msg.content}</p>}
+                          {attachmentsBlock}
                         </div>
                         <span className="text-gray-500 text-xs mt-1 block">{formatTime(msg.createdAt)}</span>
                       </div>
@@ -236,7 +300,8 @@ export default function StudioMessages() {
                     <div key={msg.id} className="flex justify-end">
                       <div className="max-w-[85%]">
                         <div className="bg-[#6366f1] rounded-2xl rounded-tr-sm p-3">
-                          <p className="text-white">{msg.content}</p>
+                          {msg.content && <p className="text-white">{msg.content}</p>}
+                          {attachmentsBlock}
                         </div>
                         <div className="flex justify-end items-center gap-1 mt-1">
                           <span className="text-gray-500 text-xs">{formatTime(msg.createdAt)}</span>
@@ -253,9 +318,34 @@ export default function StudioMessages() {
 
             {/* Input Area */}
             <div className="p-3 border-t border-[#2a2a2a] bg-[#1a1a1a]">
+              {selectedFiles.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-2 mb-1">
+                  {selectedFiles.map((file, index) => (
+                    <div key={index} className="relative flex-shrink-0 bg-[#2a2a2a] rounded-xl px-3 py-2 flex items-center gap-2">
+                      <span className="text-white text-xs truncate max-w-[120px]">{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0"
+                      >
+                        <X className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  accept="image/*,audio/*,video/*,.pdf,.doc,.docx"
+                />
                 <button
                   type="button"
+                  onClick={() => fileInputRef.current?.click()}
                   className="p-2.5 text-gray-400 hover:text-[#6366f1] hover:bg-[#2a2a2a] rounded-full transition-all"
                 >
                   <Paperclip className="w-5 h-5" />
@@ -277,7 +367,9 @@ export default function StudioMessages() {
                   />
                   <button
                     type="button"
-                    className="p-3 text-gray-400 hover:text-white transition-colors"
+                    disabled
+                    title="Bientôt disponible"
+                    className="p-3 text-gray-600 cursor-not-allowed"
                   >
                     <Smile className="w-5 h-5" />
                   </button>
@@ -285,7 +377,7 @@ export default function StudioMessages() {
 
                 <button
                   type="submit"
-                  disabled={!messageInput.trim()}
+                  disabled={!messageInput.trim() && selectedFiles.length === 0}
                   className="w-12 h-12 bg-[#6366f1] text-white rounded-full hover:bg-[#5558e3] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg shadow-[#6366f1]/30"
                 >
                   <Send className="w-5 h-5" />
