@@ -115,6 +115,21 @@ export default function StudioDashboard() {
     }
   };
 
+  const handleSendInvoiceEmail = async (appointmentId: string) => {
+    try {
+      const res = await fetch('/api/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'invoice', appointmentId })
+      });
+      if (res.ok) {
+        alert('Facture envoyée par e-mail au client');
+      }
+    } catch (error) {
+      console.error('Error sending invoice email:', error);
+    }
+  };
+
   const handleStatusChange = async (id: string, status: string) => {
     try {
       const res = await fetch('/api/appointments', {
@@ -539,12 +554,8 @@ export default function StudioDashboard() {
         <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
           <div className="p-5 border-b border-[#2a2a2a] flex items-center justify-between">
             <h2 className="text-lg font-semibold text-white">Factures</h2>
-            <button className="flex items-center gap-2 bg-[#6366f1] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#5558e3] transition-colors">
-              <Plus className="w-4 h-4" />
-              Nouvelle facture
-            </button>
           </div>
-          
+
           {invoices.length === 0 ? (
             <EmptyState
               icon={FileText}
@@ -579,9 +590,15 @@ export default function StudioDashboard() {
                         <Download className="w-4 h-4" />
                       </button>
                     )}
-                    <button className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-white transition-colors">
-                      <Send className="w-4 h-4" />
-                    </button>
+                    {invoice.appointmentId && (
+                      <button
+                        onClick={() => handleSendInvoiceEmail(invoice.appointmentId!)}
+                        className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-white transition-colors"
+                        title="Envoyer la facture par e-mail"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -594,12 +611,8 @@ export default function StudioDashboard() {
         <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
           <div className="p-5 border-b border-[#2a2a2a] flex items-center justify-between">
             <h2 className="text-lg font-semibold text-white">Projets par client</h2>
-            <button className="flex items-center gap-2 bg-[#f59e0b] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#e8950a] transition-colors">
-              <Plus className="w-4 h-4" />
-              Nouveau projet
-            </button>
           </div>
-          
+
           {projects.length === 0 ? (
             <EmptyState
               icon={Music}

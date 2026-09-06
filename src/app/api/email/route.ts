@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
 // Email types
-type EmailType = 'confirmation' | 'reminder' | 'reminder_3h' | 'cancellation';
+type EmailType = 'confirmation' | 'reminder' | 'reminder_3h' | 'cancellation' | 'invoice';
 
 interface EmailData {
   to: string;
@@ -132,6 +132,21 @@ export async function POST(request: NextRequest) {
             <p style="color: #fff; font-size: 16px;">Bonjour ${appointment.user.name},</p>
             <p style="color: #ccc;">Votre rendez-vous du ${dateStr} à ${appointment.studio.name} a été annulé.</p>
             <p style="color: #666; text-align: center; margin-top: 30px;">Studiolib</p>
+          </div>
+        `;
+        break;
+
+      case 'invoice':
+        subject = `🧾 Votre facture - ${appointment.studio.name}`;
+        html = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a1a; padding: 30px; border-radius: 10px;">
+            <h1 style="color: #f59e0b; text-align: center;">Facture</h1>
+            <p style="color: #fff; font-size: 16px;">Bonjour ${appointment.user.name},</p>
+            <p style="color: #ccc;">Voici la facture de votre séance du ${dateStr} à ${appointment.studio.name}.</p>
+            <div style="background: #2a2a2a; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              ${appointment.totalPrice ? `<p style="color: #f59e0b; font-size: 18px; font-weight: bold;">💰 ${appointment.totalPrice}€ TTC</p>` : ''}
+            </div>
+            <p style="color: #666; text-align: center; margin-top: 30px;">Studiolib - Votre plateforme de réservation studio</p>
           </div>
         `;
         break;
