@@ -83,9 +83,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Studio non trouvé' }, { status: 404 });
     }
 
-    await prisma.studioLink.delete({
-      where: { id: linkId }
+    // deleteMany + studioId : évite de supprimer un lien d'un autre studio
+    // si linkId n'appartient pas (ou plus) à ce studio-ci.
+    const { count } = await prisma.studioLink.deleteMany({
+      where: { id: linkId, studioId: id }
     });
+
+    if (count === 0) {
+      return NextResponse.json({ error: 'Lien non trouvé' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

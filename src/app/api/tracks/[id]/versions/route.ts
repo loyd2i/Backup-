@@ -10,7 +10,21 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+    }
+
     const { id } = await params;
+
+    // Seul le propriétaire de la track peut lister ses versions (URLs audio incluses)
+    const track = await prisma.track.findFirst({
+      where: { id, userId: user.id },
+    });
+
+    if (!track) {
+      return NextResponse.json({ error: 'Track non trouvée' }, { status: 404 });
+    }
 
     const versions = await prisma.trackVersion.findMany({
       where: { trackId: id },

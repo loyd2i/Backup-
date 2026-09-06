@@ -71,9 +71,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Studio non trouvé' }, { status: 404 });
     }
 
-    await prisma.studioBlock.delete({
-      where: { id: blockId }
+    // deleteMany + studioId : évite de supprimer un blocage d'un autre studio
+    // si blockId n'appartient pas (ou plus) à ce studio-ci.
+    const { count } = await prisma.studioBlock.deleteMany({
+      where: { id: blockId, studioId: id }
     });
+
+    if (count === 0) {
+      return NextResponse.json({ error: 'Blocage non trouvé' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

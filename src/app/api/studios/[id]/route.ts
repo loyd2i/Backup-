@@ -125,9 +125,32 @@ export async function PATCH(
       return NextResponse.json({ error: 'Studio non trouvé' }, { status: 404 });
     }
 
+    // Liste explicite des champs modifiables : `body` passait tel quel vers
+    // Prisma, un studio aurait pu écraser n'importe quel champ de sa propre
+    // fiche (solde du portefeuille, statut actif...).
+    for (const [field, value] of Object.entries({
+      website: body.website,
+      facebook: body.facebook,
+      youtube: body.youtube,
+      spotify: body.spotify,
+      soundcloud: body.soundcloud,
+    })) {
+      if (value && !isSafeHttpUrl(value)) {
+        return NextResponse.json({ error: `Lien ${field} invalide (http/https requis)` }, { status: 400 });
+      }
+    }
+
+    const data: Record<string, unknown> = {};
+    for (const field of [
+      'name', 'description', 'equipment', 'phone', 'country',
+      'website', 'instagram', 'twitter', 'facebook', 'youtube', 'spotify', 'soundcloud',
+    ]) {
+      if (body[field] !== undefined) data[field] = body[field];
+    }
+
     const updated = await prisma.studio.update({
       where: { id },
-      data: body,
+      data,
       include: {
         photos: { orderBy: { order: 'asc' } },
         links: { orderBy: { order: 'asc' } },
