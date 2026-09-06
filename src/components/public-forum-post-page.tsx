@@ -26,9 +26,10 @@ interface ForumComment {
 
 interface PublicForumPostPageProps {
   slug: string;
+  onBack?: () => void;
 }
 
-export default function PublicForumPostPage({ slug }: PublicForumPostPageProps) {
+export default function PublicForumPostPage({ slug, onBack }: PublicForumPostPageProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [post, setPost] = useState<ForumPost | null>(null);
   const [comments, setComments] = useState<ForumComment[]>([]);
@@ -114,9 +115,15 @@ export default function PublicForumPostPage({ slug }: PublicForumPostPageProps) 
         <div className="text-center">
           <MessageCircle className="w-14 h-14 text-gray-600 mx-auto mb-4" />
           <p className="text-white text-lg font-semibold">Ce sujet n&apos;existe pas ou plus</p>
-          <a href="/forum" className="mt-4 inline-block text-[#6366f1] hover:text-[#818cf8] text-sm">
-            ← Retour au forum
-          </a>
+          {onBack ? (
+            <button onClick={onBack} className="mt-4 inline-block text-[#6366f1] hover:text-[#818cf8] text-sm">
+              ← Retour au forum
+            </button>
+          ) : (
+            <a href="/forum" className="mt-4 inline-block text-[#6366f1] hover:text-[#818cf8] text-sm">
+              ← Retour au forum
+            </a>
+          )}
         </div>
       </div>
     );
@@ -125,12 +132,21 @@ export default function PublicForumPostPage({ slug }: PublicForumPostPageProps) 
   return (
     <div className="min-h-screen bg-[#121212]">
       <div className="p-4">
-        <a
-          href="/forum"
-          className="inline-flex items-center gap-2 bg-[#1a1a1a] text-white px-4 py-2 rounded-xl hover:bg-[#2a2a2a] transition-colors border border-[#2a2a2a]"
-        >
-          <ArrowLeft className="w-4 h-4" /> Forum
-        </a>
+        {onBack ? (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-2 bg-[#1a1a1a] text-white px-4 py-2 rounded-xl hover:bg-[#2a2a2a] transition-colors border border-[#2a2a2a]"
+          >
+            <ArrowLeft className="w-4 h-4" /> Forum
+          </button>
+        ) : (
+          <a
+            href="/forum"
+            className="inline-flex items-center gap-2 bg-[#1a1a1a] text-white px-4 py-2 rounded-xl hover:bg-[#2a2a2a] transition-colors border border-[#2a2a2a]"
+          >
+            <ArrowLeft className="w-4 h-4" /> Forum
+          </a>
+        )}
       </div>
 
       <div className="max-w-2xl mx-auto px-4 pb-12">

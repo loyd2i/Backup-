@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { MessageCircle, Heart, Eye, Clock, Plus, X, Send } from 'lucide-react';
 import EmptyState from './ui/empty-state';
+import PublicForumPostPage from './public-forum-post-page';
 
 interface ForumCategory {
   id: string;
@@ -35,6 +36,7 @@ export default function ForumPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showNewPost, setShowNewPost] = useState(false);
   const [newPost, setNewPost] = useState({ title: '', content: '', categoryId: '' });
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -102,6 +104,10 @@ export default function ForumPage() {
       minute: '2-digit'
     });
   };
+
+  if (selectedSlug) {
+    return <PublicForumPostPage slug={selectedSlug} onBack={() => setSelectedSlug(null)} />;
+  }
 
   return (
     <div className="p-6 lg:p-8">
@@ -246,6 +252,7 @@ export default function ForumPage() {
           {posts.map(post => (
             <article
               key={post.id}
+              onClick={() => setSelectedSlug(post.slug)}
               className="bg-[#1a1a1a] rounded-xl p-5 border border-[#2a2a2a] hover:border-[#3a3a3a] transition-colors cursor-pointer"
             >
               <div className="flex items-start gap-4">
