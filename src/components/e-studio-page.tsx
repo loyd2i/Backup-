@@ -1350,25 +1350,31 @@ export default function EStudioPage() {
               <div className="space-y-2">
                 <p className="text-gray-400 text-sm mb-1">Options</p>
                 {[
-                  { key: 'enableVideo' as const, label: 'Vidéo', icon: Video },
-                  { key: 'enableScreenShare' as const, label: 'Partage d\'écran', icon: MonitorUp },
-                  { key: 'enableChat' as const, label: 'Chat', icon: MessageSquare },
-                  { key: 'enableAnnotations' as const, label: 'Annotations', icon: PenLine },
-                  { key: 'enableRecording' as const, label: 'Enregistrement', icon: CircleDot },
-                ].map(({ key, label, icon: Icon }) => (
+                  { key: 'enableScreenShare' as const, label: 'Partage d\'écran', icon: MonitorUp, available: true },
+                  { key: 'enableChat' as const, label: 'Chat', icon: MessageSquare, available: true },
+                  { key: 'enableVideo' as const, label: 'Vidéo', icon: Video, available: false },
+                  { key: 'enableAnnotations' as const, label: 'Annotations', icon: PenLine, available: false },
+                  { key: 'enableRecording' as const, label: 'Enregistrement', icon: CircleDot, available: false },
+                ].map(({ key, label, icon: Icon, available }) => (
                   <label
                     key={key}
-                    className="flex items-center justify-between bg-[#2a2a2a] rounded-lg px-4 py-3 cursor-pointer"
+                    className={`flex items-center justify-between bg-[#2a2a2a] rounded-lg px-4 py-3 ${available ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
                   >
                     <span className="flex items-center gap-2 text-white text-sm">
                       <Icon className="w-4 h-4 text-gray-400" />
                       {label}
+                      {!available && (
+                        <span className="text-[10px] uppercase tracking-wide bg-[#3a3a3a] text-gray-400 px-1.5 py-0.5 rounded">
+                          Bientôt disponible
+                        </span>
+                      )}
                     </span>
                     <input
                       type="checkbox"
-                      checked={form[key]}
+                      checked={available ? form[key] : false}
+                      disabled={!available}
                       onChange={(e) => setForm(prev => ({ ...prev, [key]: e.target.checked }))}
-                      className="w-4 h-4 accent-[#6366f1]"
+                      className="w-4 h-4 accent-[#6366f1] disabled:cursor-not-allowed"
                     />
                   </label>
                 ))}
