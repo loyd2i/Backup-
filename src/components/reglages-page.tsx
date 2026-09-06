@@ -410,13 +410,17 @@ export default function ReglagesPage() {
         <div>
           <h2 className="text-gray-400 text-sm mb-3">Confidentialité</h2>
           <div className="bg-[#1a1a1a] rounded-xl overflow-hidden divide-y divide-[#2a2a2a]">
-            <button className="flex items-center justify-between w-full p-4 hover:bg-[#222] transition-colors text-left">
+            <button disabled className="flex items-center justify-between w-full p-4 text-left opacity-50 cursor-not-allowed">
               <span className="text-white">Politique de confidentialité</span>
-              <ChevronRight className="w-5 h-5 text-gray-500" />
+              <span className="text-[10px] uppercase tracking-wide bg-[#2a2a2a] text-gray-400 px-1.5 py-0.5 rounded">
+                Bientôt disponible
+              </span>
             </button>
-            <button className="flex items-center justify-between w-full p-4 hover:bg-[#222] transition-colors text-left">
+            <button disabled className="flex items-center justify-between w-full p-4 text-left opacity-50 cursor-not-allowed">
               <span className="text-white">Conditions d'utilisation</span>
-              <ChevronRight className="w-5 h-5 text-gray-500" />
+              <span className="text-[10px] uppercase tracking-wide bg-[#2a2a2a] text-gray-400 px-1.5 py-0.5 rounded">
+                Bientôt disponible
+              </span>
             </button>
           </div>
         </div>
