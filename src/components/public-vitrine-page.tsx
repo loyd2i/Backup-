@@ -144,7 +144,7 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
 
   const getSocialLinks = () => {
     if (!studio) return [];
-    const links = [];
+    const links: { icon: typeof Globe; url: string; label: string }[] = [];
     if (studio.website && isSafeHttpUrl(studio.website)) links.push({ icon: Globe, url: studio.website, label: 'Site web' });
     if (studio.instagram) links.push({ icon: Instagram, url: `https://instagram.com/${studio.instagram.replace('@', '')}`, label: 'Instagram' });
     if (studio.twitter) links.push({ icon: Twitter, url: `https://twitter.com/${studio.twitter.replace('@', '')}`, label: 'Twitter' });
@@ -286,9 +286,15 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
                 <p className="text-4xl font-bold text-[#f59e0b]">{studio.pricePerHour}€</p>
                 <p className="text-gray-500 text-sm">/heure</p>
               </div>
-              <button className="w-full bg-[#6366f1] text-white py-3 rounded-xl font-semibold hover:bg-[#5558e3] transition-colors flex items-center justify-center gap-2">
+              <a
+                href="/"
+                className="w-full bg-[#6366f1] text-white py-3 rounded-xl font-semibold hover:bg-[#5558e3] transition-colors flex items-center justify-center gap-2"
+              >
                 <Calendar className="w-4 h-4" /> Réserver
-              </button>
+              </a>
+              <p className="text-gray-500 text-xs text-center mt-2">
+                Connecte-toi ou crée un compte pour réserver un créneau
+              </p>
             </div>
 
             {/* Contact */}
