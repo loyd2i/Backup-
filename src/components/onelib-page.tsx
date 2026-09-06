@@ -61,6 +61,7 @@ interface CollectionSummary {
   kind: string; // album, playlist
   status: string; // draft, scheduled, published
   slug: string;
+  views: number;
   tracks: { id: string }[];
 }
 
@@ -958,6 +959,12 @@ export default function OnelibPage() {
           <p className="text-gray-400 mt-1">
             Le hub de diffusion de tes sorties : smart link, QR code et kit de distribution
           </p>
+          {(releases.length > 0 || collections.length > 0) && (
+            <p className="flex items-center gap-1.5 text-gray-400 text-sm mt-3">
+              <Eye className="w-4 h-4" />
+              {releases.reduce((sum, r) => sum + r.views, 0) + collections.reduce((sum, c) => sum + c.views, 0)} vue{(releases.reduce((sum, r) => sum + r.views, 0) + collections.reduce((sum, c) => sum + c.views, 0)) > 1 ? 's' : ''} au total sur tes sorties
+            </p>
+          )}
         </div>
         <button
           onClick={() => setShowCreateCollection(true)}

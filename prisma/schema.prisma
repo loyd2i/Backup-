@@ -69,6 +69,7 @@ model Studio {
   type          String   @default("professionnel") // professionnel, home_studio
   pricePerHour  Float    @default(50)
   rating        Float    @default(4.5)
+  views         Int      @default(0) // Nombre de visites de la fiche publique
   imageUrl      String?
   coverUrl      String?  // Image de couverture (bannière vitrine)
   equipment     String?  // Équipement disponible

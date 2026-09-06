@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X } from 'lucide-react';
+import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye } from 'lucide-react';
 import StudioHoursSettings from './studio-hours-settings';
 import EmptyState from './ui/empty-state';
 import StudioShowcasePage from './studio-showcase-page';
@@ -31,6 +31,7 @@ interface Studio {
   pricePerHour: number;
   walletBalance: number;
   totalEarnings: number;
+  views: number;
 }
 
 interface WalletTransaction {
@@ -205,7 +206,7 @@ export default function StudioDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <div className="bg-[#1a1a1a] rounded-2xl p-5 border border-[#2a2a2a]">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-[#6366f1]/20 rounded-xl flex items-center justify-center">
@@ -248,6 +249,17 @@ export default function StudioDashboard() {
           </div>
           <p className="text-3xl font-bold text-white">{pendingInvoices.length}</p>
           <p className="text-gray-500 text-sm">En attente</p>
+        </div>
+
+        <div className="bg-[#1a1a1a] rounded-2xl p-5 border border-[#2a2a2a]">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-[#6366f1]/20 rounded-xl flex items-center justify-center">
+              <Eye className="w-5 h-5 text-[#6366f1]" />
+            </div>
+            <span className="text-gray-400 text-sm">Visites</span>
+          </div>
+          <p className="text-3xl font-bold text-white">{studio?.views ?? 0}</p>
+          <p className="text-gray-500 text-sm">Fiche publique</p>
         </div>
       </div>
 

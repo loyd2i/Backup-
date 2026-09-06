@@ -45,5 +45,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function StudioPublicPage({ params }: PageProps) {
   const { id } = await params;
+
+  // Compte une visite de la fiche publique (une seule fois par requête de
+  // page réelle - generateMetadata n'incrémente rien, ce composant si).
+  await prisma.studio.updateMany({ where: { id }, data: { views: { increment: 1 } } });
+
   return <PublicVitrinePage studioId={id} />;
 }
