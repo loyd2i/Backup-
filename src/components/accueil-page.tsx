@@ -36,6 +36,7 @@ export default function AccueilPage() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedMapStudio, setSelectedMapStudio] = useState<Studio | null>(null);
+  const [mapZoom, setMapZoom] = useState(1);
   const mapRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState<Filters>({
     priceMin: 0,
@@ -278,12 +279,9 @@ export default function AccueilPage() {
               <Sparkles className="w-5 h-5 text-white" />
               <span className="text-white/80 text-sm font-medium">Devenez l'ingénieur</span>
             </div>
-            <p className="text-white text-lg lg:text-xl font-semibold mb-4">
+            <p className="text-white text-lg lg:text-xl font-semibold">
               Un logiciel tout-en-un pour optimiser votre travail
             </p>
-            <button className="bg-white text-[#6366f1] font-semibold px-6 py-2.5 rounded-xl hover:bg-gray-100 transition-colors shadow-lg">
-              DÉCOUVREZ STUDIOLIB PRO
-            </button>
           </div>
         </div>
       </div>
@@ -405,8 +403,8 @@ export default function AccueilPage() {
                 {/* Studio Markers */}
                 {studiosWithCoords.map((studio, index) => {
                   // Position markers in a relative grid
-                  const offsetX = ((studio.longitude || 0) - mapCenter.lng) * 5000;
-                  const offsetY = ((studio.latitude || 0) - mapCenter.lat) * -5000;
+                  const offsetX = ((studio.longitude || 0) - mapCenter.lng) * 5000 * mapZoom;
+                  const offsetY = ((studio.latitude || 0) - mapCenter.lat) * -5000 * mapZoom;
                   
                   return (
                     <button
@@ -457,10 +455,18 @@ export default function AccueilPage() {
               
               {/* Map Controls */}
               <div className="absolute top-4 right-4 flex flex-col gap-2">
-                <button className="w-10 h-10 bg-[#1a1a1a]/90 backdrop-blur rounded-lg flex items-center justify-center text-white hover:bg-[#2a2a2a] transition-colors shadow-lg">
+                <button
+                  onClick={() => setMapZoom((z) => Math.min(3, +(z + 0.5).toFixed(2)))}
+                  disabled={mapZoom >= 3}
+                  className="w-10 h-10 bg-[#1a1a1a]/90 backdrop-blur rounded-lg flex items-center justify-center text-white hover:bg-[#2a2a2a] transition-colors shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <span className="text-xl font-bold">+</span>
                 </button>
-                <button className="w-10 h-10 bg-[#1a1a1a]/90 backdrop-blur rounded-lg flex items-center justify-center text-white hover:bg-[#2a2a2a] transition-colors shadow-lg">
+                <button
+                  onClick={() => setMapZoom((z) => Math.max(0.5, +(z - 0.5).toFixed(2)))}
+                  disabled={mapZoom <= 0.5}
+                  className="w-10 h-10 bg-[#1a1a1a]/90 backdrop-blur rounded-lg flex items-center justify-center text-white hover:bg-[#2a2a2a] transition-colors shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <span className="text-xl font-bold">−</span>
                 </button>
               </div>
