@@ -42,12 +42,12 @@ export default function Logo({ variant = 'full', size = 'md', className = '' }: 
 
   // Full variant: icône (note de musique) au-dessus du texte, en plus petit
   return (
-    <div className={`flex flex-col items-center gap-2 ${className}`}>
+    <div className={`flex flex-col items-center gap-0.5 ${className}`}>
       <img
         src="/logo-icon.png"
         alt="Studiolib"
-        width={Math.round(iconSize * 0.6)}
-        height={Math.round(iconSize * 0.6)}
+        width={Math.round(iconSize * 0.75)}
+        height={Math.round(iconSize * 0.75)}
       />
       <img
         src="/logo-text.png"
