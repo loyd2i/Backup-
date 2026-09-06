@@ -64,7 +64,7 @@ export default function MessageriePage() {
   const dropZoneRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchMessages();
+    fetchConversations();
   }, []);
 
   useEffect(() => {
@@ -111,36 +111,53 @@ export default function MessageriePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const fetchMessages = async () => {
+  const fetchConversations = async () => {
     try {
       const res = await fetch('/api/messages');
       const data = await res.json();
-      setMessages(data.messages || []);
-      
-      // Generate conversations from messages
+
+      // Regroupe par interlocuteur (l'autre partie du message, pas toujours
+      // l'expéditeur : sinon les messages qu'on a envoyés nous listaient
+      // nous-mêmes comme "conversation").
       const convos: Conversation[] = [];
-      const seenSenders = new Set<string>();
-      
+      const seenPartners = new Set<string>();
+
       data.messages?.forEach((msg: Message) => {
-        if (!seenSenders.has(msg.sender.id)) {
-          seenSenders.add(msg.sender.id);
+        const partner = msg.sender.id === currentUser?.id ? msg.receiver : msg.sender;
+        if (!seenPartners.has(partner.id)) {
+          seenPartners.add(partner.id);
           convos.push({
-            id: msg.sender.id,
-            name: msg.sender.name,
-            role: msg.sender.role,
+            id: partner.id,
+            name: partner.name,
+            role: partner.role,
             lastMessage: msg.content,
             lastMessageTime: msg.createdAt,
             unreadCount: 0,
           });
         }
       });
-      
+
       setConversations(convos);
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      console.error('Error fetching conversations:', error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchMessages = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/messages?userId=${userId}`);
+      const data = await res.json();
+      setMessages(data.messages || []);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  };
+
+  const handleSelectConversation = (conversationId: string) => {
+    setSelectedConversation(conversationId);
+    fetchMessages(conversationId);
   };
 
   const handleFiles = (files: File[]) => {
@@ -167,13 +184,16 @@ export default function MessageriePage() {
 
   const handleSubmitMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    const receiverId = selectedConversation || newMessage.receiverId;
+    if (!receiverId) return;
+
     try {
       const formData = new FormData();
       formData.append('content', messageInput || newMessage.content);
-      formData.append('receiverId', selectedConversation || 'demo-studio');
+      formData.append('receiverId', receiverId);
       formData.append('subject', newMessage.subject);
       formData.append('type', 'message');
-      
+
       // Add files if selected
       selectedFiles.forEach((filePreview, index) => {
         formData.append(`file-${index}`, filePreview.file);
@@ -183,13 +203,15 @@ export default function MessageriePage() {
         method: 'POST',
         body: formData
       });
-      
+
       if (res.ok) {
         setMessageInput('');
         setSelectedFiles([]);
         setShowNewMessage(false);
         setNewMessage({ receiverId: '', content: '', subject: '', type: 'message' });
-        fetchMessages();
+        setSelectedConversation(receiverId);
+        fetchMessages(receiverId);
+        fetchConversations();
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -302,7 +324,7 @@ export default function MessageriePage() {
           {allConversations.map((convo) => (
             <button
               key={convo.id}
-              onClick={() => setSelectedConversation(convo.id)}
+              onClick={() => handleSelectConversation(convo.id)}
               className={`w-full p-4 flex items-center gap-3 hover:bg-[#1a1a1a] transition-colors text-left border-b border-[#1a1a1a] ${
                 selectedConversation === convo.id ? 'bg-[#1a1a1a]' : ''
               }`}
@@ -591,7 +613,7 @@ export default function MessageriePage() {
             {allConversations.map((convo) => (
               <button
                 key={convo.id}
-                onClick={() => setSelectedConversation(convo.id)}
+                onClick={() => handleSelectConversation(convo.id)}
                 className="w-full p-4 flex items-center gap-3 hover:bg-[#1a1a1a] transition-colors text-left border-b border-[#1a1a1a]"
               >
                 <div className="relative">
@@ -630,7 +652,12 @@ export default function MessageriePage() {
             <form onSubmit={handleSubmitMessage} className="space-y-4">
               <div>
                 <label className="text-gray-400 text-sm mb-2 block">Destinataire</label>
-                <select className="w-full bg-[#2a2a2a] text-white rounded-xl p-3 border border-[#3a3a3a] focus:outline-none focus:border-[#6366f1]">
+                <select
+                  value={newMessage.receiverId}
+                  onChange={(e) => setNewMessage({ ...newMessage, receiverId: e.target.value })}
+                  required
+                  className="w-full bg-[#2a2a2a] text-white rounded-xl p-3 border border-[#3a3a3a] focus:outline-none focus:border-[#6366f1]"
+                >
                   <option value="">Sélectionner un studio ou contact</option>
                   {allConversations.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
