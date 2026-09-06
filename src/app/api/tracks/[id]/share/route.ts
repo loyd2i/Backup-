@@ -51,10 +51,10 @@ export async function POST(
 
     const { id: trackId } = await params;
     const body = await request.json();
-    const { userIds } = body; // Array of user IDs to share with
+    const { emails } = body; // Array of emails to share with
 
-    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-      return NextResponse.json({ error: 'Utilisateurs requis' }, { status: 400 });
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      return NextResponse.json({ error: 'Adresses e-mail requises' }, { status: 400 });
     }
 
     // Verify ownership
@@ -68,14 +68,30 @@ export async function POST(
 
     // Can only share private tracks
     if (track.isPublic) {
-      return NextResponse.json({ 
-        error: 'Les tracks publiques sont visibles par tous' 
+      return NextResponse.json({
+        error: 'Les tracks publiques sont visibles par tous'
       }, { status: 400 });
+    }
+
+    const matchedUsers = await prisma.user.findMany({
+      where: { email: { in: emails } },
+      select: { id: true, email: true }
+    });
+
+    const notFound = emails.filter(
+      (email: string) => !matchedUsers.some(u => u.email === email)
+    );
+
+    if (matchedUsers.length === 0) {
+      return NextResponse.json(
+        { error: `Aucun utilisateur trouvé pour : ${notFound.join(', ')}` },
+        { status: 404 }
+      );
     }
 
     // Create shares
     const shares = await Promise.all(
-      userIds.map(userId =>
+      matchedUsers.map(({ id: userId }) =>
         prisma.trackShare.upsert({
           where: {
             trackId_userId: { trackId, userId }
@@ -92,6 +108,13 @@ export async function POST(
         })
       )
     );
+
+    if (notFound.length > 0) {
+      return NextResponse.json({
+        shares,
+        message: `Partagé, mais introuvable : ${notFound.join(', ')}`
+      }, { status: 201 });
+    }
 
     return NextResponse.json({ shares, message: 'Track partagée' }, { status: 201 });
   } catch (error) {

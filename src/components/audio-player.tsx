@@ -294,18 +294,31 @@ export default function AudioPlayer({
     if (!shareEmail.trim()) return;
 
     try {
-      // Find user by email
       const res = await fetch(`/api/tracks/${trackId}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userIds: [shareEmail] }) // We'll use email as userId for demo
+        body: JSON.stringify({ emails: [shareEmail] })
       });
+      const data = await res.json();
       if (res.ok) {
         setShareEmail('');
         fetchShares();
+      } else {
+        alert(data.error || 'Erreur lors du partage');
       }
     } catch (e) {
       console.error('Error sharing:', e);
+    }
+  };
+
+  const handleRemoveShare = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/tracks/${trackId}/share?userId=${userId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) fetchShares();
+    } catch (e) {
+      console.error('Error removing share:', e);
     }
   };
 
@@ -615,7 +628,10 @@ export default function AudioPlayer({
                     {shares.map((share) => (
                       <div key={share.id} className="flex items-center justify-between bg-[#2a2a2a] rounded-lg p-2">
                         <span className="text-white text-sm">{share.user.name || share.user.email}</span>
-                        <button className="text-gray-500 hover:text-red-400">
+                        <button
+                          onClick={() => handleRemoveShare(share.user.id)}
+                          className="text-gray-500 hover:text-red-400"
+                        >
                           <X className="w-4 h-4" />
                         </button>
                       </div>

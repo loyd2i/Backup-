@@ -5,6 +5,7 @@ import { Music, FileText, Pencil, Plus, X, Save, Globe, Lock, Upload, Loader2, Z
 import CoverDropzone from './cover-dropzone';
 import AudioPlayer from './audio-player';
 import AudioPlayerWithVersions from './audio-player-with-versions';
+import TrackShareButton from './track-share-button';
 import { analyzeAudio, AudioAnalysisResult } from '@/lib/audio-analyzer';
 import EmptyState from './ui/empty-state';
 
@@ -729,37 +730,43 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
               <div className="space-y-4">
                 {filteredTracks.map((track) => (
                   track.versions && track.versions.length > 0 ? (
-                    <AudioPlayerWithVersions
-                      key={track.id}
-                      trackId={track.id}
-                      title={track.title}
-                      artist={track.artist}
-                      bpm={track.bpm}
-                      keySignature={track.key}
-                      duration={track.duration || 180}
-                      audioUrl={track.audioUrl || undefined}
-                      versions={track.versions.map(v => ({
-                        id: v.id,
-                        label: v.label || 'Version',
-                        audioUrl: v.audioUrl,
-                        duration: v.duration,
-                        uploadedAt: v.createdAt,
-                        notes: null
-                      }))}
-                      isPublic={track.isPublic}
-                      isShared={track.isShared}
-                      onTogglePublic={() => handleTogglePublic(track.id, track.isPublic || false)}
-                      views={track.views}
-                      studio={track.studio}
-                      commentCount={track._count?.comments || 0}
-                      hideStudio={isStudioMode}
-                      onDelete={() => handleDeleteTrack(track.id)}
-                      onUploadVersion={
-                        !isStudioMode && !track.isShared
-                          ? (file, label) => handleUploadVersion(track.id, file, label)
-                          : undefined
-                      }
-                    />
+                    <div key={track.id} className="relative">
+                      <AudioPlayerWithVersions
+                        trackId={track.id}
+                        title={track.title}
+                        artist={track.artist}
+                        bpm={track.bpm}
+                        keySignature={track.key}
+                        duration={track.duration || 180}
+                        audioUrl={track.audioUrl || undefined}
+                        versions={track.versions.map(v => ({
+                          id: v.id,
+                          label: v.label || 'Version',
+                          audioUrl: v.audioUrl,
+                          duration: v.duration,
+                          uploadedAt: v.createdAt,
+                          notes: null
+                        }))}
+                        isPublic={track.isPublic}
+                        isShared={track.isShared}
+                        onTogglePublic={() => handleTogglePublic(track.id, track.isPublic || false)}
+                        views={track.views}
+                        studio={track.studio}
+                        commentCount={track._count?.comments || 0}
+                        hideStudio={isStudioMode}
+                        onDelete={() => handleDeleteTrack(track.id)}
+                        onUploadVersion={
+                          !isStudioMode && !track.isShared
+                            ? (file, label) => handleUploadVersion(track.id, file, label)
+                            : undefined
+                        }
+                      />
+                      {!track.isPublic && !track.isShared && (
+                        <div className="absolute top-5 right-5 z-10">
+                          <TrackShareButton trackId={track.id} />
+                        </div>
+                      )}
+                    </div>
                   ) : (
                     <AudioPlayer
                       key={track.id}
