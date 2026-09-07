@@ -625,7 +625,7 @@ export default function StudioDashboard() {
               {projects.map((project) => (
                 <div key={project.id} className="bg-[#121212] rounded-xl p-5 border border-[#2a2a2a] hover:border-[#f59e0b]/50 transition-colors">
                   <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-[#f59e0b] to-[#ef4444] rounded-xl flex items-center justify-center">
+                    <div className="w-14 h-14 bg-gradient-to-br from-[#f59e0b] to-[#ef4444] rounded-xl flex items-center justify-center flex-shrink-0">
                       <Music className="w-7 h-7 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -636,13 +636,18 @@ export default function StudioDashboard() {
                       )}
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      project.status === 'finished' 
-                        ? 'bg-green-500/20 text-green-400' 
+                      project.status === 'finished'
+                        ? 'bg-green-500/20 text-green-400'
                         : 'bg-yellow-500/20 text-yellow-400'
                     }`}>
                       {project.status === 'finished' ? 'Terminé' : 'En cours'}
                     </span>
                   </div>
+                  {project.audioUrl ? (
+                    <audio controls src={project.audioUrl} className="w-full mt-4 h-9" />
+                  ) : (
+                    <p className="text-gray-600 text-xs mt-4">Aucun fichier audio associé</p>
+                  )}
                 </div>
               ))}
             </div>
