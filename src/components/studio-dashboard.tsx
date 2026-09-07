@@ -6,6 +6,8 @@ import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight
 import StudioHoursSettings from './studio-hours-settings';
 import EmptyState from './ui/empty-state';
 import StudioShowcasePage from './studio-showcase-page';
+import AudioPlayer from './audio-player';
+import AudioPlayerWithVersions from './audio-player-with-versions';
 
 interface Appointment {
   id: string;
@@ -56,10 +58,19 @@ interface Project {
   id: string;
   title: string;
   artist: string;
+  bpm?: number | null;
+  key?: string | null;
   status: string;
+  isPublic?: boolean;
+  isShared?: boolean;
   createdAt: string;
-  user?: { name: string };
-  audioUrl?: string;
+  user?: { id: string; name: string };
+  audioUrl?: string | null;
+  duration?: number | null;
+  views?: number;
+  studio?: { id: string; name: string } | null;
+  _count?: { comments: number };
+  versions?: { id: string; label: string | null; audioUrl: string | null; duration: number | null; createdAt: string }[];
 }
 
 export default function StudioDashboard() {
@@ -621,20 +632,13 @@ export default function StudioDashboard() {
               size="lg"
             />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
+            <div className="space-y-4 p-5">
               {projects.map((project) => (
-                <div key={project.id} className="bg-[#121212] rounded-xl p-5 border border-[#2a2a2a] hover:border-[#f59e0b]/50 transition-colors">
-                  <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-[#f59e0b] to-[#ef4444] rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Music className="w-7 h-7 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-medium truncate">{project.title}</p>
-                      <p className="text-gray-400 text-sm">{project.artist}</p>
-                      {project.user && (
-                        <p className="text-gray-500 text-sm mt-1">Client: {project.user.name}</p>
-                      )}
-                    </div>
+                <div key={project.id}>
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    {project.user && (
+                      <p className="text-gray-500 text-sm">Client : {project.user.name}</p>
+                    )}
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                       project.status === 'finished'
                         ? 'bg-green-500/20 text-green-400'
@@ -643,10 +647,46 @@ export default function StudioDashboard() {
                       {project.status === 'finished' ? 'Terminé' : 'En cours'}
                     </span>
                   </div>
-                  {project.audioUrl ? (
-                    <audio controls src={project.audioUrl} className="w-full mt-4 h-9" />
+                  {project.versions && project.versions.length > 0 ? (
+                    <AudioPlayerWithVersions
+                      trackId={project.id}
+                      title={project.title}
+                      artist={project.artist}
+                      bpm={project.bpm}
+                      keySignature={project.key}
+                      duration={project.duration || 180}
+                      audioUrl={project.audioUrl || undefined}
+                      versions={project.versions.map(v => ({
+                        id: v.id,
+                        label: v.label || 'Version',
+                        audioUrl: v.audioUrl,
+                        duration: v.duration,
+                        uploadedAt: v.createdAt,
+                        notes: null
+                      }))}
+                      isPublic={project.isPublic}
+                      isShared={project.isShared}
+                      views={project.views}
+                      studio={project.studio}
+                      commentCount={project._count?.comments || 0}
+                      hideStudio
+                    />
                   ) : (
-                    <p className="text-gray-600 text-xs mt-4">Aucun fichier audio associé</p>
+                    <AudioPlayer
+                      trackId={project.id}
+                      title={project.title}
+                      artist={project.artist}
+                      bpm={project.bpm}
+                      keySignature={project.key}
+                      duration={project.duration || 180}
+                      audioUrl={project.audioUrl || undefined}
+                      isPublic={project.isPublic}
+                      isShared={project.isShared}
+                      views={project.views}
+                      studio={project.studio}
+                      commentCount={project._count?.comments || 0}
+                      hideStudio
+                    />
                   )}
                 </div>
               ))}

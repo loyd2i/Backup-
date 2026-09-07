@@ -47,7 +47,7 @@ export async function POST(
     // Check if user has access to this track
     const track = await prisma.track.findUnique({
       where: { id: trackId },
-      include: { sharedWith: true }
+      include: { sharedWith: true, studio: { select: { ownerId: true } } }
     });
 
     if (!track) {
@@ -58,10 +58,12 @@ export async function POST(
     // 1. Track is public
     // 2. User owns the track
     // 3. Track is shared with user
-    const canComment = 
+    // 4. User owns the studio this track was worked on with (retours studio ↔ client)
+    const canComment =
       track.isPublic ||
       track.userId === user.id ||
-      track.sharedWith.some(s => s.userId === user.id);
+      track.sharedWith.some(s => s.userId === user.id) ||
+      track.studio?.ownerId === user.id;
 
     if (!canComment) {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 });
