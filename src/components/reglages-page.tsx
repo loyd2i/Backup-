@@ -20,7 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { PLATFORM_COMMISSION_RATE } from '@/lib/tax-config';
+import { PLATFORM_COMMISSION_RATE, ARTIST_COMMISSION_RATE } from '@/lib/tax-config';
 
 interface PublicProfile {
   bio: string;
@@ -155,7 +155,7 @@ export default function ReglagesPage() {
         { icon: CreditCard, label: 'Moyens de paiement' },
         ...(user?.role === 'studio_owner'
           ? [{ icon: Percent, label: 'Commission plateforme', value: `${(PLATFORM_COMMISSION_RATE * 100).toFixed(0)}%` }]
-          : []),
+          : [{ icon: Percent, label: 'Frais de service par réservation', value: `${(ARTIST_COMMISSION_RATE * 100).toFixed(0)}%` }]),
       ],
     },
     {

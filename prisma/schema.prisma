@@ -223,7 +223,12 @@ model Appointment {
   reminderSent     Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  
+
+  // Frais de service artiste (en plus du totalPrice studio), figés au
+  // moment de la réservation
+  artistCommissionAmount   Float?
+  artistCommissionRefunded Boolean? // null tant que non tranché (avant annulation/complétion)
+
   // Empreinte de paiement
   preAuthorization PreAuthorization?
 }

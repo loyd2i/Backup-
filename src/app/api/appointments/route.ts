@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { PLATFORM_COMMISSION_RATE } from '@/lib/tax-config';
+import { PLATFORM_COMMISSION_RATE, ARTIST_COMMISSION_RATE, ARTIST_COMMISSION_REFUND_CUTOFF_HOURS } from '@/lib/tax-config';
 import { sendAppointmentEmail } from '@/lib/appointment-emails';
 
 // GET - Rendez-vous de l'utilisateur ou du studio
@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
     const endTime = `${endHour.toString().padStart(2, '0')}:00`;
 
     const totalPrice = studio.pricePerHour * parseInt(duration);
+    const artistCommissionAmount = Math.round(totalPrice * ARTIST_COMMISSION_RATE * 100) / 100;
 
     const appointment = await prisma.appointment.create({
       data: {
@@ -100,6 +101,7 @@ export async function POST(request: NextRequest) {
         duration: parseInt(duration),
         notes,
         totalPrice,
+        artistCommissionAmount,
         status: 'pending'
       },
       include: {
@@ -108,12 +110,13 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Create pre-authorization (hold) for the total price
-    // In production, this would be a Stripe PaymentIntent with capture_method: 'manual'
+    // Create pre-authorization (hold) for the total price + frais de service
+    // artiste. In production, this would be a Stripe PaymentIntent with
+    // capture_method: 'manual'.
     await prisma.preAuthorization.create({
       data: {
         appointmentId: appointment.id,
-        amount: totalPrice,
+        amount: totalPrice + artistCommissionAmount,
         status: 'held',
         stripeIntentId: `pi_demo_${Date.now()}`
       }
@@ -124,10 +127,12 @@ export async function POST(request: NextRequest) {
     await sendAppointmentEmail('new_request', appointment.id);
 
     return NextResponse.json({
-      appointment, 
+      appointment,
       message: 'Rendez-vous créé',
       preAuthorization: {
-        amount: totalPrice,
+        amount: totalPrice + artistCommissionAmount,
+        studioAmount: totalPrice,
+        artistCommissionAmount,
         status: 'held',
         info: 'Empreinte bancaire mise en attente - aucun débit effectué'
       }
@@ -167,10 +172,32 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
     }
 
+    // Frais de service artiste : remboursés si le studio annule (ce n'est pas
+    // la faute de l'artiste), ou si l'artiste annule assez tôt ; conservés
+    // si l'artiste annule tardivement (le studio ne peut plus revendre le
+    // créneau) ; capturés (non remboursés) une fois la session complétée.
+    let artistCommissionRefunded: boolean | undefined;
+    if (status === 'cancelled') {
+      if (isStudioOwner) {
+        artistCommissionRefunded = true;
+      } else {
+        const sessionStart = new Date(existingAppt.date);
+        const [sessionHour, sessionMinute] = existingAppt.startTime.split(':').map(Number);
+        sessionStart.setHours(sessionHour, sessionMinute, 0, 0);
+        const hoursUntilSession = (sessionStart.getTime() - Date.now()) / (1000 * 60 * 60);
+        artistCommissionRefunded = hoursUntilSession >= ARTIST_COMMISSION_REFUND_CUTOFF_HOURS;
+      }
+    } else if (status === 'completed') {
+      artistCommissionRefunded = false;
+    }
+
     // Update appointment
     const appointment = await prisma.appointment.update({
       where: { id },
-      data: { status },
+      data: {
+        status,
+        ...(artistCommissionRefunded !== undefined && { artistCommissionRefunded }),
+      },
       include: {
         studio: { select: { name: true } },
         user: { select: { id: true, name: true, email: true } }

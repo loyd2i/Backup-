@@ -20,5 +20,13 @@ export function getTaxConfig(country?: string | null): TaxConfig {
   return SUPPORTED_COUNTRIES.find((c) => c.country === country) || DEFAULT_TAX_CONFIG;
 }
 
-// Commission prélevée par la plateforme sur chaque session terminée
+// Commission prélevée par la plateforme sur chaque session terminée (côté studio)
 export const PLATFORM_COMMISSION_RATE = 0.03;
+
+// Frais de service prélevés côté artiste à la réservation, en plus du prix studio
+export const ARTIST_COMMISSION_RATE = 0.04;
+
+// Délai avant le début de la session en dessous duquel une annulation par
+// l'artiste ne rembourse plus les frais de service (le studio ne peut plus
+// revendre le créneau à temps).
+export const ARTIST_COMMISSION_REFUND_CUTOFF_HOURS = 24;

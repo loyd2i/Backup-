@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Calendar, Clock, MapPin, ChevronLeft, ChevronRight, Star, AlertCircle, Check, X, Download } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import EmptyState from './ui/empty-state';
+import { ARTIST_COMMISSION_RATE, ARTIST_COMMISSION_REFUND_CUTOFF_HOURS } from '@/lib/tax-config';
 
 interface Studio {
   id: string;
@@ -565,7 +566,20 @@ export default function RendezvousPage() {
                 {confirmingSlot.startTime} - {confirmingSlot.endTime}
               </p>
               <p className="text-gray-400 text-sm capitalize">{formatDate(selectedDate.toISOString())}</p>
-              <p className="text-white font-semibold mt-2">{(selectedStudio.pricePerHour * 2).toFixed(0)}€</p>
+              <div className="mt-3 pt-3 border-t border-[#2a2a2a] space-y-1 text-sm">
+                <div className="flex justify-between text-gray-400">
+                  <span>Session studio</span>
+                  <span>{(selectedStudio.pricePerHour * 2).toFixed(0)}€</span>
+                </div>
+                <div className="flex justify-between text-gray-400">
+                  <span>Frais de service ({(ARTIST_COMMISSION_RATE * 100).toFixed(0)}%)</span>
+                  <span>{(selectedStudio.pricePerHour * 2 * ARTIST_COMMISSION_RATE).toFixed(2)}€</span>
+                </div>
+                <div className="flex justify-between text-white font-semibold pt-1">
+                  <span>Total</span>
+                  <span>{(selectedStudio.pricePerHour * 2 * (1 + ARTIST_COMMISSION_RATE)).toFixed(2)}€</span>
+                </div>
+              </div>
             </div>
             
             <div className="mb-4">
@@ -580,8 +594,9 @@ export default function RendezvousPage() {
             
             <div className="bg-[#6366f1]/10 border border-[#6366f1]/30 rounded-xl p-3 mb-4">
               <p className="text-[#6366f1] text-sm">
-                💳 Une empreinte de {(selectedStudio.pricePerHour * 2).toFixed(0)}€ sera pré-autorisée. 
-                Aucun débit en cas d'annulation 24h avant.
+                💳 Une empreinte de {(selectedStudio.pricePerHour * 2 * (1 + ARTIST_COMMISSION_RATE)).toFixed(2)}€ sera pré-autorisée.
+                Aucun débit en cas d'annulation {ARTIST_COMMISSION_REFUND_CUTOFF_HOURS}h avant (frais de service remboursés) ;
+                passé ce délai, les frais de service restent dus.
               </p>
             </div>
             

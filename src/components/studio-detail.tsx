@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { MapPin, Star, Clock, Phone, ChevronLeft, Calendar, AlertCircle, Users, Wrench, Check } from 'lucide-react';
+import { ARTIST_COMMISSION_RATE } from '@/lib/tax-config';
 
 interface Studio {
   id: string;
@@ -123,6 +124,14 @@ export default function StudioDetail({ studioId, onClose }: Props) {
   const calculatePrice = () => {
     if (!studio || !selectedSlot) return 0;
     return studio.pricePerHour * 2; // 2-hour slots
+  };
+
+  const calculateServiceFee = () => {
+    return Math.round(calculatePrice() * ARTIST_COMMISSION_RATE * 100) / 100;
+  };
+
+  const calculateTotalCharged = () => {
+    return Math.round((calculatePrice() + calculateServiceFee()) * 100) / 100;
   };
 
   const handleBooking = async () => {
@@ -583,8 +592,18 @@ export default function StudioDetail({ studioId, onClose }: Props) {
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-[#6366f1] font-bold text-3xl">{calculatePrice()}€</p>
+                              <p className="text-[#6366f1] font-bold text-3xl">{calculateTotalCharged()}€</p>
                               <p className="text-gray-500 text-sm">2 heures</p>
+                            </div>
+                          </div>
+                          <div className="mt-3 pt-3 border-t border-[#2a2a2a] space-y-1 text-sm">
+                            <div className="flex justify-between text-gray-400">
+                              <span>Session studio</span>
+                              <span>{calculatePrice()}€</span>
+                            </div>
+                            <div className="flex justify-between text-gray-400">
+                              <span>Frais de service ({(ARTIST_COMMISSION_RATE * 100).toFixed(0)}%)</span>
+                              <span>{calculateServiceFee()}€</span>
                             </div>
                           </div>
                         </div>
@@ -614,8 +633,8 @@ export default function StudioDetail({ studioId, onClose }: Props) {
                             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             Réservation en cours...
                           </span>
-                        ) : selectedSlot 
-                          ? `Réserver pour ${calculatePrice()}€`
+                        ) : selectedSlot
+                          ? `Réserver pour ${calculateTotalCharged()}€`
                           : 'Sélectionnez un créneau'
                         }
                       </button>
