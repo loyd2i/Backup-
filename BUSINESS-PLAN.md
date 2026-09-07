@@ -22,7 +22,7 @@ Plateforme indépendante des labels majors : pas de gatekeeping, pas de comité 
 - Commission plateforme : **15%** côté studio (vs 3% pour une réservation physique classique — justifié par le coût d'infra réel des sessions à distance)
 - Commission artiste : idem réservations classiques, < 5%
 - Taux de prise combiné : ~20%
-- Point à trancher : tarif E-Studio dédié par studio, ou même `pricePerHour` que les sessions physiques ?
+- Tarif : **champ dédié par studio** (distinct du `pricePerHour` physique), pré-rempli avec la valeur du `pricePerHour` par défaut pour ne pas ajouter de friction, mais modifiable — une session à distance n'a pas la même structure de coûts (pas de salle occupée, pas d'usure matériel) qu'une session physique, un studio doit pouvoir différencier
 
 ## Abonnement studio
 
@@ -34,9 +34,7 @@ Plateforme indépendante des labels majors : pas de gatekeeping, pas de comité 
 ## Onelib (distribution musicale)
 
 - Modèle : **forfait fixe**, pas un pourcentage sur les royalties de streaming (éviterait de devoir suivre les revenus réels des DSP, infra que la plateforme n'a pas)
-- Deux options de forfait à trancher :
-  - ~20-25€/an pour une distribution illimitée (modèle DistroKid) — adapté à un artiste qui sort plusieurs titres par an
-  - ~50€ par sortie (modèle TuneCore) — adapté à un artiste qui sort rarement
+- Tarif : **~50€ par sortie** (modèle TuneCore), pas un forfait illimité — le processus de distribution actuel est manuel ("une personne traite ta demande manuellement", déjà annoncé dans l'app), donc chaque sortie a un vrai coût de traitement pour l'équipe. Un forfait illimité exposerait à un artiste prolifique qui rapporte 20-25€/an pour de nombreux traitements manuels, la marge s'effondrerait exactement quand la charge de travail augmente. Un forfait illimité redeviendra pertinent comme option premium une fois le processus automatisé, pas avant.
 - Vision long terme : évolution vers une plateforme de streaming, par étapes :
   1. Court terme : lecteur public sur la page artiste existante (`/artiste/[id]`), tracks écoutables publiquement façon "SoundCloud personnel" — infra déjà en partie présente, faible risque
   2. Moyen terme (une fois une vraie audience d'auditeurs) : pages de découverte publiques, compteurs d'écoute, playlists
