@@ -44,6 +44,7 @@ interface Studio {
   address: string | null;
   type: string;
   pricePerHour: number;
+  eStudioPricePerHour?: number | null;
   rating: number;
   imageUrl: string | null;
   equipment: string | null;
@@ -601,6 +602,7 @@ function StudioEditModal({
     equipment: studio.equipment || '',
     phone: studio.phone || '',
     country: studio.country || 'FR',
+    eStudioPricePerHour: String(studio.eStudioPricePerHour ?? studio.pricePerHour),
     website: studio.website || '',
     instagram: studio.instagram || '',
     twitter: studio.twitter || '',
@@ -756,6 +758,20 @@ function StudioEditModal({
                   onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                   className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
                 />
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-2 block">Tarif E-Studio (€/heure)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.eStudioPricePerHour}
+                  onChange={(e) => setFormData(prev => ({ ...prev, eStudioPricePerHour: e.target.value }))}
+                  className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
+                />
+                <p className="text-gray-500 text-xs mt-1.5">
+                  Tarif appliqué pour une session à distance (E-Studio), distinct de votre tarif en studio ({studio.pricePerHour}€/h).
+                </p>
               </div>
               <div>
                 <label className="text-gray-400 text-sm mb-2 block">Pays</label>

@@ -81,6 +81,7 @@ model Studio {
   address       String?  // Adresse complète
   type          String   @default("professionnel") // professionnel, home_studio
   pricePerHour  Float    @default(50)
+  eStudioPricePerHour Float? // Tarif dédié aux sessions E-Studio (distance) ; null = utilise pricePerHour
   rating        Float    @default(4.5)
   views         Int      @default(0) // Nombre de visites de la fiche publique
   imageUrl      String?

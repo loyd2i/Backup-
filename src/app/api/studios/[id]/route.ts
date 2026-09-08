@@ -148,6 +148,18 @@ export async function PATCH(
       if (body[field] !== undefined) data[field] = body[field];
     }
 
+    if (body.eStudioPricePerHour !== undefined) {
+      if (body.eStudioPricePerHour === null) {
+        data.eStudioPricePerHour = null;
+      } else {
+        const price = Number(body.eStudioPricePerHour);
+        if (!Number.isFinite(price) || price < 0) {
+          return NextResponse.json({ error: 'Tarif E-Studio invalide' }, { status: 400 });
+        }
+        data.eStudioPricePerHour = price;
+      }
+    }
+
     const updated = await prisma.studio.update({
       where: { id },
       data,
