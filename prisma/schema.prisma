@@ -218,6 +218,7 @@ model Appointment {
   endTime          String   // "18:00"
   duration         Int      // en heures
   status           String   @default("pending") // pending, confirmed, completed, cancelled
+  type             String   @default("studio") // studio (sur place), e_studio (à distance)
   notes            String?
   totalPrice       Float?
   confirmationSent Boolean  @default(false)
@@ -232,6 +233,9 @@ model Appointment {
 
   // Empreinte de paiement
   preAuthorization PreAuthorization?
+
+  // Session E-Studio liée (si type = e_studio, créée à la confirmation)
+  eStudioSession   EStudioSession?
 }
 
 // Empreinte de paiement (pré-autorisation)
@@ -492,6 +496,10 @@ model EStudioSession {
   endedAt           DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  // Réservation liée (session créée depuis une réservation E-Studio)
+  appointmentId     String?      @unique
+  appointment       Appointment? @relation(fields: [appointmentId], references: [id])
 
   participants EStudioParticipant[]
   messages     EStudioChatMessage[]

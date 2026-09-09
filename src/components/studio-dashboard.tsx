@@ -16,6 +16,7 @@ interface Appointment {
   endTime: string;
   duration: number;
   status: string;
+  type?: string;
   notes?: string;
   totalPrice?: number;
   user: {
@@ -24,6 +25,7 @@ interface Appointment {
     email: string;
     phone?: string;
   };
+  eStudioSession?: { id: string; status: string } | null;
 }
 
 interface Studio {
@@ -75,6 +77,8 @@ interface Project {
 
 export default function StudioDashboard() {
   const user = useAppStore((state) => state.user);
+  const setCurrentPage = useAppStore((state) => state.setCurrentPage);
+  const setPendingEStudioSessionId = useAppStore((state) => state.setPendingEStudioSessionId);
   const [studio, setStudio] = useState<Studio | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -124,6 +128,11 @@ export default function StudioDashboard() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleJoinEStudio = (sessionId: string) => {
+    setPendingEStudioSessionId(sessionId);
+    setCurrentPage('e-studio');
   };
 
   const handleSendInvoiceEmail = async (appointmentId: string) => {
@@ -488,6 +497,11 @@ export default function StudioDashboard() {
                         <div>
                           <p className="text-white font-medium">{apt.user.name}</p>
                           <p className="text-gray-500 text-sm">{apt.user.email}</p>
+                          {apt.type === 'e_studio' && (
+                            <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-[#6366f1]/20 text-[#6366f1]">
+                              E-Studio
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="p-4 text-white">
@@ -531,6 +545,14 @@ export default function StudioDashboard() {
                           )}
                           {apt.status === 'confirmed' && (
                             <>
+                              {apt.type === 'e_studio' && apt.eStudioSession && (
+                                <button
+                                  onClick={() => handleJoinEStudio(apt.eStudioSession!.id)}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-[#6366f1]/20 text-[#6366f1] hover:bg-[#6366f1]/30 rounded-lg text-xs font-medium transition-colors"
+                                >
+                                  Rejoindre
+                                </button>
+                              )}
                               <button
                                 onClick={() => handleStatusChange(apt.id, 'completed')}
                                 className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg text-xs font-medium transition-colors"

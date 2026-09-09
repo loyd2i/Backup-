@@ -11,6 +11,7 @@ interface Studio {
   name: string;
   location: string;
   pricePerHour: number;
+  eStudioPricePerHour?: number | null;
   rating: number;
   type: string;
   imageUrl?: string;
@@ -31,12 +32,16 @@ interface Appointment {
   endTime: string;
   duration: number;
   status: string;
+  type?: string;
   notes?: string | null;
   totalPrice?: number | null;
   studio: { id: string; name: string; location: string };
+  eStudioSession?: { id: string; status: string } | null;
 }
 
 export default function RendezvousPage() {
+  const setCurrentPage = useAppStore((state) => state.setCurrentPage);
+  const setPendingEStudioSessionId = useAppStore((state) => state.setPendingEStudioSessionId);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [studios, setStudios] = useState<Studio[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,6 +54,7 @@ export default function RendezvousPage() {
   const [confirmingSlot, setConfirmingSlot] = useState<TimeSlot | null>(null);
   const [notes, setNotes] = useState('');
   const [activeTab, setActiveTab] = useState<'booking' | 'upcoming' | 'past'>('booking');
+  const [bookingType, setBookingType] = useState<'studio' | 'e_studio'>('studio');
 
   useEffect(() => {
     fetchData();
@@ -181,7 +187,8 @@ export default function RendezvousPage() {
           startTime: confirmingSlot.startTime,
           endTime: confirmingSlot.endTime,
           duration: 2,
-          notes
+          notes,
+          type: bookingType
         })
       });
 
@@ -196,6 +203,11 @@ export default function RendezvousPage() {
     } catch (error) {
       console.error('Error creating appointment:', error);
     }
+  };
+
+  const handleJoinEStudio = (sessionId: string) => {
+    setPendingEStudioSessionId(sessionId);
+    setCurrentPage('e-studio');
   };
 
   const handleCancelAppointment = async (id: string) => {
@@ -243,8 +255,11 @@ export default function RendezvousPage() {
   };
 
   const selectedCount = slots.filter(s => s.selected).length;
-  const totalPrice = selectedStudio && selectedCount > 0 
-    ? selectedStudio.pricePerHour * 2 * selectedCount 
+  const activeHourlyRate = selectedStudio
+    ? (bookingType === 'e_studio' ? (selectedStudio.eStudioPricePerHour ?? selectedStudio.pricePerHour) : selectedStudio.pricePerHour)
+    : 0;
+  const totalPrice = selectedStudio && selectedCount > 0
+    ? activeHourlyRate * 2 * selectedCount
     : 0;
 
   const upcomingRdvs = appointments.filter(a => ['pending', 'confirmed'].includes(a.status));
@@ -339,6 +354,34 @@ export default function RendezvousPage() {
                       ))}
                     </select>
                   </div>
+                </div>
+              )}
+
+              {/* Booking Type Toggle */}
+              {selectedStudio && (
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  <button
+                    onClick={() => setBookingType('studio')}
+                    className={`p-3 rounded-xl border-2 text-center transition-all ${
+                      bookingType === 'studio'
+                        ? 'bg-[#6366f1]/10 border-[#6366f1] text-white'
+                        : 'bg-[#1a1a1a] border-[#3a3a3a] text-gray-400 hover:border-[#6366f1]/50'
+                    }`}
+                  >
+                    <p className="font-medium text-sm">Sur place</p>
+                    <p className="text-xs mt-0.5 opacity-70">{selectedStudio.pricePerHour}€/h</p>
+                  </button>
+                  <button
+                    onClick={() => setBookingType('e_studio')}
+                    className={`p-3 rounded-xl border-2 text-center transition-all ${
+                      bookingType === 'e_studio'
+                        ? 'bg-[#6366f1]/10 border-[#6366f1] text-white'
+                        : 'bg-[#1a1a1a] border-[#3a3a3a] text-gray-400 hover:border-[#6366f1]/50'
+                    }`}
+                  >
+                    <p className="font-medium text-sm">E-Studio (à distance)</p>
+                    <p className="text-xs mt-0.5 opacity-70">{selectedStudio.eStudioPricePerHour ?? selectedStudio.pricePerHour}€/h</p>
+                  </button>
                 </div>
               )}
 
@@ -480,13 +523,20 @@ export default function RendezvousPage() {
                     <p className="text-white font-medium capitalize">{formatDate(rdv.date)}</p>
                     <p className="text-[#6366f1] font-semibold text-xl">{rdv.startTime} - {rdv.endTime}</p>
                   </div>
-                  <span className={`text-sm px-3 py-1 rounded-full ${
-                    rdv.status === 'confirmed' 
-                      ? 'bg-green-500/20 text-green-400' 
-                      : 'bg-yellow-500/20 text-yellow-400'
-                  }`}>
-                    {rdv.status === 'confirmed' ? 'Confirmé' : 'En attente'}
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <span className={`text-sm px-3 py-1 rounded-full ${
+                      rdv.status === 'confirmed'
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {rdv.status === 'confirmed' ? 'Confirmé' : 'En attente'}
+                    </span>
+                    {rdv.type === 'e_studio' && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#6366f1]/20 text-[#6366f1]">
+                        E-Studio
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-gray-400">
@@ -495,12 +545,22 @@ export default function RendezvousPage() {
                     <span className="text-gray-600">•</span>
                     <span className="text-sm">{rdv.duration}h</span>
                   </div>
-                  <button
-                    onClick={() => handleCancelAppointment(rdv.id)}
-                    className="text-sm text-red-400 hover:text-red-300 hover:underline transition-colors"
-                  >
-                    Annuler
-                  </button>
+                  <div className="flex items-center gap-4">
+                    {rdv.status === 'confirmed' && rdv.type === 'e_studio' && rdv.eStudioSession && (
+                      <button
+                        onClick={() => handleJoinEStudio(rdv.eStudioSession!.id)}
+                        className="text-sm text-[#6366f1] hover:text-[#818cf8] hover:underline transition-colors font-medium"
+                      >
+                        Rejoindre la session
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleCancelAppointment(rdv.id)}
+                      className="text-sm text-red-400 hover:text-red-300 hover:underline transition-colors"
+                    >
+                      Annuler
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
@@ -568,16 +628,16 @@ export default function RendezvousPage() {
               <p className="text-gray-400 text-sm capitalize">{formatDate(selectedDate.toISOString())}</p>
               <div className="mt-3 pt-3 border-t border-[#2a2a2a] space-y-1 text-sm">
                 <div className="flex justify-between text-gray-400">
-                  <span>Session studio</span>
-                  <span>{(selectedStudio.pricePerHour * 2).toFixed(0)}€</span>
+                  <span>{bookingType === 'e_studio' ? 'Session E-Studio' : 'Session studio'}</span>
+                  <span>{(activeHourlyRate * 2).toFixed(0)}€</span>
                 </div>
                 <div className="flex justify-between text-gray-400">
                   <span>Frais de service ({(ARTIST_COMMISSION_RATE * 100).toFixed(0)}%)</span>
-                  <span>{(selectedStudio.pricePerHour * 2 * ARTIST_COMMISSION_RATE).toFixed(2)}€</span>
+                  <span>{(activeHourlyRate * 2 * ARTIST_COMMISSION_RATE).toFixed(2)}€</span>
                 </div>
                 <div className="flex justify-between text-white font-semibold pt-1">
                   <span>Total</span>
-                  <span>{(selectedStudio.pricePerHour * 2 * (1 + ARTIST_COMMISSION_RATE)).toFixed(2)}€</span>
+                  <span>{(activeHourlyRate * 2 * (1 + ARTIST_COMMISSION_RATE)).toFixed(2)}€</span>
                 </div>
               </div>
             </div>
@@ -594,7 +654,7 @@ export default function RendezvousPage() {
             
             <div className="bg-[#6366f1]/10 border border-[#6366f1]/30 rounded-xl p-3 mb-4">
               <p className="text-[#6366f1] text-sm">
-                💳 Une empreinte de {(selectedStudio.pricePerHour * 2 * (1 + ARTIST_COMMISSION_RATE)).toFixed(2)}€ sera pré-autorisée.
+                💳 Une empreinte de {(activeHourlyRate * 2 * (1 + ARTIST_COMMISSION_RATE)).toFixed(2)}€ sera pré-autorisée.
                 Aucun débit en cas d'annulation {ARTIST_COMMISSION_REFUND_CUTOFF_HOURS}h avant (frais de service remboursés) ;
                 passé ce délai, les frais de service restent dus.
               </p>

@@ -114,10 +114,22 @@ export default function EStudioPage() {
   const audioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
+  const pendingEStudioSessionId = useAppStore((state) => state.pendingEStudioSessionId);
+  const setPendingEStudioSessionId = useAppStore((state) => state.setPendingEStudioSessionId);
 
   useEffect(() => {
     fetchSessions();
   }, []);
+
+  // Ouvre automatiquement la session visée par un bouton "Rejoindre"
+  // depuis une réservation confirmée (rendez-vous-page / studio-dashboard).
+  useEffect(() => {
+    if (pendingEStudioSessionId) {
+      openSession(pendingEStudioSessionId);
+      setPendingEStudioSessionId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingEStudioSessionId]);
 
   // Traite un lien d'invitation (?e-studio=join&token=xxx) au montage
   useEffect(() => {

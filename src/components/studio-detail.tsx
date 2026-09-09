@@ -13,6 +13,7 @@ interface Studio {
   description?: string | null;
   type: string;
   pricePerHour: number;
+  eStudioPricePerHour?: number | null;
   rating: number;
   equipment?: string | null;
   capacity?: number | null;
@@ -77,6 +78,7 @@ export default function StudioDetail({ studioId, onClose }: Props) {
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'pricing' | 'booking'>('info');
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [bookingType, setBookingType] = useState<'studio' | 'e_studio'>('studio');
 
   useEffect(() => {
     fetchStudio();
@@ -123,7 +125,10 @@ export default function StudioDetail({ studioId, onClose }: Props) {
 
   const calculatePrice = () => {
     if (!studio || !selectedSlot) return 0;
-    return studio.pricePerHour * 2; // 2-hour slots
+    const hourlyRate = bookingType === 'e_studio'
+      ? (studio.eStudioPricePerHour ?? studio.pricePerHour)
+      : studio.pricePerHour;
+    return hourlyRate * 2; // 2-hour slots
   };
 
   const calculateServiceFee = () => {
@@ -148,7 +153,8 @@ export default function StudioDetail({ studioId, onClose }: Props) {
           date: selectedDate,
           startTime: selectedSlot.time,
           duration: 2, // 2-hour slots
-          notes
+          notes,
+          type: bookingType
         })
       });
 
@@ -505,6 +511,35 @@ export default function StudioDetail({ studioId, onClose }: Props) {
                     </div>
                   ) : (
                     <div className="space-y-6">
+                      {/* Booking Type Toggle */}
+                      <div>
+                        <label className="text-gray-400 text-sm mb-3 block font-medium">Type de session</label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            onClick={() => setBookingType('studio')}
+                            className={`p-3 rounded-xl border-2 text-center transition-all ${
+                              bookingType === 'studio'
+                                ? 'bg-[#6366f1]/10 border-[#6366f1] text-white'
+                                : 'bg-[#1a1a1a] border-[#3a3a3a] text-gray-400 hover:border-[#6366f1]/50'
+                            }`}
+                          >
+                            <p className="font-medium text-sm">Sur place</p>
+                            <p className="text-xs mt-0.5 opacity-70">{studio.pricePerHour}€/h</p>
+                          </button>
+                          <button
+                            onClick={() => setBookingType('e_studio')}
+                            className={`p-3 rounded-xl border-2 text-center transition-all ${
+                              bookingType === 'e_studio'
+                                ? 'bg-[#6366f1]/10 border-[#6366f1] text-white'
+                                : 'bg-[#1a1a1a] border-[#3a3a3a] text-gray-400 hover:border-[#6366f1]/50'
+                            }`}
+                          >
+                            <p className="font-medium text-sm">E-Studio (à distance)</p>
+                            <p className="text-xs mt-0.5 opacity-70">{studio.eStudioPricePerHour ?? studio.pricePerHour}€/h</p>
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Date Selection - Doctolib style horizontal scroll */}
                       <div>
                         <label className="text-gray-400 text-sm mb-3 block font-medium">Choisir une date</label>
@@ -598,7 +633,7 @@ export default function StudioDetail({ studioId, onClose }: Props) {
                           </div>
                           <div className="mt-3 pt-3 border-t border-[#2a2a2a] space-y-1 text-sm">
                             <div className="flex justify-between text-gray-400">
-                              <span>Session studio</span>
+                              <span>{bookingType === 'e_studio' ? 'Session E-Studio' : 'Session studio'}</span>
                               <span>{calculatePrice()}€</span>
                             </div>
                             <div className="flex justify-between text-gray-400">

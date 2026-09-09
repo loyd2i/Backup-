@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
         include: {
           user: {
             select: { id: true, name: true, email: true, phone: true }
-          }
+          },
+          eStudioSession: { select: { id: true, status: true } }
         },
         orderBy: { date: 'desc' }
       });
@@ -44,7 +45,8 @@ export async function GET(request: NextRequest) {
       include: {
         studio: {
           select: { id: true, name: true, location: true, pricePerHour: true }
-        }
+        },
+        eStudioSession: { select: { id: true, status: true } }
       },
       orderBy: { date: 'desc' }
     });
@@ -65,7 +67,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { studioId, date, startTime, duration, notes } = body;
+    const { studioId, date, startTime, duration, notes, type } = body;
+    const bookingType = type === 'e_studio' ? 'e_studio' : 'studio';
 
     if (!studioId || !date || !startTime || !duration) {
       return NextResponse.json(
@@ -88,7 +91,10 @@ export async function POST(request: NextRequest) {
     const endHour = startHour + parseInt(duration);
     const endTime = `${endHour.toString().padStart(2, '0')}:00`;
 
-    const totalPrice = studio.pricePerHour * parseInt(duration);
+    const hourlyRate = bookingType === 'e_studio'
+      ? (studio.eStudioPricePerHour ?? studio.pricePerHour)
+      : studio.pricePerHour;
+    const totalPrice = hourlyRate * parseInt(duration);
     const artistCommissionAmount = Math.round(totalPrice * ARTIST_COMMISSION_RATE * 100) / 100;
 
     const appointment = await prisma.appointment.create({
@@ -102,6 +108,7 @@ export async function POST(request: NextRequest) {
         notes,
         totalPrice,
         artistCommissionAmount,
+        type: bookingType,
         status: 'pending'
       },
       include: {
@@ -207,6 +214,43 @@ export async function PUT(request: NextRequest) {
     // Notifie la partie qui n'a pas déclenché le changement de statut
     if (status === 'confirmed') {
       await sendAppointmentEmail('confirmation', id);
+
+      // Réservation E-Studio confirmée : crée la session à distance et y
+      // rattache directement l'artiste et le studio, sans passer par le
+      // circuit d'invitation générique (on connaît déjà les deux parties).
+      if (existingAppt.type === 'e_studio') {
+        const existingSession = await prisma.eStudioSession.findUnique({
+          where: { appointmentId: id }
+        });
+
+        if (!existingSession) {
+          const [startHour, startMinute] = existingAppt.startTime.split(':').map(Number);
+          const [endHour, endMinute] = existingAppt.endTime.split(':').map(Number);
+          const scheduledStart = new Date(existingAppt.date);
+          scheduledStart.setHours(startHour, startMinute, 0, 0);
+          const scheduledEnd = new Date(existingAppt.date);
+          scheduledEnd.setHours(endHour, endMinute, 0, 0);
+
+          const eStudioSession = await prisma.eStudioSession.create({
+            data: {
+              title: `Session E-Studio - ${appointment.studio.name}`,
+              hostId: existingAppt.studio.ownerId,
+              sessionType: 'session_live',
+              scheduledStart,
+              scheduledEnd,
+              appointmentId: id,
+            }
+          });
+
+          await prisma.eStudioParticipant.create({
+            data: {
+              sessionId: eStudioSession.id,
+              userId: existingAppt.userId,
+              role: 'participant',
+            }
+          });
+        }
+      }
     } else if (status === 'cancelled') {
       if (isStudioOwner) {
         await sendAppointmentEmail(
@@ -290,6 +334,13 @@ export async function PUT(request: NextRequest) {
           },
         ]
       });
+
+      if (existingAppt.type === 'e_studio') {
+        await prisma.eStudioSession.updateMany({
+          where: { appointmentId: existingAppt.id, status: { not: 'ended' } },
+          data: { status: 'ended', endedAt: new Date() }
+        });
+      }
     }
 
     return NextResponse.json({ appointment, message: 'Rendez-vous mis à jour' });

@@ -90,7 +90,12 @@ interface AppState {
   // Navigation
   currentPage: PageType;
   setCurrentPage: (page: PageType) => void;
-  
+
+  // Session E-Studio à ouvrir automatiquement en arrivant sur la page E-Studio
+  // (ex: bouton "Rejoindre" depuis une réservation confirmée)
+  pendingEStudioSessionId: string | null;
+  setPendingEStudioSessionId: (sessionId: string | null) => void;
+
   // User
   user: User | null;
   setUser: (user: User | null) => void;
@@ -135,7 +140,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Navigation
   currentPage: 'login',
   setCurrentPage: (page) => set({ currentPage: page }),
-  
+
+  pendingEStudioSessionId: null,
+  setPendingEStudioSessionId: (sessionId) => set({ pendingEStudioSessionId: sessionId }),
+
   // User
   user: null,
   setUser: (user) => set({ user, isLoggedIn: !!user }),
