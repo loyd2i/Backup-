@@ -19,9 +19,9 @@ Plateforme indépendante des labels majors : pas de gatekeeping, pas de comité 
 ## E-Studio (sessions à distance)
 
 - Passe par le même circuit de réservation que les sessions physiques (Appointment existant), pas de système de paiement séparé à construire
-- Commission plateforme : **15%** côté studio (vs 3% pour une réservation physique classique — justifié par le coût d'infra réel des sessions à distance)
+- Commission plateforme : **3%** côté studio, identique à la réservation physique classique (pas de taux majoré — un taux plus élevé risquerait de freiner l'adoption par les studios sur cette nouvelle fonctionnalité)
 - Commission artiste : idem réservations classiques, < 5%
-- Taux de prise combiné : ~20%
+- Taux de prise combiné : ~8%, identique aux réservations classiques
 - Tarif : **champ dédié par studio** (distinct du `pricePerHour` physique), pré-rempli avec la valeur du `pricePerHour` par défaut pour ne pas ajouter de friction, mais modifiable — une session à distance n'a pas la même structure de coûts (pas de salle occupée, pas d'usure matériel) qu'une session physique, un studio doit pouvoir différencier
 
 ## Abonnement studio
