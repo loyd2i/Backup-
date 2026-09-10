@@ -24,7 +24,7 @@ export async function GET(
       return NextResponse.json({ error: 'Artiste non trouvé' }, { status: 404 });
     }
 
-    const [tracks, releases, collections] = await Promise.all([
+    const [tracks, releases, collections, releaseCredits, collectionCredits] = await Promise.all([
       prisma.track.findMany({
         where: { userId: id, isPublic: true, status: 'finished' },
         select: {
@@ -42,6 +42,22 @@ export async function GET(
         where: { userId: id },
         include: { tracks: { select: { id: true } } },
         orderBy: { createdAt: 'desc' }
+      }),
+      // Crédits en tant que collaborateur (pas propriétaire) sur des sorties publiées d'autres artistes —
+      // formalise la répartition des royalties, voir BUSINESS-PLAN.md
+      prisma.onelibCollaborator.findMany({
+        where: { userId: id, release: { status: 'published' } },
+        select: {
+          role: true, sharePercent: true,
+          release: { select: { slug: true, track: { select: { title: true, artist: true, coverUrl: true } } } },
+        },
+      }),
+      prisma.onelibCollectionCollaborator.findMany({
+        where: { userId: id, collection: { status: 'published' } },
+        select: {
+          role: true, sharePercent: true,
+          collection: { select: { slug: true, title: true, kind: true, coverUrl: true } },
+        },
       }),
     ]);
 
@@ -80,7 +96,18 @@ export async function GET(
       new Date(b.publishedAt || 0).getTime() - new Date(a.publishedAt || 0).getTime()
     );
 
-    return NextResponse.json({ artist, tracks, releaseItems });
+    const credits = [
+      ...releaseCredits.map(c => ({
+        slug: c.release.slug, title: c.release.track.title, artist: c.release.track.artist,
+        coverUrl: c.release.track.coverUrl, role: c.role, sharePercent: c.sharePercent,
+      })),
+      ...collectionCredits.map(c => ({
+        slug: c.collection.slug, title: c.collection.title, artist: null,
+        coverUrl: c.collection.coverUrl, role: c.role, sharePercent: c.sharePercent,
+      })),
+    ];
+
+    return NextResponse.json({ artist, tracks, releaseItems, credits });
   } catch (error) {
     console.error('Erreur récupération fiche publique artiste:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

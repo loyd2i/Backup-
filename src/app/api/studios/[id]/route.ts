@@ -25,10 +25,41 @@ export async function GET(
       return NextResponse.json({ error: 'Studio non trouvé' }, { status: 404 });
     }
 
-    return NextResponse.json({ 
+    // Crédits en tant que collaborateur (ingénieur son...) sur des sorties Onelib
+    // publiées d'artistes — formalise la répartition des royalties, voir BUSINESS-PLAN.md
+    const [releaseCredits, collectionCredits] = await Promise.all([
+      prisma.onelibCollaborator.findMany({
+        where: { userId: studio.ownerId, release: { status: 'published' } },
+        select: {
+          role: true, sharePercent: true,
+          release: { select: { slug: true, track: { select: { title: true, artist: true, coverUrl: true } } } },
+        },
+      }),
+      prisma.onelibCollectionCollaborator.findMany({
+        where: { userId: studio.ownerId, collection: { status: 'published' } },
+        select: {
+          role: true, sharePercent: true,
+          collection: { select: { slug: true, title: true, kind: true, coverUrl: true } },
+        },
+      }),
+    ]);
+
+    const credits = [
+      ...releaseCredits.map(c => ({
+        slug: c.release.slug, title: c.release.track.title, artist: c.release.track.artist,
+        coverUrl: c.release.track.coverUrl, role: c.role, sharePercent: c.sharePercent,
+      })),
+      ...collectionCredits.map(c => ({
+        slug: c.collection.slug, title: c.collection.title, artist: null,
+        coverUrl: c.collection.coverUrl, role: c.role, sharePercent: c.sharePercent,
+      })),
+    ];
+
+    return NextResponse.json({
       studio,
       photos: studio.photos,
-      links: studio.links
+      links: studio.links,
+      credits,
     });
   } catch (error) {
     console.error('Error fetching studio:', error);

@@ -51,6 +51,20 @@ interface PublicTrack {
   views: number;
 }
 
+interface Credit {
+  slug: string;
+  title: string;
+  artist: string | null;
+  coverUrl: string | null;
+  role: string;
+  sharePercent: number | null;
+}
+
+const CREDIT_ROLE_LABELS: Record<string, string> = {
+  compositeur: 'Compositeur', auteur: 'Auteur', featuring: 'Featuring',
+  producteur: 'Producteur', ingenieur_son: 'Ingénieur du son',
+};
+
 interface Studio {
   id: string;
   name: string;
@@ -87,6 +101,7 @@ const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi',
 export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePageProps) {
   const [studio, setStudio] = useState<Studio | null>(null);
   const [tracks, setTracks] = useState<PublicTrack[]>([]);
+  const [credits, setCredits] = useState<Credit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
@@ -121,6 +136,7 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
       const tracksData = await tracksRes.json();
       setStudio(studioData.studio || studioData);
       setTracks(tracksData.tracks || []);
+      setCredits(studioData.credits || []);
     } catch (error) {
       console.error('Error fetching studio:', error);
     } finally {
@@ -442,6 +458,39 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
                     <Eye className="w-3.5 h-3.5" /> {track.views}
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Crédits (répartition des royalties sur des sorties Onelib d'artistes) */}
+        {credits.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-white font-bold text-lg mb-4">🤝 Crédits</h2>
+            <div className="space-y-3">
+              {credits.map((credit, i) => (
+                <a
+                  key={i}
+                  href={`/?public=onelib&slug=${credit.slug}`}
+                  className="w-full flex items-center gap-4 bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-4 text-left transition-colors hover:border-[#3a3a3a]"
+                >
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#121212] flex-shrink-0 flex items-center justify-center">
+                    {credit.coverUrl ? (
+                      <img src={credit.coverUrl} alt={credit.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <Music className="w-6 h-6 text-gray-600" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white font-medium truncate">{credit.title}</p>
+                    <p className="text-gray-500 text-sm truncate">
+                      {CREDIT_ROLE_LABELS[credit.role] || credit.role}{credit.artist ? ` • ${credit.artist}` : ''}
+                    </p>
+                  </div>
+                  {credit.sharePercent !== null && (
+                    <span className="text-gray-400 text-sm flex-shrink-0">{credit.sharePercent}%</span>
+                  )}
+                </a>
               ))}
             </div>
           </div>

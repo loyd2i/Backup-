@@ -6,6 +6,52 @@ import { ArrowLeft, Music2, ExternalLink, Music, Youtube, Apple, Disc3, Disc, Li
 interface PublicCollaborator {
   name: string;
   role: string;
+  sharePercent: number | null;
+  user: { id: string; name: string; role: string; studios: { id: string }[] } | null;
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  compositeur: 'Compositeur',
+  auteur: 'Auteur',
+  featuring: 'Featuring',
+  producteur: 'Producteur',
+  ingenieur_son: 'Ingénieur du son',
+};
+
+function collaboratorProfileHref(c: PublicCollaborator): string | null {
+  if (!c.user) return null;
+  if (c.user.role === 'studio_owner') {
+    const studioId = c.user.studios[0]?.id;
+    return studioId ? `/studio/${studioId}` : null;
+  }
+  return `/artiste/${c.user.id}`;
+}
+
+function CollaboratorCredits({ collaborators }: { collaborators: PublicCollaborator[] }) {
+  if (collaborators.length === 0) return null;
+  return (
+    <div className="w-full mt-4 space-y-1.5 text-left">
+      {collaborators.map((c, i) => {
+        const href = collaboratorProfileHref(c);
+        const label = (
+          <span className="text-gray-300 text-sm font-medium">{c.name}</span>
+        );
+        return (
+          <div key={i} className="flex items-center justify-between gap-2 text-sm">
+            <span className="flex items-center gap-1.5 min-w-0">
+              {href ? (
+                <a href={href} className="hover:underline">{label}</a>
+              ) : label}
+              <span className="text-gray-500 text-xs flex-shrink-0">— {ROLE_LABELS[c.role] || c.role}</span>
+            </span>
+            {c.sharePercent !== null && (
+              <span className="text-gray-500 text-xs flex-shrink-0">{c.sharePercent}%</span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 interface PublicTrackLinks {
@@ -177,11 +223,7 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
           </span>
           <h1 className="text-2xl font-bold text-white">{collection.title}</h1>
           <p className="text-gray-400 mt-1">{collection.tracks.length} titre{collection.tracks.length > 1 ? 's' : ''}</p>
-          {collection.collaborators.length > 0 && (
-            <p className="text-gray-500 text-sm mt-1">
-              avec {collection.collaborators.map(c => c.name).join(', ')}
-            </p>
-          )}
+          <CollaboratorCredits collaborators={collection.collaborators} />
 
           {collection.description && (
             <p className="text-gray-300 text-sm mt-4 leading-relaxed">{collection.description}</p>
@@ -240,11 +282,7 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
 
         <h1 className="text-2xl font-bold text-white">{track.title}</h1>
         <p className="text-gray-400 mt-1">{track.artist}{track.genre ? ` • ${track.genre}` : ''}</p>
-        {release!.collaborators.length > 0 && (
-          <p className="text-gray-500 text-sm mt-1">
-            avec {release!.collaborators.map(c => c.name).join(', ')}
-          </p>
-        )}
+        <CollaboratorCredits collaborators={release!.collaborators} />
 
         {release!.description && (
           <p className="text-gray-300 text-sm mt-4 leading-relaxed">{release!.description}</p>

@@ -49,6 +49,7 @@ Plateforme indépendante des labels majors : pas de gatekeeping, pas de comité 
 - Étapes :
   1. Court terme : formaliser l'accord de répartition au moment de la distribution Onelib, afficher le crédit publiquement sur la fiche du morceau et le profil du contributeur (pas de mouvement d'argent automatique)
   2. Long terme : répartition automatique des royalties réelles via Stripe Connect (split de paiement natif), possible seulement une fois qu'Onelib collecte directement l'argent (donc lié à l'avancement de la vision streaming ci-dessus)
+- **Implémenté (étape 1 uniquement)** : part de répartition (%) et liaison optionnelle vers un compte Studiolib existant (artiste ou studio) sur chaque collaborateur crédité. La répartition se verrouille automatiquement à la demande de distribution (plus aucune modification possible ensuite), formalisant l'accord au bon moment. Le crédit (rôle + %) s'affiche publiquement sur la fiche du morceau/album et, si un profil est lié, sur la page publique de l'artiste ou du studio concerné ("Crédits"). Aucun mouvement d'argent — l'étape 2 (Stripe Connect) reste conditionnée à la vision streaming long terme.
 
 ## Points gamifiés
 

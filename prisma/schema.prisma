@@ -57,6 +57,8 @@ model User {
   // Onelib (hub de diffusion des sorties)
   onelibReleases        OnelibRelease[]
   onelibCollections     OnelibCollection[]
+  onelibCredits           OnelibCollaborator[]
+  onelibCollectionCredits OnelibCollectionCollaborator[]
 
   passwordResetTokens   PasswordResetToken[]
 }
@@ -660,12 +662,15 @@ model OnelibRelease {
 
 // Collaborateur crédité sur une release Onelib (doit figurer sur le titre et l'attestation)
 model OnelibCollaborator {
-  id        String        @id @default(cuid())
-  releaseId String
-  release   OnelibRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
-  name      String
-  role      String        @default("compositeur") // compositeur, auteur, featuring, producteur, ingenieur_son
-  createdAt DateTime      @default(now())
+  id           String        @id @default(cuid())
+  releaseId    String
+  release      OnelibRelease @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  name         String
+  role         String        @default("compositeur") // compositeur, auteur, featuring, producteur, ingenieur_son
+  sharePercent Float?        // part de répartition des royalties (%), formalisée à la demande de distribution
+  userId       String?       // liaison optionnelle vers un compte existant (artiste ou studio) pour le crédit public
+  user         User?         @relation(fields: [userId], references: [id])
+  createdAt    DateTime      @default(now())
 }
 
 // Bibliothèque Onelib : regroupement de plusieurs tracks en album ou playlist
@@ -723,6 +728,9 @@ model OnelibCollectionCollaborator {
   collection   OnelibCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   name         String
   role         String           @default("compositeur")
+  sharePercent Float?           // part de répartition des royalties (%), formalisée à la demande de distribution
+  userId       String?          // liaison optionnelle vers un compte existant (artiste ou studio) pour le crédit public
+  user         User?            @relation(fields: [userId], references: [id])
   createdAt    DateTime         @default(now())
 }
 

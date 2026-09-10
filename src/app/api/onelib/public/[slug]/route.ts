@@ -21,12 +21,18 @@ export async function GET(
             spotifyUrl: true, youtubeUrl: true, appleMusicUrl: true, deezerUrl: true,
           }
         },
-        collaborators: { orderBy: { createdAt: 'asc' }, select: { name: true, role: true } }
+        collaborators: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            name: true, role: true, sharePercent: true,
+            user: { select: { id: true, name: true, role: true, studios: { select: { id: true }, take: 1 } } },
+          }
+        }
       }
     });
 
     if (release) {
-      const promoted = await promoteReleaseIfDue(release);
+      const promoted = await promoteReleaseIfDue(release, true);
       if (promoted) release = { ...release, ...promoted };
 
       if (release.status === 'scheduled') {
@@ -58,7 +64,13 @@ export async function GET(
           },
           orderBy: { order: 'asc' }
         },
-        collaborators: { orderBy: { createdAt: 'asc' }, select: { name: true, role: true } }
+        collaborators: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            name: true, role: true, sharePercent: true,
+            user: { select: { id: true, name: true, role: true, studios: { select: { id: true }, take: 1 } } },
+          }
+        }
       }
     });
 
@@ -66,7 +78,7 @@ export async function GET(
       return NextResponse.json({ error: 'Ce contenu n\'est pas disponible' }, { status: 404 });
     }
 
-    const promotedCollection = await promoteCollectionIfDue(collection);
+    const promotedCollection = await promoteCollectionIfDue(collection, true);
     if (promotedCollection) collection = { ...collection, ...promotedCollection };
 
     if (collection.status === 'scheduled') {

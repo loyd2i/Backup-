@@ -18,6 +18,9 @@ export async function DELETE(
     if (!release || release.userId !== user.id) {
       return NextResponse.json({ error: 'Release non trouvée' }, { status: 404 });
     }
+    if (release.distributionStatus !== 'none') {
+      return NextResponse.json({ error: 'La répartition est verrouillée : une demande de distribution est en cours ou traitée' }, { status: 400 });
+    }
 
     const collaborator = await prisma.onelibCollaborator.findUnique({ where: { id: collaboratorId } });
     if (!collaborator || collaborator.releaseId !== id) {

@@ -31,7 +31,30 @@ export async function generateUniqueOnelibSlug(base: string) {
  * vers "published" si sa date programmée est passée. Pas de tâche cron dans cet
  * environnement : la promotion se fait paresseusement, à chaque lecture.
  */
-export async function promoteReleaseIfDue(release: { id: string; status: string; scheduledAt: Date | null }) {
+// Sélection des collaborateurs pour la fiche publique (avec profil lié), à
+// l'inverse de la sélection par défaut (ligne complète) utilisée côté
+// éditeur propriétaire — voir les paramètres `withPublicCollaborators` ci-dessous.
+const COLLABORATOR_PUBLIC_SELECT = {
+  name: true, role: true, sharePercent: true,
+  user: { select: { id: true, name: true, role: true, studios: { select: { id: true }, take: 1 } as const } },
+} as const;
+
+export function promoteReleaseIfDue(
+  release: { id: string; status: string; scheduledAt: Date | null },
+  withPublicCollaborators?: false
+): ReturnType<typeof promoteReleaseIfDueOwner>;
+export function promoteReleaseIfDue(
+  release: { id: string; status: string; scheduledAt: Date | null },
+  withPublicCollaborators: true
+): ReturnType<typeof promoteReleaseIfDuePublic>;
+export function promoteReleaseIfDue(
+  release: { id: string; status: string; scheduledAt: Date | null },
+  withPublicCollaborators = false
+) {
+  return withPublicCollaborators ? promoteReleaseIfDuePublic(release) : promoteReleaseIfDueOwner(release);
+}
+
+function promoteReleaseIfDueOwner(release: { id: string; status: string; scheduledAt: Date | null }) {
   if (release.status === 'scheduled' && release.scheduledAt && release.scheduledAt <= new Date()) {
     return prisma.onelibRelease.update({
       where: { id: release.id },
@@ -39,10 +62,36 @@ export async function promoteReleaseIfDue(release: { id: string; status: string;
       include: { track: true, collaborators: { orderBy: { createdAt: 'asc' } } }
     });
   }
-  return null;
+  return Promise.resolve(null);
 }
 
-export async function promoteCollectionIfDue(collection: { id: string; status: string; scheduledAt: Date | null }) {
+function promoteReleaseIfDuePublic(release: { id: string; status: string; scheduledAt: Date | null }) {
+  if (release.status === 'scheduled' && release.scheduledAt && release.scheduledAt <= new Date()) {
+    return prisma.onelibRelease.update({
+      where: { id: release.id },
+      data: { status: 'published', publishedAt: release.scheduledAt },
+      include: { track: true, collaborators: { orderBy: { createdAt: 'asc' }, select: COLLABORATOR_PUBLIC_SELECT } }
+    });
+  }
+  return Promise.resolve(null);
+}
+
+export function promoteCollectionIfDue(
+  collection: { id: string; status: string; scheduledAt: Date | null },
+  withPublicCollaborators?: false
+): ReturnType<typeof promoteCollectionIfDueOwner>;
+export function promoteCollectionIfDue(
+  collection: { id: string; status: string; scheduledAt: Date | null },
+  withPublicCollaborators: true
+): ReturnType<typeof promoteCollectionIfDuePublic>;
+export function promoteCollectionIfDue(
+  collection: { id: string; status: string; scheduledAt: Date | null },
+  withPublicCollaborators = false
+) {
+  return withPublicCollaborators ? promoteCollectionIfDuePublic(collection) : promoteCollectionIfDueOwner(collection);
+}
+
+function promoteCollectionIfDueOwner(collection: { id: string; status: string; scheduledAt: Date | null }) {
   if (collection.status === 'scheduled' && collection.scheduledAt && collection.scheduledAt <= new Date()) {
     return prisma.onelibCollection.update({
       where: { id: collection.id },
@@ -53,5 +102,19 @@ export async function promoteCollectionIfDue(collection: { id: string; status: s
       }
     });
   }
-  return null;
+  return Promise.resolve(null);
+}
+
+function promoteCollectionIfDuePublic(collection: { id: string; status: string; scheduledAt: Date | null }) {
+  if (collection.status === 'scheduled' && collection.scheduledAt && collection.scheduledAt <= new Date()) {
+    return prisma.onelibCollection.update({
+      where: { id: collection.id },
+      data: { status: 'published', publishedAt: collection.scheduledAt },
+      include: {
+        tracks: { include: { track: true }, orderBy: { order: 'asc' } },
+        collaborators: { orderBy: { createdAt: 'asc' }, select: COLLABORATOR_PUBLIC_SELECT }
+      }
+    });
+  }
+  return Promise.resolve(null);
 }

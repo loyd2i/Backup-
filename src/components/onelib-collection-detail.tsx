@@ -21,6 +21,8 @@ interface Collaborator {
   id: string;
   name: string;
   role: string;
+  sharePercent: number | null;
+  userId: string | null;
 }
 
 interface TrackEntry {
@@ -92,7 +94,11 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
   const [isLoadingQr, setIsLoadingQr] = useState(false);
   const [newCollabName, setNewCollabName] = useState('');
   const [newCollabRole, setNewCollabRole] = useState('compositeur');
+  const [newCollabShare, setNewCollabShare] = useState('');
+  const [newCollabEmail, setNewCollabEmail] = useState('');
   const [isAddingCollab, setIsAddingCollab] = useState(false);
+  const [collabError, setCollabError] = useState<string | null>(null);
+  const [collabWarning, setCollabWarning] = useState<string | null>(null);
   const [legalNameInput, setLegalNameInput] = useState('');
   const [isSigning, setIsSigning] = useState(false);
   const [isDownloadingKit, setIsDownloadingKit] = useState(false);
@@ -133,6 +139,8 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
 
   const hasAnyDistributionLink = (d: Collection) =>
     d.tracks.some(t => t.track.spotifyUrl || t.track.youtubeUrl || t.track.appleMusicUrl || t.track.deezerUrl);
+
+  const isDistributionLocked = detail ? detail.distributionStatus !== 'none' : false;
 
   const handleSaveMeta = async () => {
     setIsSaving(true);
@@ -318,17 +326,29 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
   const handleAddCollaborator = async () => {
     if (!newCollabName.trim()) return;
     setIsAddingCollab(true);
+    setCollabError(null);
+    setCollabWarning(null);
     try {
       const res = await fetch(`/api/onelib/collections/${collectionId}/collaborators`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newCollabName, role: newCollabRole }),
+        body: JSON.stringify({
+          name: newCollabName,
+          role: newCollabRole,
+          sharePercent: newCollabShare === '' ? null : Number(newCollabShare),
+          email: newCollabEmail,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
         setDetail(prev => prev ? { ...prev, collaborators: [...prev.collaborators, data.collaborator] } : prev);
         setNewCollabName('');
         setNewCollabRole('compositeur');
+        setNewCollabShare('');
+        setNewCollabEmail('');
+        if (data.warning) setCollabWarning(data.warning);
+      } else {
+        setCollabError(data.error || 'Erreur lors de l\'ajout');
       }
     } catch (error) {
       console.error('Error adding collaborator:', error);
@@ -721,11 +741,19 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
 
       <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 space-y-4 mb-6">
         <h2 className="text-white font-semibold flex items-center gap-2">
-          <Users className="w-4 h-4" /> Collaborateurs
+          <Users className="w-4 h-4" /> Collaborateurs & répartition
         </h2>
         <p className="text-gray-500 text-xs -mt-2">
-          Tous les collaborateurs crédités sur cet album/cette playlist doivent figurer ici.
+          Tous les collaborateurs crédités sur cet album/cette playlist doivent figurer ici. La part de
+          répartition (%) et le lien vers un profil sont optionnels ; en le renseignant, le crédit apparaît
+          aussi sur son profil public (artiste ou studio) s&apos;il a un compte Studiolib.
         </p>
+
+        {isDistributionLocked && (
+          <p className="text-amber-400 text-xs bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5">
+            Répartition verrouillée : une demande de distribution a été envoyée, elle ne peut plus être modifiée.
+          </p>
+        )}
 
         {detail.collaborators.length > 0 && (
           <div className="space-y-2">
@@ -734,40 +762,72 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
                 <div>
                   <span className="text-white text-sm font-medium">{c.name}</span>
                   <span className="text-gray-500 text-xs ml-2">{roleLabel(c.role)}</span>
+                  {c.userId && (
+                    <span className="text-[10px] uppercase tracking-wide text-[#6366f1] ml-2">Profil relié</span>
+                  )}
                 </div>
-                <button onClick={() => handleDeleteCollaborator(c.id)} className="text-gray-500 hover:text-red-400 transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-3">
+                  {c.sharePercent !== null && <span className="text-gray-400 text-sm">{c.sharePercent}%</span>}
+                  {!isDistributionLocked && (
+                    <button onClick={() => handleDeleteCollaborator(c.id)} className="text-gray-500 hover:text-red-400 transition-colors">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         )}
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <input
-            type="text"
-            value={newCollabName}
-            onChange={(e) => setNewCollabName(e.target.value)}
-            placeholder="Nom du collaborateur"
-            className="flex-1 min-w-[140px] bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
-          />
-          <select
-            value={newCollabRole}
-            onChange={(e) => setNewCollabRole(e.target.value)}
-            className="bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] text-sm flex-shrink-0"
-          >
-            {COLLABORATOR_ROLES.map(r => (
-              <option key={r.value} value={r.value}>{r.label}</option>
-            ))}
-          </select>
-          <button
-            onClick={handleAddCollaborator}
-            disabled={isAddingCollab || !newCollabName.trim()}
-            className="flex items-center gap-1 text-sm px-3 py-2.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors disabled:opacity-50 flex-shrink-0"
-          >
-            <Plus className="w-4 h-4" /> Ajouter
-          </button>
-        </div>
+        {!isDistributionLocked && (
+          <div className="space-y-2">
+            {collabError && <p className="text-red-400 text-xs">{collabError}</p>}
+            {collabWarning && <p className="text-amber-400 text-xs">{collabWarning}</p>}
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="text"
+                value={newCollabName}
+                onChange={(e) => setNewCollabName(e.target.value)}
+                placeholder="Nom du collaborateur"
+                className="flex-1 min-w-[140px] bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+              />
+              <select
+                value={newCollabRole}
+                onChange={(e) => setNewCollabRole(e.target.value)}
+                className="bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] text-sm flex-shrink-0"
+              >
+                {COLLABORATOR_ROLES.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={newCollabShare}
+                onChange={(e) => setNewCollabShare(e.target.value)}
+                placeholder="Part % (optionnel)"
+                className="w-36 bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+              />
+              <input
+                type="email"
+                value={newCollabEmail}
+                onChange={(e) => setNewCollabEmail(e.target.value)}
+                placeholder="Email Studiolib (optionnel, pour relier son profil)"
+                className="flex-1 min-w-[220px] bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+              />
+              <button
+                onClick={handleAddCollaborator}
+                disabled={isAddingCollab || !newCollabName.trim()}
+                className="flex items-center gap-1 text-sm px-3 py-2.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors disabled:opacity-50 flex-shrink-0"
+              >
+                <Plus className="w-4 h-4" /> Ajouter
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 space-y-4 mb-6">
