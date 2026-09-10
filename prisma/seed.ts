@@ -186,6 +186,22 @@ async function main() {
       });
     }
 
+    // Abonnement annuel actif par défaut pour les studios de démo
+    const oneYearFromNow = new Date();
+    oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+    await prisma.studioSubscription.upsert({
+      where: { studioId: studio.id },
+      update: {},
+      create: {
+        studioId: studio.id,
+        plan: 'annual',
+        monthlyPrice: 10,
+        status: 'active',
+        currentPeriodEnd: oneYearFromNow,
+        stripeSubscriptionId: `sub_demo_${studio.id}`,
+      },
+    });
+
     console.log('✅ Studio créé:', studio.name);
   }
 

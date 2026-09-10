@@ -123,6 +123,7 @@ model Studio {
   photos             StudioPhoto[]
   links              StudioLink[]
   walletTransactions WalletTransaction[]
+  subscription       StudioSubscription?
 }
 
 // Mouvement du portefeuille studio (crédit après session, commission plateforme)
@@ -135,6 +136,26 @@ model WalletTransaction {
   appointmentId String?
   description   String?
   createdAt     DateTime @default(now())
+}
+
+// Abonnement mensuel du studio à la plateforme (s'ajoute à la commission,
+// ne la remplace pas). Simulé comme les autres paiements de l'app :
+// aucune intégration Stripe réelle, currentPeriodEnd n'est pas facturée
+// automatiquement.
+model StudioSubscription {
+  id                   String    @id @default(cuid())
+  studioId             String    @unique
+  studio               Studio    @relation(fields: [studioId], references: [id])
+  plan                 String    // monthly (sans engagement) | annual (engagement 1 an)
+  monthlyPrice         Float     // prix verrouillé au moment de la souscription
+  status               String    @default("active") // active, cancelled
+  startedAt            DateTime  @default(now())
+  currentPeriodEnd     DateTime  // prochaine échéance simulée
+  cancelAtPeriodEnd    Boolean   @default(false)
+  cancelledAt          DateTime?
+  stripeSubscriptionId String?   // simulation : sub_demo_...
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 }
 
 // Photos du studio

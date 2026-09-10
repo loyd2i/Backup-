@@ -18,9 +18,19 @@ import {
   Copy,
   Check,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { PLATFORM_COMMISSION_RATE, ARTIST_COMMISSION_RATE } from '@/lib/tax-config';
+import { SUBSCRIPTION_PLANS, type SubscriptionPlan } from '@/lib/subscription-config';
+
+interface StudioSubscriptionState {
+  plan: SubscriptionPlan;
+  monthlyPrice: number;
+  status: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+}
 
 interface PublicProfile {
   bio: string;
@@ -51,6 +61,9 @@ export default function ReglagesPage() {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [showQrModal, setShowQrModal] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [subscription, setSubscription] = useState<StudioSubscriptionState | null>(null);
+  const [subActionLoading, setSubActionLoading] = useState(false);
+  const [showPlanPicker, setShowPlanPicker] = useState(false);
 
   const isStudioOwner = user?.role === 'studio_owner';
   const publicPath = isStudioOwner ? (studioId ? `/studio/${studioId}` : null) : `/artiste/${user?.id}`;
@@ -74,6 +87,55 @@ export default function ReglagesPage() {
       }).catch(() => {});
     }
   }, [user, isStudioOwner]);
+
+  useEffect(() => {
+    if (!isStudioOwner || !studioId) return;
+    fetch(`/api/studios/${studioId}/subscription`)
+      .then(res => res.json())
+      .then(data => setSubscription(data.subscription || null))
+      .catch(() => {});
+  }, [isStudioOwner, studioId]);
+
+  const subscribeToPlan = async (plan: SubscriptionPlan) => {
+    if (!studioId) return;
+    setSubActionLoading(true);
+    try {
+      const res = await fetch(`/api/studios/${studioId}/subscription`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSubscription(data.subscription);
+        setShowPlanPicker(false);
+      }
+    } catch (error) {
+      console.error('Error subscribing:', error);
+    } finally {
+      setSubActionLoading(false);
+    }
+  };
+
+  const setCancelAtPeriodEnd = async (cancelAtPeriodEnd: boolean) => {
+    if (!studioId) return;
+    setSubActionLoading(true);
+    try {
+      const res = await fetch(`/api/studios/${studioId}/subscription`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancelAtPeriodEnd }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSubscription(data.subscription);
+      }
+    } catch (error) {
+      console.error('Error updating subscription:', error);
+    } finally {
+      setSubActionLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!publicPath) return;
@@ -373,6 +435,82 @@ export default function ReglagesPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Abonnement studio */}
+      {isStudioOwner && studioId && (
+        <div className="mb-8 bg-[#1a1a1a] rounded-xl p-6 border border-[#2a2a2a]">
+          <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-[#6366f1]" />
+            Abonnement studio
+          </h2>
+
+          {subscription && subscription.status === 'active' ? (
+            <div>
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+                <div>
+                  <p className="text-white font-medium">
+                    Plan {subscription.plan === 'annual' ? 'annuel' : 'mensuel sans engagement'} — {subscription.monthlyPrice}€/mois
+                  </p>
+                  <p className="text-gray-500 text-sm">
+                    {subscription.cancelAtPeriodEnd
+                      ? `Résiliation prévue le ${new Date(subscription.currentPeriodEnd).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                      : `Prochaine échéance le ${new Date(subscription.currentPeriodEnd).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+                  </p>
+                </div>
+                {subscription.cancelAtPeriodEnd ? (
+                  <button
+                    onClick={() => setCancelAtPeriodEnd(false)}
+                    disabled={subActionLoading}
+                    className="bg-[#6366f1] text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                  >
+                    Réactiver
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setCancelAtPeriodEnd(true)}
+                    disabled={subActionLoading}
+                    className="bg-[#2a2a2a] text-gray-300 px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#3a3a3a] disabled:opacity-50"
+                  >
+                    Résilier à l'échéance
+                  </button>
+                )}
+              </div>
+              <p className="text-gray-500 text-xs">
+                S'ajoute à la commission plateforme sur chaque réservation, ne la remplace pas.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-gray-400 text-sm mb-4">
+                Aucun abonnement actif. Choisissez une formule pour soutenir la plateforme et bénéficier d'un tarif préférentiel en vous engageant à l'année.
+              </p>
+              {!showPlanPicker ? (
+                <button
+                  onClick={() => setShowPlanPicker(true)}
+                  className="bg-[#6366f1] text-white px-4 py-2 rounded-lg text-sm font-medium"
+                >
+                  S'abonner
+                </button>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {SUBSCRIPTION_PLANS.map((planConfig) => (
+                    <button
+                      key={planConfig.plan}
+                      onClick={() => subscribeToPlan(planConfig.plan)}
+                      disabled={subActionLoading}
+                      className="text-left bg-[#2a2a2a] hover:bg-[#3a3a3a] rounded-lg p-4 transition-colors disabled:opacity-50"
+                    >
+                      <p className="text-white font-semibold">{planConfig.label}</p>
+                      <p className="text-2xl font-bold text-white my-1">{planConfig.monthlyPrice}€<span className="text-sm text-gray-400 font-normal">/mois</span></p>
+                      <p className="text-gray-500 text-xs">{planConfig.description}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
