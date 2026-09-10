@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
+import { ONELIB_DISTRIBUTION_FEE } from '@/lib/onelib-config';
 
 // POST - Demander l'hébergement/distribution de l'album/playlist (suivi interne :
 // ce n'est PAS une soumission automatique aux plateformes de streaming, mais une
-// demande horodatée qu'un humain traite ensuite manuellement)
+// demande horodatée qu'un humain traite ensuite manuellement). Le forfait de
+// distribution est débité (simulé) au moment de la demande.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -21,9 +23,16 @@ export async function POST(
       return NextResponse.json({ error: 'Une demande est déjà en cours pour cette collection' }, { status: 400 });
     }
 
+    const now = new Date();
     const updated = await prisma.onelibCollection.update({
       where: { id },
-      data: { distributionStatus: 'requested', distributionRequestedAt: new Date() },
+      data: {
+        distributionStatus: 'requested',
+        distributionRequestedAt: now,
+        distributionFeeAmount: ONELIB_DISTRIBUTION_FEE,
+        distributionFeePaidAt: now,
+        distributionFeeStripeId: `pi_demo_${Date.now()}`,
+      },
       include: {
         tracks: {
           include: {
@@ -47,7 +56,8 @@ export async function POST(
   }
 }
 
-// DELETE - Annuler une demande en attente
+// DELETE - Annuler une demande en attente (le forfait n'est pas remboursé : le
+// traitement manuel a déjà mobilisé l'équipe dès la demande)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

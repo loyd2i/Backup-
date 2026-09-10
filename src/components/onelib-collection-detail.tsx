@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
+import { ONELIB_DISTRIBUTION_FEE } from '@/lib/onelib-config';
 import CoverDropzone from './cover-dropzone';
 import {
   ArrowLeft, Eye, CheckCircle2, PenLine, Trash2, Link2, Check, QrCode, Download,
@@ -53,6 +54,8 @@ interface Collection {
   authorSignedAt: string | null;
   distributionStatus: string; // none, requested, in_review, live
   distributionRequestedAt: string | null;
+  distributionFeeAmount: number | null;
+  distributionFeePaidAt: string | null;
   tracks: TrackEntry[];
   collaborators: Collaborator[];
 }
@@ -385,6 +388,7 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
   };
 
   const handleRequestDistribution = async () => {
+    if (!confirm(`Cette demande engage un forfait de distribution de ${ONELIB_DISTRIBUTION_FEE}€, non remboursable une fois la demande envoyée. Continuer ?`)) return;
     setIsRequestingDistribution(true);
     try {
       const res = await fetch(`/api/onelib/collections/${collectionId}/request-distribution`, { method: 'POST' });
@@ -831,7 +835,9 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
           Envoie une demande d&apos;hébergement à l&apos;équipe Studiolib pour lancer la mise en ligne sur
           Spotify, Apple Music, Deezer... Il ne s&apos;agit pas d&apos;une soumission automatique : une
           personne traite ta demande manuellement, ce qui permet de t&apos;y prendre à l&apos;avance
-          (les plateformes demandent généralement plusieurs semaines de délai).
+          (les plateformes demandent généralement plusieurs semaines de délai). Forfait de{' '}
+          <span className="text-gray-300 font-medium">{ONELIB_DISTRIBUTION_FEE}€ par sortie</span>, non remboursable
+          une fois la demande envoyée.
         </p>
         {detail.distributionStatus === 'none' && (
           <button
@@ -840,13 +846,14 @@ export default function OnelibCollectionDetail({ collectionId, onBack, onDeleted
             style={{ backgroundColor: accentColor }}
             className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            {isRequestingDistribution ? 'Envoi...' : 'Demander la distribution'}
+            {isRequestingDistribution ? 'Envoi...' : `Demander la distribution — ${ONELIB_DISTRIBUTION_FEE}€`}
           </button>
         )}
         {detail.distributionStatus === 'requested' && (
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-sm flex items-center justify-between gap-3 flex-wrap">
             <span className="text-amber-400">
               Demande envoyée{detail.distributionRequestedAt ? ` le ${new Date(detail.distributionRequestedAt).toLocaleDateString('fr-FR')}` : ''} — en attente de traitement
+              {detail.distributionFeeAmount ? ` (forfait de ${detail.distributionFeeAmount}€ payé)` : ''}
             </span>
             <button
               onClick={handleCancelDistributionRequest}

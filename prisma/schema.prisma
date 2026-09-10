@@ -649,6 +649,12 @@ model OnelibRelease {
   distributionStatus      String    @default("none") // none, requested, in_review, live
   distributionRequestedAt DateTime?
 
+  // Forfait de distribution (modèle TuneCore, simulé — pas de vrai Stripe).
+  // Débité à la demande, non remboursé en cas d'annulation avant traitement.
+  distributionFeeAmount   Float?
+  distributionFeePaidAt   DateTime?
+  distributionFeeStripeId String?
+
   collaborators   OnelibCollaborator[]
 }
 
@@ -686,6 +692,12 @@ model OnelibCollection {
   // Demande de distribution (suivi interne : pas de soumission automatique aux vraies plateformes)
   distributionStatus      String    @default("none") // none, requested, in_review, live
   distributionRequestedAt DateTime?
+
+  // Forfait de distribution (modèle TuneCore, simulé — pas de vrai Stripe).
+  // Débité à la demande, non remboursé en cas d'annulation avant traitement.
+  distributionFeeAmount   Float?
+  distributionFeePaidAt   DateTime?
+  distributionFeeStripeId String?
 
   tracks        OnelibCollectionTrack[]
   collaborators OnelibCollectionCollaborator[]
