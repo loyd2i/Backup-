@@ -5,6 +5,7 @@ import { Search, Sparkles, MapPin, Star, Filter, List, X, SlidersHorizontal, Use
 import { useAppStore } from '@/lib/store';
 import StudioDetail from './studio-detail';
 import EmptyState from './ui/empty-state';
+import AdBanners from './ad-banners';
 
 interface PointsData {
   points: number;
@@ -122,6 +123,8 @@ export default function AccueilPage() {
           et <span className="text-[#6366f1] font-medium">enregistrez</span> vos créations dès aujourd'hui
         </p>
       </div>
+
+      <AdBanners variant="inline" />
 
       {/* Points fidélité */}
       {pointsData && (

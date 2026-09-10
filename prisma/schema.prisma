@@ -725,3 +725,19 @@ model OnelibCollectionCollaborator {
   role         String           @default("compositeur")
   createdAt    DateTime         @default(now())
 }
+
+// Bannière publicitaire (partenariat direct, forfait mensuel fixe — voir
+// BUSINESS-PLAN.md). Pas d'interface d'admin : gérées directement en base,
+// comme le traitement manuel des demandes de distribution Onelib.
+model AdBanner {
+  id             String    @id @default(cuid())
+  position       String    // left, right
+  advertiserName String
+  imageUrl       String?   // si absent, une carte texte est affichée à la place
+  linkUrl        String
+  isActive       Boolean   @default(true)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}

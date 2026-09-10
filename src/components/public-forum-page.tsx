@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { MessageCircle, Heart, Eye, Clock, Plus, X, Send, LogIn } from 'lucide-react';
 import EmptyState from './ui/empty-state';
+import AdBanners from './ad-banners';
 
 interface ForumCategory {
   id: string;
@@ -105,6 +106,7 @@ export default function PublicForumPage() {
 
   return (
     <div className="min-h-screen bg-[#121212]">
+      <AdBanners />
       <div className="p-4">
         <a
           href="/"

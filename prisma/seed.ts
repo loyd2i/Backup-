@@ -224,6 +224,30 @@ async function main() {
 
   console.log('✅ Catégories forum créées');
 
+  // Bannières publicitaires de démo (partenariats directs, voir BUSINESS-PLAN.md)
+  await prisma.adBanner.upsert({
+    where: { id: 'demo-ad-left' },
+    update: {},
+    create: {
+      id: 'demo-ad-left',
+      position: 'left',
+      advertiserName: 'Harmonix École de Musique',
+      linkUrl: 'https://example.com/harmonix',
+    },
+  });
+  await prisma.adBanner.upsert({
+    where: { id: 'demo-ad-right' },
+    update: {},
+    create: {
+      id: 'demo-ad-right',
+      position: 'right',
+      advertiserName: 'SoundGear Store',
+      linkUrl: 'https://example.com/soundgear',
+    },
+  });
+
+  console.log('✅ Bannières publicitaires de démo créées');
+
   console.log('🎉 Seeding terminé avec succès!');
   console.log('');
   console.log('📋 Identifiants de connexion:');
