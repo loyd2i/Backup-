@@ -52,10 +52,11 @@ Plateforme indépendante des labels majors : pas de gatekeeping, pas de comité 
 
 ## Points gamifiés
 
-- Représentation ludique des gains réels de streaming ("tu as gagné 1 240 points ce mois-ci"), à la manière des Bits Twitch ou de l'XP Duolingo
+- Représentation ludique d'argent réel qui circule déjà sur la plateforme, à la manière des Bits Twitch ou de l'XP Duolingo
 - Règle impérative : les points ne doivent **jamais** être échangeables entre utilisateurs ni convertibles en cash par un tiers → sinon la plateforme tombe sous la réglementation e-money (agrément obligatoire, coûteux et long à obtenir)
 - Tant que les points restent un simple affichage/habillage sur de l'argent réel qui circule normalement (virement/Stripe), aucune contrainte réglementaire
 - Peut se coupler à des paliers/badges/classements qui renforcent la réputation (ex: "Artiste Or" selon le cumul)
+- **Implémenté** : adossés aux frais de service déjà payés par l'artiste (non remboursés) sur les réservations, et non aux gains de streaming — il n'existe pas encore de vrai revenu de streaming distribué (Onelib reste une distribution/smart link, pas un partage de royalties réel), donc afficher des "gains" aurait été fictif. Reste cohérent avec la règle e-money : uniquement un affichage calculé à la volée, aucun solde stocké ni transférable. À reconsidérer une fois le partage réel de royalties (split sheets, étape long terme) en place.
 
 ## Publicité
 

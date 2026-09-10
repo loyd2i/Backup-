@@ -1,10 +1,18 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Search, Sparkles, MapPin, Star, Filter, List, X, SlidersHorizontal, Users, Clock, ChevronRight, Navigation } from 'lucide-react';
+import { Search, Sparkles, MapPin, Star, Filter, List, X, SlidersHorizontal, Users, Clock, ChevronRight, Navigation, Trophy } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import StudioDetail from './studio-detail';
 import EmptyState from './ui/empty-state';
+
+interface PointsData {
+  points: number;
+  tier: string;
+  nextTier: string | null;
+  pointsToNext: number | null;
+  leaderboard: { id: string; name: string; points: number }[];
+}
 
 interface Studio {
   id: string;
@@ -29,7 +37,10 @@ interface Filters {
 }
 
 export default function AccueilPage() {
+  const user = useAppStore((state) => state.user);
   const [studios, setStudios] = useState<Studio[]>([]);
+  const [pointsData, setPointsData] = useState<PointsData | null>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudioId, setSelectedStudioId] = useState<string | null>(null);
@@ -48,6 +59,13 @@ export default function AccueilPage() {
 
   useEffect(() => {
     fetchStudios();
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/points')
+      .then((res) => res.json())
+      .then((data) => { if (data.points !== undefined) setPointsData(data); })
+      .catch(() => {});
   }, []);
 
   const fetchStudios = async () => {
@@ -104,6 +122,54 @@ export default function AccueilPage() {
           et <span className="text-[#6366f1] font-medium">enregistrez</span> vos créations dès aujourd'hui
         </p>
       </div>
+
+      {/* Points fidélité */}
+      {pointsData && (
+        <div className="mb-6 bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-5">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-[#6366f1]/20 flex items-center justify-center flex-shrink-0">
+                <Trophy className="w-5 h-5 text-[#6366f1]" />
+              </div>
+              <div>
+                <p className="text-white font-semibold">
+                  {pointsData.points.toLocaleString('fr-FR')} points — Palier {pointsData.tier}
+                </p>
+                <p className="text-gray-500 text-xs">
+                  {pointsData.nextTier
+                    ? `${pointsData.pointsToNext?.toLocaleString('fr-FR')} points avant le palier ${pointsData.nextTier}`
+                    : 'Palier maximum atteint'}
+                </p>
+              </div>
+            </div>
+            {pointsData.leaderboard.length > 0 && (
+              <button
+                onClick={() => setShowLeaderboard(!showLeaderboard)}
+                className="text-xs text-gray-400 hover:text-white underline hover:no-underline"
+              >
+                {showLeaderboard ? 'Masquer le classement' : 'Voir le classement'}
+              </button>
+            )}
+          </div>
+          <p className="text-gray-600 text-[11px] mt-3">
+            Points fidélité liés aux frais de service déjà payés sur la plateforme — un simple affichage ludique,
+            non échangeable et sans valeur monétaire.
+          </p>
+          {showLeaderboard && (
+            <div className="mt-4 pt-4 border-t border-[#2a2a2a] divide-y divide-[#2a2a2a]">
+              {pointsData.leaderboard.map((entry, index) => (
+                <div key={entry.id} className="flex items-center justify-between py-2 text-sm">
+                  <span className={`flex items-center gap-2 ${entry.id === user?.id ? 'text-[#6366f1] font-medium' : 'text-gray-300'}`}>
+                    <span className="text-gray-500 w-4">{index + 1}</span>
+                    {entry.name}{entry.id === user?.id ? ' (toi)' : ''}
+                  </span>
+                  <span className="text-gray-400">{entry.points.toLocaleString('fr-FR')} pts</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search and Filter Bar */}
       <div className="mb-6">
