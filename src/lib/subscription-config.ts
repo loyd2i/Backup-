@@ -15,14 +15,14 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlanConfig[] = [
   {
     plan: 'monthly',
     label: 'Mensuel sans engagement',
-    monthlyPrice: 12,
+    monthlyPrice: 15,
     commitmentMonths: 1,
     description: 'Résiliable à tout moment.',
   },
   {
     plan: 'annual',
     label: 'Annuel',
-    monthlyPrice: 10,
+    monthlyPrice: 12,
     commitmentMonths: 12,
     description: 'Engagement 1 an, tarif réduit.',
   },
