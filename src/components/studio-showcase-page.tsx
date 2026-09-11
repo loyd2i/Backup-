@@ -615,6 +615,8 @@ function StudioEditModal({
   const [newLink, setNewLink] = useState({ title: '', url: '', icon: '' });
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingGalleryPhoto, setIsUploadingGalleryPhoto] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -640,6 +642,41 @@ function StudioEditModal({
       console.error('Erreur upload photo:', error);
     } finally {
       setIsUploadingPhoto(false);
+    }
+  };
+
+  const handleGalleryPhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setIsUploadingGalleryPhoto(true);
+    try {
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+      const res = await fetch(`/api/studios/${studio.id}/photos`, {
+        method: 'POST',
+        body: uploadData,
+      });
+      if (res.ok) {
+        onSave();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        console.error('Erreur ajout photo galerie:', data.error);
+      }
+    } catch (error) {
+      console.error('Erreur ajout photo galerie:', error);
+    } finally {
+      setIsUploadingGalleryPhoto(false);
+    }
+  };
+
+  const handleDeleteGalleryPhoto = async (photoId: string) => {
+    try {
+      await fetch(`/api/studios/${studio.id}/photos/${photoId}`, { method: 'DELETE' });
+      onSave();
+    } catch (error) {
+      console.error('Erreur suppression photo galerie:', error);
     }
   };
 
@@ -799,42 +836,87 @@ function StudioEditModal({
           )}
 
           {activeTab === 'photos' && (
-            <div className="space-y-4">
-              <p className="text-gray-400 text-sm">
-                Gérez les photos de votre studio. La première photo sera utilisée comme image principale.
-              </p>
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handlePhotoSelected}
-              />
-              <div className="grid grid-cols-3 gap-3">
-                {studio.imageUrl && (
-                  <div className="aspect-square bg-[#2a2a2a] rounded-lg overflow-hidden relative group">
-                    <div
-                      className="w-full h-full bg-cover bg-center"
-                      style={{ backgroundImage: `url(${studio.imageUrl})` }}
-                    />
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <div className="space-y-6">
+              <div>
+                <p className="text-white font-medium text-sm mb-1">Photo principale</p>
+                <p className="text-gray-400 text-sm mb-3">
+                  Utilisée comme image de couverture de votre fiche.
+                </p>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoSelected}
+                />
+                <div className="grid grid-cols-3 gap-3">
+                  {studio.imageUrl && (
+                    <div className="aspect-square bg-[#2a2a2a] rounded-lg overflow-hidden relative group">
+                      <div
+                        className="w-full h-full bg-cover bg-center"
+                        style={{ backgroundImage: `url(${studio.imageUrl})` }}
+                      />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <button
+                          onClick={() => photoInputRef.current?.click()}
+                          disabled={isUploadingPhoto}
+                          className="text-white text-sm disabled:opacity-50"
+                        >
+                          {isUploadingPhoto ? 'Envoi...' : 'Changer'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => photoInputRef.current?.click()}
+                    disabled={isUploadingPhoto}
+                    className="aspect-square bg-[#2a2a2a] rounded-lg border-2 border-dashed border-[#3a3a3a] flex items-center justify-center hover:border-[#6366f1] transition-colors disabled:opacity-50"
+                  >
+                    <Plus className="w-8 h-8 text-gray-500" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-[#2a2a2a]">
+                <p className="text-white font-medium text-sm mb-1">Galerie (carrousel)</p>
+                <p className="text-gray-400 text-sm mb-3">
+                  Photos supplémentaires affichées en carrousel sur votre fiche publique.
+                </p>
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleGalleryPhotoSelected}
+                />
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {[...studio.photos].sort((a, b) => a.order - b.order).map((photo) => (
+                    <div key={photo.id} className="aspect-video bg-[#2a2a2a] rounded-lg overflow-hidden relative group">
+                      <div
+                        className="w-full h-full bg-cover bg-center"
+                        style={{ backgroundImage: `url(${photo.url})` }}
+                      />
                       <button
-                        onClick={() => photoInputRef.current?.click()}
-                        disabled={isUploadingPhoto}
-                        className="text-white text-sm disabled:opacity-50"
+                        onClick={() => handleDeleteGalleryPhoto(photo.id)}
+                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
+                        title="Retirer cette photo"
                       >
-                        {isUploadingPhoto ? 'Envoi...' : 'Changer'}
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  </div>
-                )}
-                <button
-                  onClick={() => photoInputRef.current?.click()}
-                  disabled={isUploadingPhoto}
-                  className="aspect-square bg-[#2a2a2a] rounded-lg border-2 border-dashed border-[#3a3a3a] flex items-center justify-center hover:border-[#6366f1] transition-colors disabled:opacity-50"
-                >
-                  <Plus className="w-8 h-8 text-gray-500" />
-                </button>
+                  ))}
+                  <button
+                    onClick={() => galleryInputRef.current?.click()}
+                    disabled={isUploadingGalleryPhoto}
+                    className="aspect-video bg-[#2a2a2a] rounded-lg border-2 border-dashed border-[#3a3a3a] flex items-center justify-center hover:border-[#6366f1] transition-colors disabled:opacity-50"
+                  >
+                    {isUploadingGalleryPhoto ? (
+                      <span className="text-gray-500 text-xs">Envoi...</span>
+                    ) : (
+                      <Plus className="w-8 h-8 text-gray-500" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}

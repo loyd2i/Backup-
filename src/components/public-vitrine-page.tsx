@@ -505,16 +505,16 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
           </div>
         )}
 
-        {/* Photo Gallery */}
+        {/* Photo Gallery - carrousel rectangulaire */}
         {allPhotos.length > 1 && (
           <div className="mb-8">
             <h2 className="text-white font-bold text-lg mb-4">📸 Photos</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1 scrollbar-thin">
               {allPhotos.map((photo, i) => (
                 <button
                   key={photo.id}
                   onClick={() => { setActivePhotoIndex(i); setShowPhotoModal(true); }}
-                  className="aspect-video bg-[#2a2a2a] rounded-xl overflow-hidden group"
+                  className="flex-shrink-0 w-72 sm:w-96 aspect-video bg-[#2a2a2a] rounded-xl overflow-hidden group snap-start"
                 >
                   <div
                     className="w-full h-full bg-cover bg-center transition-transform duration-300 group-hover:scale-105"

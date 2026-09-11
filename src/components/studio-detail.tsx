@@ -18,6 +18,8 @@ interface Studio {
   equipment?: string | null;
   referralOffer?: string | null;
   capacity?: number | null;
+  imageUrl?: string | null;
+  photos?: { id: string; url: string; caption: string | null; order: number }[];
   latitude?: number | null;
   longitude?: number | null;
   owner?: {
@@ -474,6 +476,30 @@ export default function StudioDetail({ studioId, onClose }: Props) {
           </div>
         ) : (
           <>
+            {/* Photo Gallery - carrousel rectangulaire */}
+            {(() => {
+              const allPhotos = [
+                ...(studio.imageUrl ? [{ id: 'main', url: studio.imageUrl }] : []),
+                ...(studio.photos || []).slice().sort((a, b) => a.order - b.order),
+              ];
+              if (allPhotos.length === 0) return null;
+              return (
+                <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory p-3 border-b border-[#2a2a2a]">
+                  {allPhotos.map((photo) => (
+                    <div
+                      key={photo.id}
+                      className="flex-shrink-0 w-64 sm:w-80 aspect-video bg-[#2a2a2a] rounded-xl overflow-hidden snap-start"
+                    >
+                      <div
+                        className="w-full h-full bg-cover bg-center"
+                        style={{ backgroundImage: `url(${photo.url})` }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             {/* Studio Info */}
             <div className="p-6 border-b border-[#2a2a2a]">
               <h1 className="text-2xl font-bold text-white mb-2">{studio.name}</h1>
