@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye } from 'lucide-react';
+import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye, Star } from 'lucide-react';
 import StudioHoursSettings from './studio-hours-settings';
 import EmptyState from './ui/empty-state';
 import StudioShowcasePage from './studio-showcase-page';
 import AudioPlayer from './audio-player';
 import AudioPlayerWithVersions from './audio-player-with-versions';
+import ReviewModal from './review-modal';
 
 interface Appointment {
   id: string;
@@ -86,6 +87,7 @@ export default function StudioDashboard() {
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'invoices' | 'projects' | 'hours' | 'vitrine'>('overview');
+  const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStudioData();
@@ -569,7 +571,16 @@ export default function StudioDashboard() {
                               </button>
                             </>
                           )}
-                          {(apt.status === 'completed' || apt.status === 'cancelled') && (
+                          {apt.status === 'completed' && (
+                            <button
+                              onClick={() => setReviewAppointmentId(apt.id)}
+                              className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-[#f59e0b] transition-colors"
+                              title="Laisser un avis sur l'artiste"
+                            >
+                              <Star className="w-4 h-4" />
+                            </button>
+                          )}
+                          {apt.status === 'cancelled' && (
                             <span className="text-gray-600 text-sm">—</span>
                           )}
                         </div>
@@ -736,6 +747,15 @@ export default function StudioDashboard() {
         </div>
       )}
       </div>
+
+      {reviewAppointmentId && (
+        <ReviewModal
+          appointmentId={reviewAppointmentId}
+          direction="studio_to_artist"
+          targetLabel="cet artiste"
+          onClose={() => setReviewAppointmentId(null)}
+        />
+      )}
     </div>
   );
 }

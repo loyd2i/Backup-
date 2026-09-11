@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Calendar, Clock, MapPin, ChevronLeft, ChevronRight, Star, AlertCircle, Check, X, Download } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import EmptyState from './ui/empty-state';
+import ReviewModal from './review-modal';
 import { ARTIST_COMMISSION_RATE, ARTIST_COMMISSION_REFUND_CUTOFF_HOURS } from '@/lib/tax-config';
 
 interface Studio {
@@ -55,6 +56,7 @@ export default function RendezvousPage() {
   const [notes, setNotes] = useState('');
   const [activeTab, setActiveTab] = useState<'booking' | 'upcoming' | 'past'>('booking');
   const [bookingType, setBookingType] = useState<'studio' | 'e_studio'>('studio');
+  const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -592,13 +594,22 @@ export default function RendezvousPage() {
                       {rdv.status === 'cancelled' ? 'Annulé' : 'Terminé'}
                     </span>
                     {rdv.status === 'completed' && (
-                      <button
-                        onClick={() => window.open(`/api/appointments/${rdv.id}/invoice`, '_blank')}
-                        className="p-1.5 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
-                        title="Télécharger la facture"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setReviewAppointmentId(rdv.id)}
+                          className="p-1.5 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
+                          title="Laisser un avis"
+                        >
+                          <Star className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => window.open(`/api/appointments/${rdv.id}/invoice`, '_blank')}
+                          className="p-1.5 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
+                          title="Télécharger la facture"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -676,6 +687,15 @@ export default function RendezvousPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {reviewAppointmentId && (
+        <ReviewModal
+          appointmentId={reviewAppointmentId}
+          direction="artist_to_studio"
+          targetLabel="ce studio"
+          onClose={() => setReviewAppointmentId(null)}
+        />
       )}
     </div>
   );
