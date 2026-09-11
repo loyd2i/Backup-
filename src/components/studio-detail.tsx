@@ -85,10 +85,12 @@ export default function StudioDetail({ studioId, onClose }: Props) {
   const [myPacks, setMyPacks] = useState<{ id: string; remainingHours: number }[]>([]);
   const [payWithPackId, setPayWithPackId] = useState<string | null>(null);
   const [isPurchasingPack, setIsPurchasingPack] = useState<string | null>(null);
+  const [slotDiscounts, setSlotDiscounts] = useState<{ date: string; startTime: string; discountedPrice: number }[]>([]);
 
   useEffect(() => {
     fetchStudio();
     fetchHoursPacks();
+    fetchSlotDiscounts();
   }, [studioId]);
 
   useEffect(() => {
@@ -168,6 +170,20 @@ export default function StudioDetail({ studioId, onClose }: Props) {
     }
   };
 
+  const fetchSlotDiscounts = async () => {
+    try {
+      const res = await fetch(`/api/studios/${studioId}/slot-discounts`);
+      const data = await res.json();
+      setSlotDiscounts(data.discounts || []);
+    } catch {
+      // best-effort
+    }
+  };
+
+  const findDiscountForSlot = (slot: TimeSlot) => {
+    return slotDiscounts.find((d) => d.date.slice(0, 10) === selectedDate && d.startTime === slot.time);
+  };
+
   const purchasePack = async (offerId: string) => {
     setIsPurchasingPack(offerId);
     try {
@@ -204,6 +220,8 @@ export default function StudioDetail({ studioId, onClose }: Props) {
   const calculatePrice = () => {
     if (!studio || !selectedSlot) return 0;
     if (payWithPackId) return 0;
+    const discount = findDiscountForSlot(selectedSlot);
+    if (discount) return discount.discountedPrice;
     const hourlyRate = bookingType === 'e_studio'
       ? (studio.eStudioPricePerHour ?? studio.pricePerHour)
       : studio.pricePerHour;
@@ -243,6 +261,7 @@ export default function StudioDetail({ studioId, onClose }: Props) {
         // La demande envoyée / nouvelle demande studio partent automatiquement
         // côté serveur (POST /api/appointments), pas besoin d'un appel séparé ici.
         if (payWithPackId) fetchHoursPacks();
+        fetchSlotDiscounts();
         setPayWithPackId(null);
         setBookingSuccess(true);
         setTimeout(() => {
@@ -300,7 +319,8 @@ export default function StudioDetail({ studioId, onClose }: Props) {
   const renderSlotCheckbox = (slot: TimeSlot) => {
     const isSelected = selectedSlot?.time === slot.time;
     const isUnavailable = !slot.available;
-    
+    const discount = !isUnavailable ? findDiscountForSlot(slot) : undefined;
+
     return (
       <label 
         key={slot.time}
@@ -342,11 +362,17 @@ export default function StudioDetail({ studioId, onClose }: Props) {
           <p className={`text-xs ${isUnavailable ? 'text-gray-600' : 'text-gray-400'}`}>
             {slot.endTime}
           </p>
-          <p className={`text-xs font-medium ${isUnavailable ? 'text-gray-700' : 'text-[#6366f1]'}`}>
-            2h
-          </p>
+          {discount ? (
+            <p className="text-xs font-semibold text-green-400">
+              Promo {discount.discountedPrice}€
+            </p>
+          ) : (
+            <p className={`text-xs font-medium ${isUnavailable ? 'text-gray-700' : 'text-[#6366f1]'}`}>
+              2h
+            </p>
+          )}
         </div>
-        
+
         {!isUnavailable && (
           <input
             type="checkbox"
@@ -799,7 +825,12 @@ export default function StudioDetail({ studioId, onClose }: Props) {
                             ) : (
                               <>
                                 <div className="flex justify-between text-gray-400">
-                                  <span>{bookingType === 'e_studio' ? 'Session E-Studio' : 'Session studio'}</span>
+                                  <span>
+                                    {bookingType === 'e_studio' ? 'Session E-Studio' : 'Session studio'}
+                                    {selectedSlot && findDiscountForSlot(selectedSlot) && (
+                                      <span className="text-green-400 ml-1">(promo heures creuses)</span>
+                                    )}
+                                  </span>
                                   <span>{calculatePrice()}€</span>
                                 </div>
                                 <div className="flex justify-between text-gray-400">

@@ -136,6 +136,7 @@ model Studio {
   waitlistEntries    Waitlist[]
   hoursPackOffers    HoursPackOffer[]
   hoursPacks         HoursPack[]
+  slotDiscounts      SlotDiscount[]
 }
 
 // Mouvement du portefeuille studio (crédit après session, commission plateforme)
@@ -220,6 +221,22 @@ model HoursPack {
   purchasedAt    DateTime @default(now())
 
   appointments Appointment[]
+}
+
+// Réduction manuelle sur un créneau précis (heures creuses), au cas par cas -
+// pas une règle récurrente. Le studio fixe un prix total remisé pour cette
+// occurrence unique ; la réduction est consommée dès qu'elle sert à une
+// réservation.
+model SlotDiscount {
+  id              String   @id @default(cuid())
+  studioId        String
+  studio          Studio   @relation(fields: [studioId], references: [id])
+  date            DateTime
+  startTime       String
+  discountedPrice Float
+  createdAt       DateTime @default(now())
+
+  @@unique([studioId, date, startTime])
 }
 
 // Grille tarifaire

@@ -105,10 +105,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Réduction manuelle heures creuses posée par le studio sur ce créneau
+    // précis (au cas par cas, pas une règle récurrente) : consommée dès
+    // qu'elle sert à une réservation.
+    let slotDiscount: Awaited<ReturnType<typeof prisma.slotDiscount.findUnique>> = null;
+    if (!hoursPack) {
+      slotDiscount = await prisma.slotDiscount.findUnique({
+        where: { studioId_date_startTime: { studioId, date: new Date(date), startTime } },
+      });
+    }
+
     const hourlyRate = bookingType === 'e_studio'
       ? (studio.eStudioPricePerHour ?? studio.pricePerHour)
       : studio.pricePerHour;
-    const totalPrice = hoursPack ? null : hourlyRate * parseInt(duration);
+    const totalPrice = hoursPack ? null : (slotDiscount ? slotDiscount.discountedPrice : hourlyRate * parseInt(duration));
     const artistCommissionAmount = hoursPack ? null : Math.round((totalPrice as number) * ARTIST_COMMISSION_RATE * 100) / 100;
 
     const appointment = await prisma.appointment.create({
@@ -131,6 +141,10 @@ export async function POST(request: NextRequest) {
         user: { select: { name: true, email: true } }
       }
     });
+
+    if (slotDiscount) {
+      await prisma.slotDiscount.delete({ where: { id: slotDiscount.id } });
+    }
 
     if (hoursPack) {
       await prisma.hoursPack.update({

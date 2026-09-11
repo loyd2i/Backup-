@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye, Star, Flag } from 'lucide-react';
+import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye, Star, Flag, Percent } from 'lucide-react';
 import StudioHoursSettings from './studio-hours-settings';
 import EmptyState from './ui/empty-state';
 import StudioShowcasePage from './studio-showcase-page';
@@ -94,13 +94,21 @@ export default function StudioDashboard() {
   const [newPackHours, setNewPackHours] = useState('');
   const [newPackPrice, setNewPackPrice] = useState('');
   const [isCreatingPack, setIsCreatingPack] = useState(false);
+  const [slotDiscounts, setSlotDiscounts] = useState<{ id: string; date: string; startTime: string; discountedPrice: number }[]>([]);
+  const [newDiscountDate, setNewDiscountDate] = useState('');
+  const [newDiscountTime, setNewDiscountTime] = useState('');
+  const [newDiscountPrice, setNewDiscountPrice] = useState('');
+  const [isCreatingDiscount, setIsCreatingDiscount] = useState(false);
 
   useEffect(() => {
     fetchStudioData();
   }, [user]);
 
   useEffect(() => {
-    if (studio?.id) fetchHoursPackOffers();
+    if (studio?.id) {
+      fetchHoursPackOffers();
+      fetchSlotDiscounts();
+    }
   }, [studio?.id]);
 
   const fetchHoursPackOffers = async () => {
@@ -137,6 +145,43 @@ export default function StudioDashboard() {
     if (!studio) return;
     await fetch(`/api/studios/${studio.id}/hours-pack-offers/${offerId}`, { method: 'DELETE' });
     fetchHoursPackOffers();
+  };
+
+  const fetchSlotDiscounts = async () => {
+    if (!studio) return;
+    try {
+      const res = await fetch(`/api/studios/${studio.id}/slot-discounts`);
+      const data = await res.json();
+      setSlotDiscounts(data.discounts || []);
+    } catch {
+      // best-effort
+    }
+  };
+
+  const handleCreateDiscount = async () => {
+    if (!studio || !newDiscountDate || !newDiscountTime || !newDiscountPrice) return;
+    setIsCreatingDiscount(true);
+    try {
+      const res = await fetch(`/api/studios/${studio.id}/slot-discounts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: newDiscountDate, startTime: newDiscountTime, discountedPrice: newDiscountPrice }),
+      });
+      if (res.ok) {
+        setNewDiscountDate('');
+        setNewDiscountTime('');
+        setNewDiscountPrice('');
+        fetchSlotDiscounts();
+      }
+    } finally {
+      setIsCreatingDiscount(false);
+    }
+  };
+
+  const handleDeleteDiscount = async (discountId: string) => {
+    if (!studio) return;
+    await fetch(`/api/studios/${studio.id}/slot-discounts/${discountId}`, { method: 'DELETE' });
+    fetchSlotDiscounts();
   };
 
   const fetchStudioData = async () => {
@@ -848,6 +893,65 @@ export default function StudioDashboard() {
                 className="flex items-center gap-1 text-sm px-3 py-2.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors disabled:opacity-50"
               >
                 <Plus className="w-4 h-4" /> Créer l&apos;offre
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a]">
+            <h2 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+              <Percent className="w-5 h-5 text-[#6366f1]" />
+              Tarification heures creuses
+            </h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Propose un prix remisé sur un créneau précis, au cas par cas — une réduction ponctuelle, pas une règle récurrente. Elle disparaît dès qu&apos;un artiste réserve avec.
+            </p>
+
+            {slotDiscounts.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {slotDiscounts.map((discount) => (
+                  <div key={discount.id} className="flex items-center justify-between bg-[#121212] rounded-lg p-3 border border-[#2a2a2a]">
+                    <span className="text-white text-sm">
+                      {new Date(discount.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })} à {formatTime(discount.startTime)} — {discount.discountedPrice}€
+                    </span>
+                    <button
+                      onClick={() => handleDeleteDiscount(discount.id)}
+                      className="text-gray-500 hover:text-red-400 transition-colors"
+                      title="Retirer cette réduction"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="date"
+                value={newDiscountDate}
+                onChange={(e) => setNewDiscountDate(e.target.value)}
+                className="bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+              />
+              <input
+                type="time"
+                value={newDiscountTime}
+                onChange={(e) => setNewDiscountTime(e.target.value)}
+                className="bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+              />
+              <input
+                type="number"
+                min={0}
+                value={newDiscountPrice}
+                onChange={(e) => setNewDiscountPrice(e.target.value)}
+                placeholder="Prix remisé (€)"
+                className="w-36 bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+              />
+              <button
+                onClick={handleCreateDiscount}
+                disabled={isCreatingDiscount || !newDiscountDate || !newDiscountTime || !newDiscountPrice}
+                className="flex items-center gap-1 text-sm px-3 py-2.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors disabled:opacity-50"
+              >
+                <Plus className="w-4 h-4" /> Appliquer la réduction
               </button>
             </div>
           </div>
