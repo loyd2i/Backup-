@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { PLATFORM_COMMISSION_RATE, ARTIST_COMMISSION_RATE, ARTIST_COMMISSION_REFUND_CUTOFF_HOURS } from '@/lib/tax-config';
+import { ARTIST_COMMISSION_RATE, ARTIST_COMMISSION_REFUND_CUTOFF_HOURS } from '@/lib/tax-config';
 import { notifyAppointmentEvent } from '@/lib/notifications';
+import { completeAppointment } from '@/lib/appointment-lifecycle';
 
 // GET - Rendez-vous de l'utilisateur ou du studio
 export async function GET(request: NextRequest) {
@@ -179,10 +180,25 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
     }
 
+    // La complétion (facture, portefeuille, commission, notif avis) est
+    // partagée avec le scheduler d'arrière-plan qui l'effectue aussi
+    // automatiquement à l'heure de fin prévue - voir appointment-lifecycle.ts.
+    if (status === 'completed') {
+      await completeAppointment(id);
+      const completedAppointment = await prisma.appointment.findUnique({
+        where: { id },
+        include: {
+          studio: { select: { name: true } },
+          user: { select: { id: true, name: true, email: true } }
+        }
+      });
+      return NextResponse.json({ appointment: completedAppointment, message: 'Rendez-vous mis à jour' });
+    }
+
     // Frais de service artiste : remboursés si le studio annule (ce n'est pas
     // la faute de l'artiste), ou si l'artiste annule assez tôt ; conservés
     // si l'artiste annule tardivement (le studio ne peut plus revendre le
-    // créneau) ; capturés (non remboursés) une fois la session complétée.
+    // créneau).
     let artistCommissionRefunded: boolean | undefined;
     if (status === 'cancelled') {
       if (isStudioOwner) {
@@ -194,8 +210,6 @@ export async function PUT(request: NextRequest) {
         const hoursUntilSession = (sessionStart.getTime() - Date.now()) / (1000 * 60 * 60);
         artistCommissionRefunded = hoursUntilSession >= ARTIST_COMMISSION_REFUND_CUTOFF_HOURS;
       }
-    } else if (status === 'completed') {
-      artistCommissionRefunded = false;
     }
 
     // Update appointment
@@ -262,14 +276,13 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Handle pre-authorization based on status
-    const preAuth = await prisma.preAuthorization.findUnique({
-      where: { appointmentId: id }
-    });
-
-    if (preAuth) {
-      if (status === 'cancelled') {
-        // Release the pre-authorization (no charge)
+    // Release la pré-autorisation (aucun débit) en cas d'annulation - la
+    // capture en cas de complétion est gérée par completeAppointment ci-dessus
+    if (status === 'cancelled') {
+      const preAuth = await prisma.preAuthorization.findUnique({
+        where: { appointmentId: id }
+      });
+      if (preAuth) {
         await prisma.preAuthorization.update({
           where: { id: preAuth.id },
           data: {
@@ -277,68 +290,6 @@ export async function PUT(request: NextRequest) {
             releasedAt: new Date(),
             releaseReason: 'Annulation par l\'utilisateur'
           }
-        });
-      } else if (status === 'completed') {
-        // Capture the pre-authorization (charge now)
-        await prisma.preAuthorization.update({
-          where: { id: preAuth.id },
-          data: {
-            status: 'captured',
-            capturedAt: new Date()
-          }
-        });
-      }
-    }
-
-    // If status is 'completed', generate invoice + créditer le portefeuille studio (commission plateforme 3%)
-    if (status === 'completed' && existingAppt.totalPrice) {
-      const description = `Session du ${new Date(existingAppt.date).toLocaleDateString('fr-FR')} - ${existingAppt.startTime} (${existingAppt.duration}h)`;
-
-      await prisma.invoice.create({
-        data: {
-          userId: existingAppt.userId,
-          studioName: existingAppt.studio.name,
-          amount: existingAppt.totalPrice,
-          description,
-          appointmentId: existingAppt.id,
-          status: 'paid' // Already captured from pre-auth
-        }
-      });
-
-      const commissionAmount = Math.round(existingAppt.totalPrice * PLATFORM_COMMISSION_RATE * 100) / 100;
-      const netAmount = Math.round((existingAppt.totalPrice - commissionAmount) * 100) / 100;
-
-      await prisma.studio.update({
-        where: { id: existingAppt.studioId },
-        data: {
-          walletBalance: { increment: netAmount },
-          totalEarnings: { increment: netAmount },
-        }
-      });
-
-      await prisma.walletTransaction.createMany({
-        data: [
-          {
-            studioId: existingAppt.studioId,
-            type: 'earning',
-            amount: netAmount,
-            appointmentId: existingAppt.id,
-            description,
-          },
-          {
-            studioId: existingAppt.studioId,
-            type: 'fee',
-            amount: commissionAmount,
-            appointmentId: existingAppt.id,
-            description: `Commission plateforme (${(PLATFORM_COMMISSION_RATE * 100).toFixed(0)}%)`,
-          },
-        ]
-      });
-
-      if (existingAppt.type === 'e_studio') {
-        await prisma.eStudioSession.updateMany({
-          where: { appointmentId: existingAppt.id, status: { not: 'ended' } },
-          data: { status: 'ended', endedAt: new Date() }
         });
       }
     }
