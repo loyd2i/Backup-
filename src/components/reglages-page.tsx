@@ -19,10 +19,12 @@ import {
   Check,
   X,
   Sparkles,
+  Bell,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { PLATFORM_COMMISSION_RATE, ARTIST_COMMISSION_RATE } from '@/lib/tax-config';
 import { SUBSCRIPTION_PLANS, type SubscriptionPlan } from '@/lib/subscription-config';
+import { isPushSupported, getCurrentPushSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push-client';
 
 interface StudioSubscriptionState {
   plan: SubscriptionPlan;
@@ -63,6 +65,10 @@ export default function ReglagesPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [subscription, setSubscription] = useState<StudioSubscriptionState | null>(null);
   const [subActionLoading, setSubActionLoading] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const [pushSupported, setPushSupported] = useState(false);
 
   const isStudioOwner = user?.role === 'studio_owner';
   const publicPath = isStudioOwner ? (studioId ? `/studio/${studioId}` : null) : `/artiste/${user?.id}`;
@@ -94,6 +100,31 @@ export default function ReglagesPage() {
       .then(data => setSubscription(data.subscription || null))
       .catch(() => {});
   }, [isStudioOwner, studioId]);
+
+  useEffect(() => {
+    setPushSupported(isPushSupported());
+    getCurrentPushSubscription().then((sub) => setPushEnabled(!!sub)).catch(() => {});
+  }, []);
+
+  const togglePush = async () => {
+    setPushLoading(true);
+    setPushError(null);
+    try {
+      if (pushEnabled) {
+        await unsubscribeFromPush();
+        setPushEnabled(false);
+      } else {
+        const result = await subscribeToPush();
+        if (result.success) {
+          setPushEnabled(true);
+        } else {
+          setPushError(result.error || 'Erreur inconnue');
+        }
+      }
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const subscribeToPlan = async (plan: SubscriptionPlan) => {
     if (!studioId) return;
@@ -433,6 +464,35 @@ export default function ReglagesPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Notifications push */}
+      {pushSupported && (
+        <div className="mb-8 bg-[#1a1a1a] rounded-xl p-6 border border-[#2a2a2a]">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-[#6366f1]/20 flex items-center justify-center flex-shrink-0">
+                <Bell className="w-5 h-5 text-[#6366f1]" />
+              </div>
+              <div>
+                <p className="text-white font-semibold">Notifications push</p>
+                <p className="text-gray-500 text-sm">
+                  Reçois une notification sur cet appareil pour tes réservations (confirmation, rappel, fin de session).
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={togglePush}
+              disabled={pushLoading}
+              className={`px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex-shrink-0 ${
+                pushEnabled ? 'bg-[#2a2a2a] text-gray-300 hover:bg-[#3a3a3a]' : 'bg-[#6366f1] text-white'
+              }`}
+            >
+              {pushLoading ? '...' : pushEnabled ? 'Désactiver' : 'Activer'}
+            </button>
+          </div>
+          {pushError && <p className="text-red-400 text-xs mt-3">{pushError}</p>}
         </div>
       )}
 

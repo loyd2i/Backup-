@@ -22,7 +22,9 @@ export const metadata: Metadata = {
   authors: [{ name: "Studiolib Team" }],
   icons: {
     icon: "/favicon.ico",
+    apple: "/icon-192.png",
   },
+  manifest: "/manifest.json",
   openGraph: {
     title: "Studiolib",
     description: "Gérez vos sessions studio facilement",

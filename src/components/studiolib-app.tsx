@@ -34,6 +34,14 @@ export default function StudiolibApp() {
   const [publicSlug, setPublicSlug] = useState<string | null>(null);
   const [publicArtistId, setPublicArtistId] = useState<string | null>(null);
 
+  // Enregistre le service worker (PWA + notifications push), indépendamment
+  // de l'état de connexion : l'abonnement effectif se fait depuis Réglages.
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+
   // Parse URL query parameters on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
