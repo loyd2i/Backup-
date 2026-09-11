@@ -26,10 +26,10 @@ Plateforme indépendante des labels majors : pas de gatekeeping, pas de comité 
 
 ## Abonnement studio
 
-- Prix cible : **12€/mois engagement annuel, 15€/mois sans engagement** (relevé depuis la cible initiale ~10-12€, jugée pas assez rentable)
+- Prix : **12€/mois**, engagement annuel **obligatoire** (relevé depuis la cible initiale ~10-12€, jugée pas assez rentable)
+- Un seul forfait : l'option mensuelle sans engagement a été retirée — l'engagement à l'année est imposé dès le premier contact, pas de choix laissé au studio
 - S'ajoute à la commission (ne la remplace pas)
 - Rôle réel : filtre d'engagement + plancher de revenu prévisible, pas le moteur principal de rentabilité (il faut du volume — des centaines de studios — avant que cette ligne pèse vraiment)
-- Suggestion pour faciliter l'adoption initiale : prix d'appel réduit le temps de prouver la valeur, ou option mensuelle sans engagement à prix plus élevé vs annuel à prix réduit (le studio choisit), plutôt que d'imposer l'annuel dès le premier contact
 
 ## Onelib (distribution musicale)
 

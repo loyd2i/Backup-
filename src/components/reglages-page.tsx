@@ -63,7 +63,6 @@ export default function ReglagesPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [subscription, setSubscription] = useState<StudioSubscriptionState | null>(null);
   const [subActionLoading, setSubActionLoading] = useState(false);
-  const [showPlanPicker, setShowPlanPicker] = useState(false);
 
   const isStudioOwner = user?.role === 'studio_owner';
   const publicPath = isStudioOwner ? (studioId ? `/studio/${studioId}` : null) : `/artiste/${user?.id}`;
@@ -108,7 +107,6 @@ export default function ReglagesPage() {
       const data = await res.json();
       if (res.ok) {
         setSubscription(data.subscription);
-        setShowPlanPicker(false);
       }
     } catch (error) {
       console.error('Error subscribing:', error);
@@ -484,31 +482,17 @@ export default function ReglagesPage() {
           ) : (
             <div>
               <p className="text-gray-400 text-sm mb-4">
-                Aucun abonnement actif. Choisissez une formule pour soutenir la plateforme et bénéficier d'un tarif préférentiel en vous engageant à l'année.
+                Aucun abonnement actif. L'abonnement s'engage sur 1 an pour soutenir durablement la plateforme.
               </p>
-              {!showPlanPicker ? (
-                <button
-                  onClick={() => setShowPlanPicker(true)}
-                  className="bg-[#6366f1] text-white px-4 py-2 rounded-lg text-sm font-medium"
-                >
-                  S'abonner
-                </button>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {SUBSCRIPTION_PLANS.map((planConfig) => (
-                    <button
-                      key={planConfig.plan}
-                      onClick={() => subscribeToPlan(planConfig.plan)}
-                      disabled={subActionLoading}
-                      className="text-left bg-[#2a2a2a] hover:bg-[#3a3a3a] rounded-lg p-4 transition-colors disabled:opacity-50"
-                    >
-                      <p className="text-white font-semibold">{planConfig.label}</p>
-                      <p className="text-2xl font-bold text-white my-1">{planConfig.monthlyPrice}€<span className="text-sm text-gray-400 font-normal">/mois</span></p>
-                      <p className="text-gray-500 text-xs">{planConfig.description}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
+              <button
+                onClick={() => subscribeToPlan('annual')}
+                disabled={subActionLoading}
+                className="text-left bg-[#2a2a2a] hover:bg-[#3a3a3a] rounded-lg p-4 transition-colors disabled:opacity-50 w-full sm:w-auto"
+              >
+                <p className="text-white font-semibold">{SUBSCRIPTION_PLANS[0].label}</p>
+                <p className="text-2xl font-bold text-white my-1">{SUBSCRIPTION_PLANS[0].monthlyPrice}€<span className="text-sm text-gray-400 font-normal">/mois</span></p>
+                <p className="text-gray-500 text-xs">{SUBSCRIPTION_PLANS[0].description}</p>
+              </button>
             </div>
           )}
         </div>

@@ -56,8 +56,8 @@ export async function POST(
       return NextResponse.json({ error: 'Studio non trouvé' }, { status: 404 });
     }
 
-    const body = await request.json();
-    const plan: SubscriptionPlan = body.plan === 'annual' ? 'annual' : 'monthly';
+    // Un seul forfait possible : engagement annuel obligatoire (voir BUSINESS-PLAN.md)
+    const plan: SubscriptionPlan = 'annual';
 
     const existing = await prisma.studioSubscription.findUnique({ where: { studioId: id } });
     if (existing && existing.status === 'active') {

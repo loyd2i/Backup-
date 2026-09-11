@@ -1,7 +1,10 @@
 // Configuration de l'abonnement studio (s'ajoute à la commission par
 // réservation, ne la remplace pas — voir BUSINESS-PLAN.md).
+//
+// Un seul forfait, engagement annuel obligatoire : pas d'option mensuelle
+// sans engagement (décision produit — voir BUSINESS-PLAN.md).
 
-export type SubscriptionPlan = 'monthly' | 'annual';
+export type SubscriptionPlan = 'annual';
 
 export interface SubscriptionPlanConfig {
   plan: SubscriptionPlan;
@@ -13,18 +16,11 @@ export interface SubscriptionPlanConfig {
 
 export const SUBSCRIPTION_PLANS: SubscriptionPlanConfig[] = [
   {
-    plan: 'monthly',
-    label: 'Mensuel sans engagement',
-    monthlyPrice: 15,
-    commitmentMonths: 1,
-    description: 'Résiliable à tout moment.',
-  },
-  {
     plan: 'annual',
     label: 'Annuel',
     monthlyPrice: 12,
     commitmentMonths: 12,
-    description: 'Engagement 1 an, tarif réduit.',
+    description: 'Engagement 1 an obligatoire.',
   },
 ];
 
