@@ -81,9 +81,14 @@ export default function StudioDetail({ studioId, onClose }: Props) {
   const [bookingType, setBookingType] = useState<'studio' | 'e_studio'>('studio');
   const [waitlistedTimes, setWaitlistedTimes] = useState<Set<string>>(new Set());
   const [waitlistLoading, setWaitlistLoading] = useState<string | null>(null);
+  const [packOffers, setPackOffers] = useState<{ id: string; hours: number; price: number }[]>([]);
+  const [myPacks, setMyPacks] = useState<{ id: string; remainingHours: number }[]>([]);
+  const [payWithPackId, setPayWithPackId] = useState<string | null>(null);
+  const [isPurchasingPack, setIsPurchasingPack] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStudio();
+    fetchHoursPacks();
   }, [studioId]);
 
   useEffect(() => {
@@ -137,7 +142,7 @@ export default function StudioDetail({ studioId, onClose }: Props) {
       const res = await fetch(`/api/studios/${studioId}`);
       const data = await res.json();
       setStudio(data.studio);
-      
+
       // Set default date to today
       const today = new Date().toISOString().split('T')[0];
       setSelectedDate(today);
@@ -145,6 +150,37 @@ export default function StudioDetail({ studioId, onClose }: Props) {
       console.error('Error fetching studio:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchHoursPacks = async () => {
+    try {
+      const [offersRes, packsRes] = await Promise.all([
+        fetch(`/api/studios/${studioId}/hours-pack-offers`),
+        fetch(`/api/studios/${studioId}/hours-packs`),
+      ]);
+      const offersData = await offersRes.json();
+      const packsData = await packsRes.json();
+      setPackOffers(offersData.offers || []);
+      setMyPacks((packsData.packs || []).filter((p: { remainingHours: number }) => p.remainingHours > 0));
+    } catch {
+      // best-effort
+    }
+  };
+
+  const purchasePack = async (offerId: string) => {
+    setIsPurchasingPack(offerId);
+    try {
+      const res = await fetch(`/api/studios/${studioId}/hours-packs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offerId }),
+      });
+      if (res.ok) {
+        fetchHoursPacks();
+      }
+    } finally {
+      setIsPurchasingPack(null);
     }
   };
 
@@ -167,6 +203,7 @@ export default function StudioDetail({ studioId, onClose }: Props) {
 
   const calculatePrice = () => {
     if (!studio || !selectedSlot) return 0;
+    if (payWithPackId) return 0;
     const hourlyRate = bookingType === 'e_studio'
       ? (studio.eStudioPricePerHour ?? studio.pricePerHour)
       : studio.pricePerHour;
@@ -174,6 +211,7 @@ export default function StudioDetail({ studioId, onClose }: Props) {
   };
 
   const calculateServiceFee = () => {
+    if (payWithPackId) return 0;
     return Math.round(calculatePrice() * ARTIST_COMMISSION_RATE * 100) / 100;
   };
 
@@ -196,13 +234,16 @@ export default function StudioDetail({ studioId, onClose }: Props) {
           startTime: selectedSlot.time,
           duration: 2, // 2-hour slots
           notes,
-          type: bookingType
+          type: bookingType,
+          hoursPackId: payWithPackId
         })
       });
 
       if (res.ok) {
         // La demande envoyée / nouvelle demande studio partent automatiquement
         // côté serveur (POST /api/appointments), pas besoin d'un appel séparé ici.
+        if (payWithPackId) fetchHoursPacks();
+        setPayWithPackId(null);
         setBookingSuccess(true);
         setTimeout(() => {
           onClose();
@@ -664,6 +705,65 @@ export default function StudioDetail({ studioId, onClose }: Props) {
                         </div>
                       )}
 
+                      {/* Packs d'heures - payer avec un pack existant */}
+                      {selectedSlot && myPacks.length > 0 && (
+                        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4">
+                          <p className="text-white text-sm font-medium mb-2">Payer avec un pack d&apos;heures</p>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPayWithPackId(null)}
+                              className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
+                                !payWithPackId
+                                  ? 'bg-[#6366f1] border-[#6366f1] text-white'
+                                  : 'bg-[#2a2a2a] border-[#3a3a3a] text-gray-400 hover:text-white'
+                              }`}
+                            >
+                              Paiement classique
+                            </button>
+                            {myPacks.map((pack) => (
+                              <button
+                                key={pack.id}
+                                type="button"
+                                onClick={() => setPayWithPackId(pack.id)}
+                                className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
+                                  payWithPackId === pack.id
+                                    ? 'bg-[#6366f1] border-[#6366f1] text-white'
+                                    : 'bg-[#2a2a2a] border-[#3a3a3a] text-gray-400 hover:text-white'
+                                }`}
+                              >
+                                Pack ({pack.remainingHours}h restantes)
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Packs d'heures - en acheter un nouveau */}
+                      {packOffers.length > 0 && (
+                        <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4">
+                          <p className="text-white text-sm font-medium mb-2">Packs d&apos;heures prépayées chez ce studio</p>
+                          <div className="space-y-2">
+                            {packOffers.map((offer) => (
+                              <div key={offer.id} className="flex items-center justify-between bg-[#121212] rounded-lg p-3">
+                                <div>
+                                  <p className="text-white text-sm font-medium">{offer.hours}h</p>
+                                  <p className="text-gray-500 text-xs">{offer.price}€</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => purchasePack(offer.id)}
+                                  disabled={isPurchasingPack === offer.id}
+                                  className="text-xs px-3 py-2 rounded-lg bg-[#6366f1] text-white hover:bg-[#5558e3] transition-colors disabled:opacity-50"
+                                >
+                                  {isPurchasingPack === offer.id ? 'Achat...' : 'Acheter'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Selected Slot Summary */}
                       {selectedSlot && (
                         <div className="bg-gradient-to-r from-[#6366f1]/20 to-[#8b5cf6]/10 border border-[#6366f1]/40 rounded-xl p-5">
@@ -684,19 +784,30 @@ export default function StudioDetail({ studioId, onClose }: Props) {
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-[#6366f1] font-bold text-3xl">{calculateTotalCharged()}€</p>
+                              <p className="text-[#6366f1] font-bold text-3xl">
+                                {payWithPackId ? 'Inclus' : `${calculateTotalCharged()}€`}
+                              </p>
                               <p className="text-gray-500 text-sm">2 heures</p>
                             </div>
                           </div>
                           <div className="mt-3 pt-3 border-t border-[#2a2a2a] space-y-1 text-sm">
-                            <div className="flex justify-between text-gray-400">
-                              <span>{bookingType === 'e_studio' ? 'Session E-Studio' : 'Session studio'}</span>
-                              <span>{calculatePrice()}€</span>
-                            </div>
-                            <div className="flex justify-between text-gray-400">
-                              <span>Frais de service ({(ARTIST_COMMISSION_RATE * 100).toFixed(0)}%)</span>
-                              <span>{calculateServiceFee()}€</span>
-                            </div>
+                            {payWithPackId ? (
+                              <div className="flex justify-between text-gray-400">
+                                <span>Payé avec votre pack d&apos;heures</span>
+                                <span>0€</span>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex justify-between text-gray-400">
+                                  <span>{bookingType === 'e_studio' ? 'Session E-Studio' : 'Session studio'}</span>
+                                  <span>{calculatePrice()}€</span>
+                                </div>
+                                <div className="flex justify-between text-gray-400">
+                                  <span>Frais de service ({(ARTIST_COMMISSION_RATE * 100).toFixed(0)}%)</span>
+                                  <span>{calculateServiceFee()}€</span>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}
@@ -726,7 +837,9 @@ export default function StudioDetail({ studioId, onClose }: Props) {
                             Réservation en cours...
                           </span>
                         ) : selectedSlot
-                          ? `Réserver pour ${calculateTotalCharged()}€`
+                          ? payWithPackId
+                            ? 'Réserver avec mon pack d\'heures'
+                            : `Réserver pour ${calculateTotalCharged()}€`
                           : 'Sélectionnez un créneau'
                         }
                       </button>

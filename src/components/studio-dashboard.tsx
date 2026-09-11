@@ -90,10 +90,54 @@ export default function StudioDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'invoices' | 'projects' | 'hours' | 'vitrine'>('overview');
   const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null);
   const [reportAppointmentId, setReportAppointmentId] = useState<string | null>(null);
+  const [hoursPackOffers, setHoursPackOffers] = useState<{ id: string; hours: number; price: number }[]>([]);
+  const [newPackHours, setNewPackHours] = useState('');
+  const [newPackPrice, setNewPackPrice] = useState('');
+  const [isCreatingPack, setIsCreatingPack] = useState(false);
 
   useEffect(() => {
     fetchStudioData();
   }, [user]);
+
+  useEffect(() => {
+    if (studio?.id) fetchHoursPackOffers();
+  }, [studio?.id]);
+
+  const fetchHoursPackOffers = async () => {
+    if (!studio) return;
+    try {
+      const res = await fetch(`/api/studios/${studio.id}/hours-pack-offers`);
+      const data = await res.json();
+      setHoursPackOffers(data.offers || []);
+    } catch {
+      // best-effort
+    }
+  };
+
+  const handleCreatePackOffer = async () => {
+    if (!studio || !newPackHours || !newPackPrice) return;
+    setIsCreatingPack(true);
+    try {
+      const res = await fetch(`/api/studios/${studio.id}/hours-pack-offers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hours: newPackHours, price: newPackPrice }),
+      });
+      if (res.ok) {
+        setNewPackHours('');
+        setNewPackPrice('');
+        fetchHoursPackOffers();
+      }
+    } finally {
+      setIsCreatingPack(false);
+    }
+  };
+
+  const handleDeletePackOffer = async (offerId: string) => {
+    if (!studio) return;
+    await fetch(`/api/studios/${studio.id}/hours-pack-offers/${offerId}`, { method: 'DELETE' });
+    fetchHoursPackOffers();
+  };
 
   const fetchStudioData = async () => {
     if (!user) return;
@@ -754,6 +798,60 @@ export default function StudioDashboard() {
               Personnalisez votre carte de visite numérique visible par tous les artistes. Ajoutez des photos, votre équipement, vos réseaux sociaux et des liens personnalisés.
             </p>
           </div>
+
+          <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a]">
+            <h2 className="text-lg font-semibold text-white mb-1 flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-[#6366f1]" />
+              Packs d&apos;heures prépayées
+            </h2>
+            <p className="text-gray-400 text-sm mb-4">
+              Propose un forfait remisé chez toi : l&apos;artiste paie d&apos;avance, les heures restent valables uniquement dans ton studio.
+            </p>
+
+            {hoursPackOffers.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {hoursPackOffers.map((offer) => (
+                  <div key={offer.id} className="flex items-center justify-between bg-[#121212] rounded-lg p-3 border border-[#2a2a2a]">
+                    <span className="text-white text-sm">{offer.hours}h — {offer.price}€</span>
+                    <button
+                      onClick={() => handleDeletePackOffer(offer.id)}
+                      className="text-gray-500 hover:text-red-400 transition-colors"
+                      title="Retirer cette offre"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <input
+                type="number"
+                min={1}
+                value={newPackHours}
+                onChange={(e) => setNewPackHours(e.target.value)}
+                placeholder="Heures"
+                className="w-28 bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+              />
+              <input
+                type="number"
+                min={1}
+                value={newPackPrice}
+                onChange={(e) => setNewPackPrice(e.target.value)}
+                placeholder="Prix total (€)"
+                className="w-36 bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+              />
+              <button
+                onClick={handleCreatePackOffer}
+                disabled={isCreatingPack || !newPackHours || !newPackPrice}
+                className="flex items-center gap-1 text-sm px-3 py-2.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors disabled:opacity-50"
+              >
+                <Plus className="w-4 h-4" /> Créer l&apos;offre
+              </button>
+            </div>
+          </div>
+
           <StudioShowcasePage studioId={studio.id} isOwner={true} />
         </div>
       )}

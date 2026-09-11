@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { studioId, date, startTime, duration, notes, type } = body;
+    const { studioId, date, startTime, duration, notes, type, hoursPackId } = body;
     const bookingType = type === 'e_studio' ? 'e_studio' : 'studio';
 
     if (!studioId || !date || !startTime || !duration) {
@@ -92,11 +92,24 @@ export async function POST(request: NextRequest) {
     const endHour = startHour + parseInt(duration);
     const endTime = `${endHour.toString().padStart(2, '0')}:00`;
 
+    // Payée avec un pack d'heures prépayées chez ce studio : déjà réglé à
+    // l'achat, pas de nouveau prix ni de pré-autorisation pour cette séance.
+    let hoursPack: Awaited<ReturnType<typeof prisma.hoursPack.findUnique>> = null;
+    if (hoursPackId) {
+      hoursPack = await prisma.hoursPack.findUnique({ where: { id: hoursPackId } });
+      if (!hoursPack || hoursPack.userId !== user.id || hoursPack.studioId !== studioId) {
+        return NextResponse.json({ error: 'Pack d\'heures invalide' }, { status: 400 });
+      }
+      if (hoursPack.remainingHours < parseInt(duration)) {
+        return NextResponse.json({ error: 'Heures insuffisantes dans le pack' }, { status: 400 });
+      }
+    }
+
     const hourlyRate = bookingType === 'e_studio'
       ? (studio.eStudioPricePerHour ?? studio.pricePerHour)
       : studio.pricePerHour;
-    const totalPrice = hourlyRate * parseInt(duration);
-    const artistCommissionAmount = Math.round(totalPrice * ARTIST_COMMISSION_RATE * 100) / 100;
+    const totalPrice = hoursPack ? null : hourlyRate * parseInt(duration);
+    const artistCommissionAmount = hoursPack ? null : Math.round((totalPrice as number) * ARTIST_COMMISSION_RATE * 100) / 100;
 
     const appointment = await prisma.appointment.create({
       data: {
@@ -110,7 +123,8 @@ export async function POST(request: NextRequest) {
         totalPrice,
         artistCommissionAmount,
         type: bookingType,
-        status: 'pending'
+        status: 'pending',
+        hoursPackId: hoursPack?.id,
       },
       include: {
         studio: { select: { name: true, location: true } },
@@ -118,17 +132,24 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Create pre-authorization (hold) for the total price + frais de service
-    // artiste. In production, this would be a Stripe PaymentIntent with
-    // capture_method: 'manual'.
-    await prisma.preAuthorization.create({
-      data: {
-        appointmentId: appointment.id,
-        amount: totalPrice + artistCommissionAmount,
-        status: 'held',
-        stripeIntentId: `pi_demo_${Date.now()}`
-      }
-    });
+    if (hoursPack) {
+      await prisma.hoursPack.update({
+        where: { id: hoursPack.id },
+        data: { remainingHours: { decrement: parseInt(duration) } },
+      });
+    } else {
+      // Create pre-authorization (hold) for the total price + frais de service
+      // artiste. In production, this would be a Stripe PaymentIntent with
+      // capture_method: 'manual'.
+      await prisma.preAuthorization.create({
+        data: {
+          appointmentId: appointment.id,
+          amount: (totalPrice as number) + (artistCommissionAmount as number),
+          status: 'held',
+          stripeIntentId: `pi_demo_${Date.now()}`
+        }
+      });
+    }
 
     // Notifie l'artiste (demande envoyée) et le studio (nouvelle demande à traiter)
     await notifyAppointmentEvent('booking_requested', appointment.id);
@@ -137,13 +158,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       appointment,
       message: 'Rendez-vous créé',
-      preAuthorization: {
-        amount: totalPrice + artistCommissionAmount,
-        studioAmount: totalPrice,
-        artistCommissionAmount,
-        status: 'held',
-        info: 'Empreinte bancaire mise en attente - aucun débit effectué'
-      }
+      ...(hoursPack ? {} : {
+        preAuthorization: {
+          amount: (totalPrice as number) + (artistCommissionAmount as number),
+          studioAmount: totalPrice,
+          artistCommissionAmount,
+          status: 'held',
+          info: 'Empreinte bancaire mise en attente - aucun débit effectué'
+        }
+      })
     }, { status: 201 });
   } catch (error) {
     console.error('Erreur création RDV:', error);
@@ -276,6 +299,14 @@ export async function PUT(request: NextRequest) {
       }
       // Le créneau vient de se libérer : alerte la liste d'attente éventuelle
       await notifyWaitlistForFreedSlot(existingAppt.studioId, existingAppt.date, existingAppt.startTime);
+
+      // Séance payée avec un pack d'heures : recrédite les heures consommées
+      if (existingAppt.hoursPackId) {
+        await prisma.hoursPack.update({
+          where: { id: existingAppt.hoursPackId },
+          data: { remainingHours: { increment: existingAppt.duration } },
+        });
+      }
     }
 
     // Release la pré-autorisation (aucun débit) en cas d'annulation - la

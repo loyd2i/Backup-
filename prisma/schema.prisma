@@ -51,6 +51,7 @@ model User {
   reviewsWritten    Review[]
   reportsFiled      AppointmentReport[]
   waitlistEntries   Waitlist[]
+  hoursPacks        HoursPack[]
   trackComments     TrackComment[]
   sharedTracks      TrackShare[]
 
@@ -133,6 +134,8 @@ model Studio {
   walletTransactions WalletTransaction[]
   subscription       StudioSubscription?
   waitlistEntries    Waitlist[]
+  hoursPackOffers    HoursPackOffer[]
+  hoursPacks         HoursPack[]
 }
 
 // Mouvement du portefeuille studio (crédit après session, commission plateforme)
@@ -189,6 +192,34 @@ model StudioLink {
   order       Int      @default(0)
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
+}
+
+// Offre de pack d'heures prépayées, figée par studio (voir BUSINESS-PLAN.md
+// "Croissance et rétention") - le studio définit son propre forfait remisé.
+model HoursPackOffer {
+  id        String   @id @default(cuid())
+  studioId  String
+  studio    Studio   @relation(fields: [studioId], references: [id])
+  hours     Float
+  price     Float    // prix total du pack, remisé vs pricePerHour * hours
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// Pack d'heures possédé par un artiste chez un studio précis (non transférable
+// à un autre studio), décrémenté à chaque réservation payée avec.
+model HoursPack {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  studioId       String
+  studio         Studio   @relation(fields: [studioId], references: [id])
+  totalHours     Float
+  remainingHours Float
+  pricePaid      Float
+  purchasedAt    DateTime @default(now())
+
+  appointments Appointment[]
 }
 
 // Grille tarifaire
@@ -282,6 +313,12 @@ model Appointment {
 
   // Session E-Studio liée (si type = e_studio, créée à la confirmation)
   eStudioSession   EStudioSession?
+
+  // Payée avec un pack d'heures prépayées plutôt qu'à l'unité (voir
+  // BUSINESS-PLAN.md) : déjà réglé à l'achat du pack, pas de nouvelle
+  // pré-autorisation ni de facture/crédit portefeuille à la complétion.
+  hoursPackId String?
+  hoursPack   HoursPack? @relation(fields: [hoursPackId], references: [id])
 
   reviews Review[]
   reports AppointmentReport[]
