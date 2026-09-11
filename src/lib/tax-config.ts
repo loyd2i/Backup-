@@ -30,3 +30,7 @@ export const ARTIST_COMMISSION_RATE = 0.04;
 // l'artiste ne rembourse plus les frais de service (le studio ne peut plus
 // revendre le créneau à temps).
 export const ARTIST_COMMISSION_REFUND_CUTOFF_HOURS = 24;
+
+// Commission plateforme sur une vente marketplace (sample packs / instrus),
+// alignée sur le taux des réservations (voir BUSINESS-PLAN.md).
+export const MARKETPLACE_COMMISSION_RATE = ARTIST_COMMISSION_RATE;

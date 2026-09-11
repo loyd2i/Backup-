@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAppStore, PageType } from '@/lib/store';
-import { Home, Calendar, Music, MessageSquare, Settings, Menu, X, MessageCircle, Building2, Users, FileText, BarChart3, Cast, Share2 } from 'lucide-react';
+import { Home, Calendar, Music, MessageSquare, Settings, Menu, X, MessageCircle, Building2, Users, FileText, BarChart3, Cast, Share2, ShoppingBag } from 'lucide-react';
 import NotificationBell from './notification-bell';
 
 interface Props {
@@ -146,6 +146,17 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
               <Share2 className="w-4 h-4" />
               <span className="font-medium text-sm">Onelib</span>
             </button>
+            <button
+              onClick={() => handleNavClick('marketplace')}
+              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl transition-all ${
+                currentPage === 'marketplace'
+                  ? 'bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white'
+                  : 'bg-[#2a2a2a] text-white hover:bg-[#3a3a3a]'
+              }`}
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span className="font-medium text-sm">Marketplace</span>
+            </button>
           </div>
         </nav>
 
@@ -218,6 +229,17 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
               title="Onelib"
             >
               <Share2 className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => handleNavClick('marketplace')}
+              className={`p-2 rounded-lg transition-colors ${
+                currentPage === 'marketplace'
+                  ? 'bg-[#6366f1] text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-[#2a2a2a]'
+              }`}
+              title="Marketplace"
+            >
+              <ShoppingBag className="w-5 h-5" />
             </button>
             <NotificationBell />
             <button
@@ -318,6 +340,17 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
             >
               <Share2 className="w-4 h-4" />
               <span className="font-medium text-sm">Onelib</span>
+            </button>
+            <button
+              onClick={() => handleNavClick('marketplace')}
+              className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl transition-all ${
+                currentPage === 'marketplace'
+                  ? 'bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white'
+                  : 'text-gray-400 hover:bg-[#2a2a2a] hover:text-white'
+              }`}
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span className="font-medium text-sm">Marketplace</span>
             </button>
           </div>
         </nav>

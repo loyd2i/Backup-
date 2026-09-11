@@ -30,6 +30,10 @@ model User {
   youtube      String?
   website      String?
 
+  // Solde des ventes marketplace (sample packs / instrus), commission
+  // plateforme déjà déduite - voir MarketplaceItem/MarketplacePurchase.
+  walletBalance Float   @default(0)
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
@@ -66,6 +70,10 @@ model User {
   onelibCollections     OnelibCollection[]
   onelibCredits           OnelibCollaborator[]
   onelibCollectionCredits OnelibCollectionCollaborator[]
+
+  // Marketplace (sample packs / instrus entre artistes)
+  marketplaceItemsSold     MarketplaceItem[]     @relation("MarketplaceItemsSold")
+  marketplacePurchasesMade MarketplacePurchase[] @relation("MarketplacePurchasesMade")
 
   passwordResetTokens   PasswordResetToken[]
 }
@@ -898,4 +906,38 @@ model AdBanner {
   endsAt         DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+// Article vendu sur le marketplace Onelib (sample pack ou instru) entre
+// artistes - commission plateforme alignée sur le taux des réservations
+// (voir BUSINESS-PLAN.md "Croissance et rétention").
+model MarketplaceItem {
+  id          String   @id @default(cuid())
+  sellerId    String
+  seller      User     @relation("MarketplaceItemsSold", fields: [sellerId], references: [id])
+  title       String
+  description String?
+  category    String   // sample_pack, instru
+  price       Float
+  audioUrl    String
+  coverUrl    String?
+  isActive    Boolean  @default(true) // soft delete : les achats déjà faits restent valides
+  createdAt   DateTime @default(now())
+
+  purchases MarketplacePurchase[]
+}
+
+// Achat d'un article marketplace : donne accès au fichier et crédite le
+// vendeur (commission plateforme déjà déduite).
+model MarketplacePurchase {
+  id               String          @id @default(cuid())
+  buyerId          String
+  buyer            User            @relation("MarketplacePurchasesMade", fields: [buyerId], references: [id])
+  itemId           String
+  item             MarketplaceItem @relation(fields: [itemId], references: [id])
+  pricePaid        Float
+  commissionAmount Float
+  createdAt        DateTime        @default(now())
+
+  @@unique([buyerId, itemId])
 }

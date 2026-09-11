@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type PageType = 'login' | 'register' | 'accueil' | 'rendezvous' | 'creations' | 'messagerie' | 'reglages' | 'forum' | 'e-studio' | 'onelib';
+export type PageType = 'login' | 'register' | 'accueil' | 'rendezvous' | 'creations' | 'messagerie' | 'reglages' | 'forum' | 'e-studio' | 'onelib' | 'marketplace';
 
 interface User {
   id: string;

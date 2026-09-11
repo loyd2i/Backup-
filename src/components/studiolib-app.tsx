@@ -11,6 +11,7 @@ import ReglagesPage from './reglages-page';
 import ForumPage from './forum-page';
 import EStudioPage from './e-studio-page';
 import OnelibPage from './onelib-page';
+import MarketplacePage from './marketplace-page';
 import AppLayout from './app-layout';
 import StudioDashboard from './studio-dashboard';
 import StudioMessages from './studio-messages';
@@ -212,6 +213,8 @@ export default function StudiolibApp() {
           return <EStudioPage />;
         case 'onelib':
           return <OnelibPage />;
+        case 'marketplace':
+          return <MarketplacePage />;
         default:
           return <StudioDashboard />;
       }
@@ -239,6 +242,8 @@ export default function StudiolibApp() {
         return <EStudioPage />;
       case 'onelib':
         return <OnelibPage />;
+      case 'marketplace':
+        return <MarketplacePage />;
       default:
         return <AccueilPage />;
     }
