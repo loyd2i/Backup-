@@ -79,6 +79,8 @@ export default function StudioDetail({ studioId, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<'info' | 'pricing' | 'booking'>('info');
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [bookingType, setBookingType] = useState<'studio' | 'e_studio'>('studio');
+  const [waitlistedTimes, setWaitlistedTimes] = useState<Set<string>>(new Set());
+  const [waitlistLoading, setWaitlistLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStudio();
@@ -87,8 +89,48 @@ export default function StudioDetail({ studioId, onClose }: Props) {
   useEffect(() => {
     if (selectedDate) {
       fetchAvailableSlots();
+      fetchWaitlist();
     }
   }, [selectedDate]);
+
+  const fetchWaitlist = async () => {
+    try {
+      const res = await fetch(`/api/studios/${studioId}/waitlist`);
+      const data = await res.json();
+      const times = (data.entries || [])
+        .filter((e: { date: string }) => e.date.slice(0, 10) === selectedDate)
+        .map((e: { startTime: string }) => e.startTime);
+      setWaitlistedTimes(new Set(times));
+    } catch {
+      // best-effort
+    }
+  };
+
+  const toggleWaitlist = async (slot: TimeSlot) => {
+    setWaitlistLoading(slot.time);
+    try {
+      const isJoined = waitlistedTimes.has(slot.time);
+      if (isJoined) {
+        await fetch(`/api/studios/${studioId}/waitlist?date=${selectedDate}&startTime=${slot.time}`, { method: 'DELETE' });
+        setWaitlistedTimes((prev) => {
+          const next = new Set(prev);
+          next.delete(slot.time);
+          return next;
+        });
+      } else {
+        await fetch(`/api/studios/${studioId}/waitlist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: selectedDate, startTime: slot.time }),
+        });
+        setWaitlistedTimes((prev) => new Set(prev).add(slot.time));
+      }
+    } catch {
+      // best-effort
+    } finally {
+      setWaitlistLoading(null);
+    }
+  };
 
   const fetchStudio = async () => {
     try {
@@ -271,6 +313,21 @@ export default function StudioDetail({ studioId, onClose }: Props) {
             onChange={() => setSelectedSlot(slot)}
             className="sr-only"
           />
+        )}
+
+        {isUnavailable && slot.reason === 'Déjà réservé' && (
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); toggleWaitlist(slot); }}
+            disabled={waitlistLoading === slot.time}
+            className={`text-[11px] px-2 py-1 rounded-lg cursor-pointer flex-shrink-0 disabled:opacity-50 ${
+              waitlistedTimes.has(slot.time)
+                ? 'bg-[#6366f1]/20 text-[#6366f1]'
+                : 'bg-[#2a2a2a] text-gray-400 hover:text-white'
+            }`}
+          >
+            {waitlistedTimes.has(slot.time) ? 'Inscrit ✓' : "Liste d'attente"}
+          </button>
         )}
       </label>
     );

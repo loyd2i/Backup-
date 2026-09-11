@@ -49,6 +49,7 @@ model User {
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
   reviewsWritten    Review[]
+  waitlistEntries   Waitlist[]
   trackComments     TrackComment[]
   sharedTracks      TrackShare[]
 
@@ -130,6 +131,7 @@ model Studio {
   links              StudioLink[]
   walletTransactions WalletTransaction[]
   subscription       StudioSubscription?
+  waitlistEntries    Waitlist[]
 }
 
 // Mouvement du portefeuille studio (crédit après session, commission plateforme)
@@ -231,6 +233,21 @@ model StudioBlock {
   updatedAt   DateTime @updatedAt
   
   @@unique([studioId, date, startTime])
+}
+
+// Liste d'attente sur un créneau déjà réservé : notifié si le créneau se
+// libère (annulation) - voir BUSINESS-PLAN.md "Croissance et rétention".
+model Waitlist {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  studioId  String
+  studio    Studio   @relation(fields: [studioId], references: [id])
+  date      DateTime
+  startTime String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, studioId, date, startTime])
 }
 
 // Rendez-vous / Séance

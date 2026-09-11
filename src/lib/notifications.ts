@@ -16,7 +16,8 @@ export type NotificationEventType =
   | 'booking_cancelled_by_studio'// -> artiste : le studio a annulé un rendez-vous confirmé
   | 'booking_cancelled_by_artist'// -> studio  : l'artiste a annulé son rendez-vous
   | 'reminder_2h'                // -> artiste + studio : la session démarre dans 2h
-  | 'session_completed';         // -> artiste + studio : session terminée, avis + facture disponibles
+  | 'session_completed'          // -> artiste + studio : session terminée, avis + facture disponibles
+  | 'waitlist_slot_available';   // -> artiste en liste d'attente : le créneau visé vient de se libérer
 
 interface NotificationContent {
   title: string;
@@ -24,7 +25,7 @@ interface NotificationContent {
   smsMessage: string;
 }
 
-async function dispatch(userId: string, email: string, phone: string | null, type: NotificationEventType, appointmentId: string, content: NotificationContent) {
+async function dispatch(userId: string, email: string, phone: string | null, type: NotificationEventType, appointmentId: string | null, content: NotificationContent) {
   await prisma.notification.create({
     data: { userId, type, title: content.title, body: content.body, appointmentId },
   });
@@ -148,4 +149,29 @@ export async function notifyAppointmentEvent(type: NotificationEventType, appoin
     console.error('Erreur envoi notification rendez-vous:', error);
     return { success: false, error: 'Erreur serveur' };
   }
+}
+
+// Notifie tous les artistes en liste d'attente qu'un créneau vient de se
+// libérer (annulation) sur ce studio, puis retire ces entrées - à charge
+// pour eux de se rejoindre en liste d'attente s'ils manquent à nouveau le
+// créneau (voir BUSINESS-PLAN.md "Croissance et rétention").
+export async function notifyWaitlistForFreedSlot(studioId: string, date: Date, startTime: string): Promise<void> {
+  const entries = await prisma.waitlist.findMany({
+    where: { studioId, date, startTime },
+    include: { user: true, studio: { select: { name: true } } },
+  });
+
+  if (entries.length === 0) return;
+
+  const dateStr = date.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  for (const entry of entries) {
+    await dispatch(entry.user.id, entry.user.email, entry.user.phone, 'waitlist_slot_available', null, {
+      title: `🔔 Un créneau s'est libéré - ${entry.studio.name}`,
+      body: `Le créneau du ${dateStr} à ${startTime} chez ${entry.studio.name} vient de se libérer. Réserve vite si tu es toujours intéressé(e) !`,
+      smsMessage: `Studiolib : créneau libéré le ${dateStr} à ${startTime} chez ${entry.studio.name}. Réserve vite !`,
+    });
+  }
+
+  await prisma.waitlist.deleteMany({ where: { studioId, date, startTime } });
 }

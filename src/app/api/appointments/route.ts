@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { ARTIST_COMMISSION_RATE, ARTIST_COMMISSION_REFUND_CUTOFF_HOURS } from '@/lib/tax-config';
-import { notifyAppointmentEvent } from '@/lib/notifications';
+import { notifyAppointmentEvent, notifyWaitlistForFreedSlot } from '@/lib/notifications';
 import { completeAppointment } from '@/lib/appointment-lifecycle';
 
 // GET - Rendez-vous de l'utilisateur ou du studio
@@ -274,6 +274,8 @@ export async function PUT(request: NextRequest) {
       } else {
         await notifyAppointmentEvent('booking_cancelled_by_artist', id);
       }
+      // Le créneau vient de se libérer : alerte la liste d'attente éventuelle
+      await notifyWaitlistForFreedSlot(existingAppt.studioId, existingAppt.date, existingAppt.startTime);
     }
 
     // Release la pré-autorisation (aucun débit) en cas d'annulation - la

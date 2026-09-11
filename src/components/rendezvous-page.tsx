@@ -24,6 +24,7 @@ interface TimeSlot {
   endTime: string;
   available: boolean;
   selected: boolean;
+  reason?: string;
 }
 
 interface Appointment {
@@ -57,6 +58,8 @@ export default function RendezvousPage() {
   const [activeTab, setActiveTab] = useState<'booking' | 'upcoming' | 'past'>('booking');
   const [bookingType, setBookingType] = useState<'studio' | 'e_studio'>('studio');
   const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null);
+  const [waitlistedTimes, setWaitlistedTimes] = useState<Set<string>>(new Set());
+  const [waitlistLoading, setWaitlistLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -107,12 +110,56 @@ export default function RendezvousPage() {
       } else {
         setRecommendedStudios([]);
       }
+      fetchWaitlist();
     } catch (error) {
       console.error('Error fetching slots:', error);
       // Generate default slots
       generateDefaultSlots();
     } finally {
       setLoadingSlots(false);
+    }
+  };
+
+  const fetchWaitlist = async () => {
+    if (!selectedStudio) return;
+    try {
+      const dateStr = selectedDate.toISOString().split('T')[0];
+      const res = await fetch(`/api/studios/${selectedStudio.id}/waitlist`);
+      const data = await res.json();
+      const times = (data.entries || [])
+        .filter((e: { date: string }) => e.date.slice(0, 10) === dateStr)
+        .map((e: { startTime: string }) => e.startTime);
+      setWaitlistedTimes(new Set(times));
+    } catch {
+      // best-effort
+    }
+  };
+
+  const toggleWaitlist = async (slot: TimeSlot) => {
+    if (!selectedStudio) return;
+    const dateStr = selectedDate.toISOString().split('T')[0];
+    setWaitlistLoading(slot.startTime);
+    try {
+      const isJoined = waitlistedTimes.has(slot.startTime);
+      if (isJoined) {
+        await fetch(`/api/studios/${selectedStudio.id}/waitlist?date=${dateStr}&startTime=${slot.startTime}`, { method: 'DELETE' });
+        setWaitlistedTimes((prev) => {
+          const next = new Set(prev);
+          next.delete(slot.startTime);
+          return next;
+        });
+      } else {
+        await fetch(`/api/studios/${selectedStudio.id}/waitlist`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: dateStr, startTime: slot.startTime }),
+        });
+        setWaitlistedTimes((prev) => new Set(prev).add(slot.startTime));
+      }
+    } catch {
+      // best-effort
+    } finally {
+      setWaitlistLoading(null);
     }
   };
 
@@ -427,27 +474,45 @@ export default function RendezvousPage() {
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {slots.map((slot, index) => (
-                      <button
-                        key={index}
-                        onClick={() => toggleSlot(index)}
-                        disabled={!slot.available}
-                        className={`relative p-4 rounded-xl text-center transition-all ${
-                          !slot.available
-                            ? 'bg-[#1a1a1a] border border-[#2a2a2a] cursor-not-allowed opacity-50'
-                            : slot.selected
+                      slot.available ? (
+                        <button
+                          key={index}
+                          onClick={() => toggleSlot(index)}
+                          className={`relative p-4 rounded-xl text-center transition-all ${
+                            slot.selected
                               ? 'bg-[#6366f1] border-2 border-[#6366f1] text-white'
                               : 'bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#6366f1] text-white'
-                        }`}
-                      >
-                        <p className="font-semibold">{slot.startTime}</p>
-                        <p className="text-sm opacity-70">{slot.endTime}</p>
-                        {!slot.available && (
-                          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-                        )}
-                        {slot.selected && (
-                          <Check className="absolute top-1 right-1 w-4 h-4" />
-                        )}
-                      </button>
+                          }`}
+                        >
+                          <p className="font-semibold">{slot.startTime}</p>
+                          <p className="text-sm opacity-70">{slot.endTime}</p>
+                          {slot.selected && (
+                            <Check className="absolute top-1 right-1 w-4 h-4" />
+                          )}
+                        </button>
+                      ) : (
+                        <div
+                          key={index}
+                          className="relative p-4 rounded-xl text-center bg-[#1a1a1a] border border-[#2a2a2a]"
+                        >
+                          <p className="font-semibold text-white opacity-50">{slot.startTime}</p>
+                          <p className="text-sm opacity-50 text-white">{slot.endTime}</p>
+                          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full opacity-50" />
+                          {slot.reason === 'booked' && (
+                            <button
+                              onClick={() => toggleWaitlist(slot)}
+                              disabled={waitlistLoading === slot.startTime}
+                              className={`mt-1 w-full text-[10px] px-1.5 py-1 rounded-lg disabled:opacity-50 ${
+                                waitlistedTimes.has(slot.startTime)
+                                  ? 'bg-[#6366f1]/20 text-[#6366f1]'
+                                  : 'bg-[#2a2a2a] text-gray-400 hover:text-white'
+                              }`}
+                            >
+                              {waitlistedTimes.has(slot.startTime) ? 'Inscrit ✓' : "Liste d'attente"}
+                            </button>
+                          )}
+                        </div>
+                      )
                     ))}
                   </div>
                 )}

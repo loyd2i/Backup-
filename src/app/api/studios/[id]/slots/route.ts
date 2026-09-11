@@ -89,10 +89,16 @@ export async function GET(
       const slotDate = new Date(dateStr + 'T' + startTime + ':00');
       const isPast = slotDate < now;
 
+      let reason: string | undefined;
+      if (isBooked) reason = 'booked';
+      else if (isBlocked) reason = 'blocked';
+      else if (isPast) reason = 'past';
+
       slots.push({
         startTime,
         endTime,
-        available: !isBlocked && !isBooked && !isPast
+        available: !isBlocked && !isBooked && !isPast,
+        ...(reason && { reason }),
       });
     }
 
