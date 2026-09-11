@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Calendar, Clock, MapPin, ChevronLeft, ChevronRight, Star, AlertCircle, Check, X, Download } from 'lucide-react';
+import { Calendar, Clock, MapPin, ChevronLeft, ChevronRight, Star, AlertCircle, Check, X, Download, Flag } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import EmptyState from './ui/empty-state';
 import ReviewModal from './review-modal';
+import ReportModal from './report-modal';
 import { ARTIST_COMMISSION_RATE, ARTIST_COMMISSION_REFUND_CUTOFF_HOURS } from '@/lib/tax-config';
 
 interface Studio {
@@ -58,6 +59,7 @@ export default function RendezvousPage() {
   const [activeTab, setActiveTab] = useState<'booking' | 'upcoming' | 'past'>('booking');
   const [bookingType, setBookingType] = useState<'studio' | 'e_studio'>('studio');
   const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null);
+  const [reportAppointmentId, setReportAppointmentId] = useState<string | null>(null);
   const [waitlistedTimes, setWaitlistedTimes] = useState<Set<string>>(new Set());
   const [waitlistLoading, setWaitlistLoading] = useState<string | null>(null);
 
@@ -674,6 +676,13 @@ export default function RendezvousPage() {
                         >
                           <Download className="w-4 h-4" />
                         </button>
+                        <button
+                          onClick={() => setReportAppointmentId(rdv.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-[#2a2a2a] rounded-lg transition-colors"
+                          title="Signaler un problème"
+                        >
+                          <Flag className="w-4 h-4" />
+                        </button>
                       </>
                     )}
                   </div>
@@ -760,6 +769,13 @@ export default function RendezvousPage() {
           direction="artist_to_studio"
           targetLabel="ce studio"
           onClose={() => setReviewAppointmentId(null)}
+        />
+      )}
+
+      {reportAppointmentId && (
+        <ReportModal
+          appointmentId={reportAppointmentId}
+          onClose={() => setReportAppointmentId(null)}
         />
       )}
     </div>

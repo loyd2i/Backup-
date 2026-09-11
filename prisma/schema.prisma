@@ -49,6 +49,7 @@ model User {
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
   reviewsWritten    Review[]
+  reportsFiled      AppointmentReport[]
   waitlistEntries   Waitlist[]
   trackComments     TrackComment[]
   sharedTracks      TrackShare[]
@@ -283,6 +284,7 @@ model Appointment {
   eStudioSession   EStudioSession?
 
   reviews Review[]
+  reports AppointmentReport[]
 }
 
 // Empreinte de paiement (pré-autorisation)
@@ -507,6 +509,20 @@ model Review {
   createdAt     DateTime    @default(now())
 
   @@unique([appointmentId, direction])
+}
+
+// Signalement d'un problème sur une session terminée (litige) - traité
+// manuellement par l'équipe, pas d'arbitrage automatisé pour l'instant.
+// Voir BUSINESS-PLAN.md "Confiance et sécurité".
+model AppointmentReport {
+  id            String      @id @default(cuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  reporterId    String
+  reporter      User        @relation(fields: [reporterId], references: [id])
+  reason        String
+  status        String      @default("open") // open, resolved
+  createdAt     DateTime    @default(now())
 }
 
 // ============================================

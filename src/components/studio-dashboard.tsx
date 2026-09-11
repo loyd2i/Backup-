@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye, Star } from 'lucide-react';
+import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye, Star, Flag } from 'lucide-react';
 import StudioHoursSettings from './studio-hours-settings';
 import EmptyState from './ui/empty-state';
 import StudioShowcasePage from './studio-showcase-page';
 import AudioPlayer from './audio-player';
 import AudioPlayerWithVersions from './audio-player-with-versions';
 import ReviewModal from './review-modal';
+import ReportModal from './report-modal';
 
 interface Appointment {
   id: string;
@@ -88,6 +89,7 @@ export default function StudioDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'invoices' | 'projects' | 'hours' | 'vitrine'>('overview');
   const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null);
+  const [reportAppointmentId, setReportAppointmentId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStudioData();
@@ -572,13 +574,22 @@ export default function StudioDashboard() {
                             </>
                           )}
                           {apt.status === 'completed' && (
-                            <button
-                              onClick={() => setReviewAppointmentId(apt.id)}
-                              className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-[#f59e0b] transition-colors"
-                              title="Laisser un avis sur l'artiste"
-                            >
-                              <Star className="w-4 h-4" />
-                            </button>
+                            <>
+                              <button
+                                onClick={() => setReviewAppointmentId(apt.id)}
+                                className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-[#f59e0b] transition-colors"
+                                title="Laisser un avis sur l'artiste"
+                              >
+                                <Star className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setReportAppointmentId(apt.id)}
+                                className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-red-400 transition-colors"
+                                title="Signaler un problème"
+                              >
+                                <Flag className="w-4 h-4" />
+                              </button>
+                            </>
                           )}
                           {apt.status === 'cancelled' && (
                             <span className="text-gray-600 text-sm">—</span>
@@ -754,6 +765,13 @@ export default function StudioDashboard() {
           direction="studio_to_artist"
           targetLabel="cet artiste"
           onClose={() => setReviewAppointmentId(null)}
+        />
+      )}
+
+      {reportAppointmentId && (
+        <ReportModal
+          appointmentId={reportAppointmentId}
+          onClose={() => setReportAppointmentId(null)}
         />
       )}
     </div>
