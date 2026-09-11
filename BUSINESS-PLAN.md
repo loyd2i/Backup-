@@ -68,21 +68,19 @@ Plateforme indépendante des labels majors : pas de gatekeeping, pas de comité 
 - Démarrage progressif : un tarif "partenaire fondateur" réduit pour les 2-3 premiers partenaires, ne pas saturer le site de pub dès le lancement (garder la crédibilité pour les premiers utilisateurs)
 - Revenu à considérer comme un second étage une fois la base d'utilisateurs installée, pas comme un revenu de démarrage
 
-## Confiance et sécurité (angles morts identifiés)
+## Confiance et sécurité
 
-Deux manques repérés en relisant l'ensemble du plan, à traiter avant de monter en volume de réservations — pas encore conçus ni implémentés.
-
-- **Résolution de litiges** : rien n'est prévu si un artiste conteste la qualité d'une session ou ne se présente pas (no-show), ou si un studio conteste le comportement d'un artiste. Aujourd'hui, le seul recours est l'avis public (split sheets/avis croisés) — insuffisant à l'échelle : il faut un canal de signalement + une procédure d'arbitrage (même minimale, traitée manuellement par l'équipe au début) avant que le volume de réservations rende ça intenable.
-- **Dépôt de garantie matériel** : aucune protection studio en cas de dégât de matériel pendant une session. Un forfait optionnel additionnel (pré-autorisé comme le prix de la session, capturé seulement en cas de déclaration de dégât) réglerait le problème et serait une ligne de revenu supplémentaire, sur le modèle des dépôts de garantie de location.
+- **Assurance matériel : responsabilité individuelle, pas un produit plateforme.** Chaque partie (studio, artiste) assure son propre matériel via son statut (auto-entreprise, société) — la plateforme ne propose pas de dépôt de garantie généraliste. Exception : un studio qui loue ses locaux pour des séminaires peut demander un dépôt de garantie de son propre chef, géré indépendamment (hors périmètre plateforme, facultatif).
+- **Résolution de litiges** : la plateforme fournit la preuve de l'heure exacte à laquelle la session a eu lieu (déjà disponible via l'horodatage de l'Appointment), et un moyen de **signaler un problème** sur une session terminée — canal de signalement simple, traité manuellement par l'équipe au démarrage (pas d'arbitrage automatisé). S'appuie sur les avis croisés déjà en place comme premier niveau de signal, le signalement formel intervenant au-delà d'un simple avis négatif. Pas encore implémenté.
 
 ## Croissance et rétention (pistes non implémentées)
 
-Idées identifiées comme complémentaires à ce qui existe déjà, pas encore tranchées ni implémentées.
+Idées identifiées comme complémentaires à ce qui existe déjà, mécaniques tranchées, pas encore implémentées.
 
 - **Liste d'attente sur annulation** : à l'annulation d'un créneau confirmé, notifier automatiquement les artistes ayant manifesté un intérêt pour ce studio/créneau (le système de notifications existant peut être réutilisé tel quel). Récupère du chiffre d'affaires que les studios perdent sinon sur les annulations tardives.
-- **Packs d'heures prépayées** : un artiste achète un lot d'heures à l'avance à tarif réduit, consommable sur un ou plusieurs studios. Entrée de trésorerie immédiate pour la plateforme/les studios, complète le système de points fidélité déjà en place (plus de dépense réelle trackée = plus de points).
-- **Tarification heures creuses** : un studio peut proposer un tarif réduit sur ses créneaux habituellement invendus (visible comme tel dans la recherche/le calendrier). Gagnant-gagnant : le studio rentabilise un temps mort, l'artiste paie moins cher — personne ne perd sur la commission plateforme puisqu'elle reste un pourcentage.
-- **Marketplace de sample packs / instrus entre artistes** (via Onelib) : cohérent avec le positionnement d'indépendance vis-à-vis des majors, et réutilise l'infra de distribution/catalogue déjà construite pour Onelib plutôt que d'en bâtir une nouvelle.
+- **Packs d'heures prépayées, figés par studio** : l'artiste achète un lot d'heures à tarif réduit chez **un studio précis** (pas un crédit multi-studio) — carte de fidélité classique par enseigne. Entrée de trésorerie immédiate pour ce studio, complète le système de points fidélité déjà en place (plus de dépense réelle trackée = plus de points).
+- **Tarification heures creuses, au cas par cas** : le studio applique une remise ponctuelle sur un créneau précis resté invendu (pas une règle récurrente automatique par jour/horaire). Gagnant-gagnant : le studio rentabilise un temps mort, l'artiste paie moins cher — la commission plateforme reste un pourcentage, donc personne n'y perd.
+- **Marketplace de sample packs / instrus entre artistes** (via Onelib) : commission plateforme **~4%**, alignée sur le taux des réservations plutôt que sur le standard du secteur (~10% façon Splice) — cohérent avec le positionnement "l'artiste garde le contrôle et la majorité de ses revenus" déjà affiché dans ce document. Réutilise l'infra de distribution/catalogue déjà construite pour Onelib plutôt que d'en bâtir une nouvelle.
 - **Parrainage** : avantage (mois d'abonnement offert côté studio, points bonus côté artiste) pour qui amène un nouveau studio/artiste actif sur la plateforme. Coût quasi nul à mettre en place, levier de croissance classique et éprouvé.
 
 ## Infrastructure et coûts tiers
