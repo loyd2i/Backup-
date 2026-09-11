@@ -17,7 +17,8 @@ export type NotificationEventType =
   | 'booking_cancelled_by_artist'// -> studio  : l'artiste a annulé son rendez-vous
   | 'reminder_2h'                // -> artiste + studio : la session démarre dans 2h
   | 'session_completed'          // -> artiste + studio : session terminée, avis + facture disponibles
-  | 'waitlist_slot_available';   // -> artiste en liste d'attente : le créneau visé vient de se libérer
+  | 'waitlist_slot_available'    // -> artiste en liste d'attente : le créneau visé vient de se libérer
+  | 'referral_reward';           // -> parrain : son filleul est actif, récompense accordée
 
 interface NotificationContent {
   title: string;
@@ -174,4 +175,17 @@ export async function notifyWaitlistForFreedSlot(studioId: string, date: Date, s
   }
 
   await prisma.waitlist.deleteMany({ where: { studioId, date, startTime } });
+}
+
+// Notifie un parrain que son filleul est devenu actif et que sa récompense
+// de parrainage vient d'être accordée (voir src/lib/referrals.ts).
+export async function notifyReferralReward(referrerId: string, rewardDescription: string): Promise<void> {
+  const referrer = await prisma.user.findUnique({ where: { id: referrerId } });
+  if (!referrer) return;
+
+  await dispatch(referrer.id, referrer.email, referrer.phone, 'referral_reward', null, {
+    title: '🎉 Ton parrainage a porté ses fruits !',
+    body: `Ton filleul est actif sur Studiolib : ${rewardDescription}`,
+    smsMessage: `Studiolib : ton parrainage a porté ses fruits ! ${rewardDescription}`,
+  });
 }

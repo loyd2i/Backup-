@@ -8,10 +8,14 @@ import { Button } from '@/components/ui/button';
 import Logo from './logo';
 import { User, Building2 } from 'lucide-react';
 
-export default function LoginPage() {
+interface Props {
+  referralCode?: string | null;
+}
+
+export default function LoginPage({ referralCode }: Props) {
   const setCurrentPage = useAppStore((state) => state.setCurrentPage);
   const login = useAppStore((state) => state.login);
-  const [isRegister, setIsRegister] = useState(false);
+  const [isRegister, setIsRegister] = useState(!!referralCode);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -65,8 +69,8 @@ export default function LoginPage() {
 
     try {
       const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
-      const body = isRegister 
-        ? { ...formData, role: 'artiste' }
+      const body = isRegister
+        ? { ...formData, role: 'artiste', referralCode }
         : { email: formData.email, password: formData.password };
 
       const res = await fetch(endpoint, {
@@ -193,6 +197,11 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isRegister && referralCode && (
+            <p className="text-center text-sm text-[#6366f1] bg-[#6366f1]/10 rounded-lg py-2 px-3">
+              Tu rejoins Studiolib grâce à une invitation 🎉
+            </p>
+          )}
           {isRegister && (
             <>
               <div className="space-y-2">

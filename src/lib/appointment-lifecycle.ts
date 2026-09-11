@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { PLATFORM_COMMISSION_RATE } from '@/lib/tax-config';
 import { notifyAppointmentEvent } from '@/lib/notifications';
+import { grantReferralRewardIfPending } from '@/lib/referrals';
 
 // Complète un rendez-vous confirmé : capture la pré-autorisation, génère la
 // facture, crédite le portefeuille studio (commission plateforme), clôture
@@ -82,4 +83,9 @@ export async function completeAppointment(appointmentId: string): Promise<void> 
   }
 
   await notifyAppointmentEvent('session_completed', appointmentId);
+
+  // Première session menée à terme = signal "filleul actif" pour un
+  // éventuel parrainage en attente, côté artiste comme côté studio.
+  await grantReferralRewardIfPending(existingAppt.userId);
+  await grantReferralRewardIfPending(existingAppt.studio.ownerId);
 }

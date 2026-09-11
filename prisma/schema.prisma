@@ -34,6 +34,11 @@ model User {
   // plateforme déjà déduite - voir MarketplaceItem/MarketplacePurchase.
   walletBalance Float   @default(0)
 
+  // Points bonus de parrainage (voir Referral) - s'ajoutent à l'affichage
+  // des points fidélité habituels, jamais transférables ni convertibles en
+  // cash (même règle que les points fidélité, voir BUSINESS-PLAN.md).
+  referralBonusPoints Int @default(0)
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
@@ -74,6 +79,10 @@ model User {
   // Marketplace (sample packs / instrus entre artistes)
   marketplaceItemsSold     MarketplaceItem[]     @relation("MarketplaceItemsSold")
   marketplacePurchasesMade MarketplacePurchase[] @relation("MarketplacePurchasesMade")
+
+  // Parrainage
+  referralsMade    Referral[] @relation("ReferralsMade")
+  referralReceived Referral?  @relation("ReferralReceived")
 
   passwordResetTokens   PasswordResetToken[]
 }
@@ -940,4 +949,20 @@ model MarketplacePurchase {
   createdAt        DateTime        @default(now())
 
   @@unique([buyerId, itemId])
+}
+
+// Parrainage : récompense qui a amené un nouveau studio/artiste actif sur la
+// plateforme (voir BUSINESS-PLAN.md "Croissance et rétention") - un mois
+// d'abonnement offert si le parrain est un studio, des points bonus s'il est
+// artiste. Accordée une seule fois, à la première session menée à terme par
+// le filleul (voir src/lib/referrals.ts).
+model Referral {
+  id              String    @id @default(cuid())
+  referrerId      String
+  referrer        User      @relation("ReferralsMade", fields: [referrerId], references: [id])
+  referredUserId  String    @unique
+  referredUser    User      @relation("ReferralReceived", fields: [referredUserId], references: [id])
+  rewardGranted   Boolean   @default(false)
+  rewardGrantedAt DateTime?
+  createdAt       DateTime  @default(now())
 }

@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, name, phone, role } = body;
+    const { email, password, name, phone, role, referralCode } = body;
 
     if (!email || !password || !name) {
       return NextResponse.json(
@@ -48,6 +48,18 @@ export async function POST(request: NextRequest) {
         createdAt: true
       }
     });
+
+    // Parrainage (voir BUSINESS-PLAN.md "Croissance et rétention") : la
+    // récompense n'est accordée qu'à la première session menée à terme du
+    // filleul (voir src/lib/referrals.ts), pas à l'inscription elle-même.
+    if (referralCode && referralCode !== user.id) {
+      const referrer = await prisma.user.findUnique({ where: { id: referralCode } });
+      if (referrer) {
+        await prisma.referral.create({
+          data: { referrerId: referrer.id, referredUserId: user.id },
+        });
+      }
+    }
 
     // Créer le cookie de session
     const cookieStore = await cookies();

@@ -34,6 +34,7 @@ export default function StudiolibApp() {
   const [publicStudioId, setPublicStudioId] = useState<string | null>(null);
   const [publicSlug, setPublicSlug] = useState<string | null>(null);
   const [publicArtistId, setPublicArtistId] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   // Enregistre le service worker (PWA + notifications push), indépendamment
   // de l'état de connexion : l'abonnement effectif se fait depuis Réglages.
@@ -57,6 +58,9 @@ export default function StudiolibApp() {
       if (slugParam) setPublicSlug(slugParam);
       if (artistParam) setPublicArtistId(artistParam);
     }
+
+    const refParam = params.get('ref');
+    if (refParam) setReferralCode(refParam);
   }, []);
 
   // Listen for URL changes (browser back/forward)
@@ -187,7 +191,7 @@ export default function StudiolibApp() {
 
   // Show login page if not logged in
   if (!isLoggedIn || currentPage === 'login') {
-    return <LoginPage />;
+    return <LoginPage referralCode={referralCode} />;
   }
 
   // Check if user is studio owner

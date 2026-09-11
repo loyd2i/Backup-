@@ -20,6 +20,7 @@ import {
   X,
   Sparkles,
   Bell,
+  Gift,
 } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { PLATFORM_COMMISSION_RATE, ARTIST_COMMISSION_RATE } from '@/lib/tax-config';
@@ -69,9 +70,22 @@ export default function ReglagesPage() {
   const [pushLoading, setPushLoading] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
   const [pushSupported, setPushSupported] = useState(false);
+  const [referralData, setReferralData] = useState<{
+    referralCode: string;
+    referralBonusPoints: number;
+    referrals: { id: string; referredUserName: string; referredUserRole: string; rewardGranted: boolean; createdAt: string }[];
+  } | null>(null);
+  const [referralLinkCopied, setReferralLinkCopied] = useState(false);
 
   const isStudioOwner = user?.role === 'studio_owner';
   const publicPath = isStudioOwner ? (studioId ? `/studio/${studioId}` : null) : `/artiste/${user?.id}`;
+
+  useEffect(() => {
+    if (!user) return;
+    fetch('/api/referrals').then(res => res.json()).then(data => {
+      if (data.referralCode) setReferralData(data);
+    }).catch(() => {});
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -177,6 +191,14 @@ export default function ReglagesPage() {
     navigator.clipboard.writeText(`${window.location.origin}${publicPath}`).then(() => {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
+
+  const copyReferralLink = () => {
+    if (!referralData) return;
+    navigator.clipboard.writeText(`${window.location.origin}/?ref=${referralData.referralCode}`).then(() => {
+      setReferralLinkCopied(true);
+      setTimeout(() => setReferralLinkCopied(false), 2000);
     });
   };
 
@@ -553,6 +575,53 @@ export default function ReglagesPage() {
                 <p className="text-2xl font-bold text-white my-1">{SUBSCRIPTION_PLANS[0].monthlyPrice}€<span className="text-sm text-gray-400 font-normal">/mois</span></p>
                 <p className="text-gray-500 text-xs">{SUBSCRIPTION_PLANS[0].description}</p>
               </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Parrainage */}
+      {referralData && (
+        <div className="mb-8 bg-[#1a1a1a] rounded-xl p-6 border border-[#2a2a2a]">
+          <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+            <Gift className="w-5 h-5 text-[#6366f1]" />
+            Parrainage
+          </h2>
+          <p className="text-gray-400 text-sm mb-4">
+            {isStudioOwner
+              ? "Partage ton lien : dès qu'un studio ou artiste parrainé mène sa première session à terme, tu reçois un mois d'abonnement offert."
+              : "Partage ton lien : dès qu'un studio ou artiste parrainé mène sa première session à terme, tu reçois des points bonus."}
+          </p>
+
+          <div className="flex items-center gap-2 bg-[#2a2a2a] rounded-lg p-3 mb-4">
+            <p className="flex-1 text-gray-300 text-sm truncate">
+              {typeof window !== 'undefined' ? `${window.location.origin}/?ref=${referralData.referralCode}` : ''}
+            </p>
+            <button
+              onClick={copyReferralLink}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#3a3a3a] text-white hover:bg-[#454545] transition-colors flex-shrink-0"
+            >
+              {referralLinkCopied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {referralLinkCopied ? 'Copié' : 'Copier'}
+            </button>
+          </div>
+
+          {!isStudioOwner && referralData.referralBonusPoints > 0 && (
+            <p className="text-gray-400 text-sm mb-3">
+              <span className="text-white font-semibold">{referralData.referralBonusPoints.toLocaleString('fr-FR')} points bonus</span> gagnés grâce au parrainage
+            </p>
+          )}
+
+          {referralData.referrals.length > 0 && (
+            <div className="divide-y divide-[#2a2a2a] border-t border-[#2a2a2a]">
+              {referralData.referrals.map((r) => (
+                <div key={r.id} className="flex items-center justify-between py-2.5">
+                  <span className="text-gray-300 text-sm">{r.referredUserName}</span>
+                  <span className={`text-xs px-2 py-1 rounded-full ${r.rewardGranted ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                    {r.rewardGranted ? 'Récompense accordée' : 'En attente'}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
