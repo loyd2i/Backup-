@@ -45,6 +45,10 @@ model User {
   forumComments     ForumComment[]
   forumLikes        ForumLike[]
   emailLogs         EmailLog[]
+  smsLogs           SmsLog[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
+  reviewsWritten    Review[]
   trackComments     TrackComment[]
   sharedTracks      TrackShare[]
 
@@ -245,7 +249,8 @@ model Appointment {
   notes            String?
   totalPrice       Float?
   confirmationSent Boolean  @default(false)
-  reminderSent     Boolean  @default(false)
+  reminderSent     Boolean  @default(false) // rappel 2h avant le début (voir scheduler)
+  sessionEndNotified Boolean @default(false) // notif de fin de session + demande d'avis envoyée
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -259,6 +264,8 @@ model Appointment {
 
   // Session E-Studio liée (si type = e_studio, créée à la confirmation)
   eStudioSession   EStudioSession?
+
+  reviews Review[]
 }
 
 // Empreinte de paiement (pré-autorisation)
@@ -427,6 +434,62 @@ model EmailLog {
   subject        String
   status         String   @default("sent") // sent, failed
   sentAt         DateTime @default(now())
+}
+
+// SMS simulé (même principe qu'EmailLog : loggué, pas de vrai envoi Twilio)
+model SmsLog {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  phone         String
+  type          String
+  appointmentId String?
+  message       String
+  status        String   @default("sent") // sent, failed
+  sentAt        DateTime @default(now())
+}
+
+// Notification in-app (centre de notifications, cloche)
+model Notification {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  type          String    // booking_requested, booking_confirmed, reminder_2h, session_completed...
+  title         String
+  body          String
+  appointmentId String?
+  readAt        DateTime?
+  createdAt     DateTime  @default(now())
+}
+
+// Abonnement push navigateur (un par appareil/navigateur installé)
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
+
+// Avis croisé en fin de session (voir BUSINESS-PLAN.md notifications).
+// direction fixe qui note qui : artist_to_studio ou studio_to_artist.
+// La note du studio (Studio.rating) est recalculée à chaque nouvel avis
+// artist_to_studio ; les avis studio_to_artist restent privés (visibles
+// par le studio auteur uniquement, pas de profil artiste public noté).
+model Review {
+  id            String      @id @default(cuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  authorId      String
+  author        User        @relation(fields: [authorId], references: [id])
+  direction     String      // artist_to_studio, studio_to_artist
+  rating        Int         // 1 à 5
+  comment       String?
+  createdAt     DateTime    @default(now())
+
+  @@unique([appointmentId, direction])
 }
 
 // ============================================
