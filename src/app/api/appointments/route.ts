@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { PLATFORM_COMMISSION_RATE, ARTIST_COMMISSION_RATE, ARTIST_COMMISSION_REFUND_CUTOFF_HOURS } from '@/lib/tax-config';
-import { sendAppointmentEmail } from '@/lib/appointment-emails';
+import { notifyAppointmentEvent } from '@/lib/notifications';
 
 // GET - Rendez-vous de l'utilisateur ou du studio
 export async function GET(request: NextRequest) {
@@ -130,8 +130,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Notifie l'artiste (demande envoyée) et le studio (nouvelle demande à traiter)
-    await sendAppointmentEmail('request_sent', appointment.id);
-    await sendAppointmentEmail('new_request', appointment.id);
+    await notifyAppointmentEvent('booking_requested', appointment.id);
+    await notifyAppointmentEvent('booking_new_request', appointment.id);
 
     return NextResponse.json({
       appointment,
@@ -213,7 +213,7 @@ export async function PUT(request: NextRequest) {
 
     // Notifie la partie qui n'a pas déclenché le changement de statut
     if (status === 'confirmed') {
-      await sendAppointmentEmail('confirmation', id);
+      await notifyAppointmentEvent('booking_confirmed', id);
 
       // Réservation E-Studio confirmée : crée la session à distance et y
       // rattache directement l'artiste et le studio, sans passer par le
@@ -253,12 +253,12 @@ export async function PUT(request: NextRequest) {
       }
     } else if (status === 'cancelled') {
       if (isStudioOwner) {
-        await sendAppointmentEmail(
-          existingAppt.status === 'pending' ? 'refused' : 'cancelled_by_studio',
+        await notifyAppointmentEvent(
+          existingAppt.status === 'pending' ? 'booking_refused' : 'booking_cancelled_by_studio',
           id
         );
       } else {
-        await sendAppointmentEmail('cancelled_by_artist', id);
+        await notifyAppointmentEvent('booking_cancelled_by_artist', id);
       }
     }
 

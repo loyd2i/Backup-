@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAppStore, PageType } from '@/lib/store';
 import { Home, Calendar, Music, MessageSquare, Settings, Menu, X, MessageCircle, Building2, Users, FileText, BarChart3, Cast, Share2 } from 'lucide-react';
+import NotificationBell from './notification-bell';
 
 interface Props {
   children: React.ReactNode;
@@ -218,6 +219,7 @@ export default function AppLayout({ children, isStudioMode = false }: Props) {
             >
               <Share2 className="w-5 h-5" />
             </button>
+            <NotificationBell />
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors lg:hidden"
