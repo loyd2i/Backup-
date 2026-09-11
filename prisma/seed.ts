@@ -195,7 +195,7 @@ async function main() {
       create: {
         studioId: studio.id,
         plan: 'annual',
-        monthlyPrice: 12,
+        monthlyPrice: 15,
         status: 'active',
         currentPeriodEnd: oneYearFromNow,
         stripeSubscriptionId: `sub_demo_${studio.id}`,

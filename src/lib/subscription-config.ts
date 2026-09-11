@@ -18,7 +18,7 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlanConfig[] = [
   {
     plan: 'annual',
     label: 'Annuel',
-    monthlyPrice: 12,
+    monthlyPrice: 15,
     commitmentMonths: 12,
     description: 'Engagement 1 an obligatoire.',
   },
