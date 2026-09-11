@@ -3,7 +3,8 @@ import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
 // GET - Parrainages de l'utilisateur courant : code à partager et suivi des
-// filleuls (en attente / récompensé)
+// filleuls (en attente / actif). Purement informatif — la plateforme ne
+// crédite ni ne débite rien ici (voir src/lib/referrals.ts).
 export async function GET() {
   try {
     const user = await getCurrentUser();
@@ -15,19 +16,13 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     });
 
-    const current = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { referralBonusPoints: true },
-    });
-
     return NextResponse.json({
       referralCode: user.id,
-      referralBonusPoints: current?.referralBonusPoints || 0,
       referrals: referrals.map((r) => ({
         id: r.id,
         referredUserName: r.referredUser.name,
         referredUserRole: r.referredUser.role,
-        rewardGranted: r.rewardGranted,
+        isActive: r.isActive,
         createdAt: r.createdAt,
       })),
     });

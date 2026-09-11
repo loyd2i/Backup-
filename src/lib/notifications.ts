@@ -18,7 +18,7 @@ export type NotificationEventType =
   | 'reminder_2h'                // -> artiste + studio : la session démarre dans 2h
   | 'session_completed'          // -> artiste + studio : session terminée, avis + facture disponibles
   | 'waitlist_slot_available'    // -> artiste en liste d'attente : le créneau visé vient de se libérer
-  | 'referral_reward';           // -> parrain : son filleul est actif, récompense accordée
+  | 'referral_active';           // -> parrain : son filleul est devenu actif (aucune récompense automatique)
 
 interface NotificationContent {
   title: string;
@@ -177,15 +177,18 @@ export async function notifyWaitlistForFreedSlot(studioId: string, date: Date, s
   await prisma.waitlist.deleteMany({ where: { studioId, date, startTime } });
 }
 
-// Notifie un parrain que son filleul est devenu actif et que sa récompense
-// de parrainage vient d'être accordée (voir src/lib/referrals.ts).
-export async function notifyReferralReward(referrerId: string, rewardDescription: string): Promise<void> {
+// Notifie un parrain que son filleul est devenu actif (voir
+// src/lib/referrals.ts) - purement informatif, la plateforme ne garantit ni
+// ne finance aucune récompense : c'est à charge du parrain d'honorer
+// lui-même sa propre offre de parrainage s'il en a une (studio uniquement,
+// voir Studio.referralOffer).
+export async function notifyReferralActive(referrerId: string): Promise<void> {
   const referrer = await prisma.user.findUnique({ where: { id: referrerId } });
   if (!referrer) return;
 
-  await dispatch(referrer.id, referrer.email, referrer.phone, 'referral_reward', null, {
-    title: '🎉 Ton parrainage a porté ses fruits !',
-    body: `Ton filleul est actif sur Studiolib : ${rewardDescription}`,
-    smsMessage: `Studiolib : ton parrainage a porté ses fruits ! ${rewardDescription}`,
+  await dispatch(referrer.id, referrer.email, referrer.phone, 'referral_active', null, {
+    title: '🎉 Ton filleul est actif sur Studiolib !',
+    body: 'La personne que tu as parrainée vient de mener sa première session à terme. Pense à lui faire profiter de ton offre de parrainage si tu en proposes une.',
+    smsMessage: 'Studiolib : ton filleul est actif ! Pense à lui faire profiter de ton offre de parrainage si tu en proposes une.',
   });
 }

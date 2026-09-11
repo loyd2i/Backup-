@@ -85,6 +85,7 @@ interface Studio {
   youtube: string | null;
   spotify: string | null;
   soundcloud: string | null;
+  referralOffer: string | null;
   photos: StudioPhoto[];
   links: StudioLink[];
   pricingTiers: PricingTier[];
@@ -286,9 +287,17 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
             )}
 
             {studio.equipment && (
-              <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a]">
+              <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a] mb-6">
                 <h2 className="text-white font-bold text-lg mb-3">🎛 Équipement</h2>
                 <p className="text-gray-400 leading-relaxed">{studio.equipment}</p>
+              </div>
+            )}
+
+            {studio.referralOffer && (
+              <div className="bg-[#1a1a1a] rounded-2xl p-6 border border-[#2a2a2a]">
+                <h2 className="text-white font-bold text-lg mb-3">🎁 Offre de parrainage</h2>
+                <p className="text-gray-400 leading-relaxed">{studio.referralOffer}</p>
+                <p className="text-gray-600 text-xs mt-3">Offre proposée et gérée directement par ce studio.</p>
               </div>
             )}
           </div>

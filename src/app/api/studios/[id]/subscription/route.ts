@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { SUBSCRIPTION_PLANS, getSubscriptionPlanConfig, type SubscriptionPlan } from '@/lib/subscription-config';
-import { grantPendingReferralRewardForNewSubscriber } from '@/lib/referrals';
 
 function addMonths(date: Date, months: number): Date {
   const result = new Date(date);
@@ -91,8 +90,6 @@ export async function POST(
         stripeSubscriptionId: `sub_demo_${Date.now()}`,
       },
     });
-
-    await grantPendingReferralRewardForNewSubscriber(user.id);
 
     return NextResponse.json({ subscription });
   } catch (error) {

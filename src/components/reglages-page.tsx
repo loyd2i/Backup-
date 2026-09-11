@@ -72,10 +72,12 @@ export default function ReglagesPage() {
   const [pushSupported, setPushSupported] = useState(false);
   const [referralData, setReferralData] = useState<{
     referralCode: string;
-    referralBonusPoints: number;
-    referrals: { id: string; referredUserName: string; referredUserRole: string; rewardGranted: boolean; createdAt: string }[];
+    referrals: { id: string; referredUserName: string; referredUserRole: string; isActive: boolean; createdAt: string }[];
   } | null>(null);
   const [referralLinkCopied, setReferralLinkCopied] = useState(false);
+  const [referralOffer, setReferralOffer] = useState('');
+  const [isSavingReferralOffer, setIsSavingReferralOffer] = useState(false);
+  const [referralOfferSaved, setReferralOfferSaved] = useState(false);
 
   const isStudioOwner = user?.role === 'studio_owner';
   const publicPath = isStudioOwner ? (studioId ? `/studio/${studioId}` : null) : `/artiste/${user?.id}`;
@@ -114,6 +116,32 @@ export default function ReglagesPage() {
       .then(data => setSubscription(data.subscription || null))
       .catch(() => {});
   }, [isStudioOwner, studioId]);
+
+  useEffect(() => {
+    if (!isStudioOwner || !studioId) return;
+    fetch(`/api/studios/${studioId}`)
+      .then(res => res.json())
+      .then(data => setReferralOffer(data.studio?.referralOffer || ''))
+      .catch(() => {});
+  }, [isStudioOwner, studioId]);
+
+  const saveReferralOffer = async () => {
+    if (!studioId) return;
+    setIsSavingReferralOffer(true);
+    try {
+      const res = await fetch(`/api/studios/${studioId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referralOffer }),
+      });
+      if (res.ok) {
+        setReferralOfferSaved(true);
+        setTimeout(() => setReferralOfferSaved(false), 2000);
+      }
+    } finally {
+      setIsSavingReferralOffer(false);
+    }
+  };
 
   useEffect(() => {
     setPushSupported(isPushSupported());
@@ -588,9 +616,7 @@ export default function ReglagesPage() {
             Parrainage
           </h2>
           <p className="text-gray-400 text-sm mb-4">
-            {isStudioOwner
-              ? "Partage ton lien : dès qu'un studio ou artiste parrainé mène sa première session à terme, tu reçois un mois d'abonnement offert."
-              : "Partage ton lien : dès qu'un studio ou artiste parrainé mène sa première session à terme, tu reçois des points bonus."}
+            Partage ton lien : on te préviendra dès qu'un studio ou artiste parrainé mène sa première session à terme. Studiolib ne garantit ni ne finance aucune récompense — c'est entre toi et la personne que tu parraines.
           </p>
 
           <div className="flex items-center gap-2 bg-[#2a2a2a] rounded-lg p-3 mb-4">
@@ -606,10 +632,32 @@ export default function ReglagesPage() {
             </button>
           </div>
 
-          {!isStudioOwner && referralData.referralBonusPoints > 0 && (
-            <p className="text-gray-400 text-sm mb-3">
-              <span className="text-white font-semibold">{referralData.referralBonusPoints.toLocaleString('fr-FR')} points bonus</span> gagnés grâce au parrainage
-            </p>
+          {isStudioOwner && studioId && (
+            <div className="mb-4">
+              <label className="text-gray-400 text-sm mb-2 block">
+                Ton offre de parrainage (optionnelle, affichée sur ta fiche publique)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={referralOffer}
+                  onChange={(e) => setReferralOffer(e.target.value)}
+                  placeholder="Ex: 1h de studio offerte pour toi et ton filleul"
+                  className="flex-1 bg-[#2a2a2a] text-white rounded-lg p-2.5 border border-[#3a3a3a] focus:border-[#6366f1] focus:outline-none text-sm"
+                />
+                <button
+                  onClick={saveReferralOffer}
+                  disabled={isSavingReferralOffer}
+                  className="flex items-center gap-1.5 text-xs px-3 py-2.5 rounded-lg bg-[#3a3a3a] text-white hover:bg-[#454545] transition-colors disabled:opacity-50 flex-shrink-0"
+                >
+                  {referralOfferSaved ? <Check className="w-3.5 h-3.5 text-green-400" /> : null}
+                  {referralOfferSaved ? 'Enregistré' : 'Enregistrer'}
+                </button>
+              </div>
+              <p className="text-gray-500 text-xs mt-2">
+                C'est toi qui définis et honores cette offre directement avec l'artiste concerné — la plateforme ne prélève ni ne crédite rien.
+              </p>
+            </div>
           )}
 
           {referralData.referrals.length > 0 && (
@@ -617,8 +665,8 @@ export default function ReglagesPage() {
               {referralData.referrals.map((r) => (
                 <div key={r.id} className="flex items-center justify-between py-2.5">
                   <span className="text-gray-300 text-sm">{r.referredUserName}</span>
-                  <span className={`text-xs px-2 py-1 rounded-full ${r.rewardGranted ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                    {r.rewardGranted ? 'Récompense accordée' : 'En attente'}
+                  <span className={`text-xs px-2 py-1 rounded-full ${r.isActive ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                    {r.isActive ? 'Filleul actif' : 'En attente'}
                   </span>
                 </div>
               ))}

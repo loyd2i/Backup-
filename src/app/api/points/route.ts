@@ -23,11 +23,7 @@ export async function GET() {
       grouped.map((row) => [row.userId, Math.round((row._sum.artistCommissionAmount || 0) * POINTS_PER_EURO)])
     );
 
-    const currentUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { referralBonusPoints: true },
-    });
-    const points = (pointsByUserId.get(user.id) || 0) + (currentUser?.referralBonusPoints || 0);
+    const points = pointsByUserId.get(user.id) || 0;
     const { current, next, pointsToNext } = getPointsTier(points);
 
     const topUserIds = Array.from(pointsByUserId.entries())
@@ -39,14 +35,14 @@ export async function GET() {
     const topUsers = topUserIds.length
       ? await prisma.user.findMany({
           where: { id: { in: topUserIds }, role: 'artiste' },
-          select: { id: true, name: true, referralBonusPoints: true },
+          select: { id: true, name: true },
         })
       : [];
 
     const leaderboard = topUserIds
       .map((userId) => topUsers.find((u) => u.id === userId))
-      .filter((u): u is { id: string; name: string; referralBonusPoints: number } => !!u)
-      .map((u) => ({ id: u.id, name: u.name, points: (pointsByUserId.get(u.id) || 0) + u.referralBonusPoints }));
+      .filter((u): u is { id: string; name: string } => !!u)
+      .map((u) => ({ id: u.id, name: u.name, points: pointsByUserId.get(u.id) || 0 }));
 
     return NextResponse.json({
       points,

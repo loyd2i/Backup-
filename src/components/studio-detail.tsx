@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { MapPin, Star, Clock, Phone, ChevronLeft, Calendar, AlertCircle, Users, Wrench, Check } from 'lucide-react';
+import { MapPin, Star, Clock, Phone, ChevronLeft, Calendar, AlertCircle, Users, Wrench, Check, Gift } from 'lucide-react';
 import { ARTIST_COMMISSION_RATE } from '@/lib/tax-config';
 
 interface Studio {
@@ -16,6 +16,7 @@ interface Studio {
   eStudioPricePerHour?: number | null;
   rating: number;
   equipment?: string | null;
+  referralOffer?: string | null;
   capacity?: number | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -561,7 +562,18 @@ export default function StudioDetail({ studioId, onClose }: Props) {
                       <p className="text-gray-300 text-sm">{studio.equipment}</p>
                     </div>
                   )}
-                  
+
+                  {studio.referralOffer && (
+                    <div className="mt-6 pt-6 border-t border-[#2a2a2a]">
+                      <h3 className="text-lg font-medium text-white mb-3 flex items-center gap-2">
+                        <Gift className="w-5 h-5" />
+                        Offre de parrainage
+                      </h3>
+                      <p className="text-gray-300 text-sm">{studio.referralOffer}</p>
+                      <p className="text-gray-600 text-xs mt-2">Offre proposée et gérée directement par ce studio.</p>
+                    </div>
+                  )}
+
                   {studio.owner?.phone && (
                     <div className="mt-6 pt-6 border-t border-[#2a2a2a]">
                       <h3 className="text-lg font-medium text-white mb-3">Contact</h3>

@@ -173,7 +173,7 @@ export async function PATCH(
 
     const data: Record<string, unknown> = {};
     for (const field of [
-      'name', 'description', 'equipment', 'phone', 'country',
+      'name', 'description', 'equipment', 'phone', 'country', 'referralOffer',
       'website', 'instagram', 'twitter', 'facebook', 'youtube', 'spotify', 'soundcloud',
     ]) {
       if (body[field] !== undefined) data[field] = body[field];

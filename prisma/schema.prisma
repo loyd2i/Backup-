@@ -34,11 +34,6 @@ model User {
   // plateforme déjà déduite - voir MarketplaceItem/MarketplacePurchase.
   walletBalance Float   @default(0)
 
-  // Points bonus de parrainage (voir Referral) - s'ajoutent à l'affichage
-  // des points fidélité habituels, jamais transférables ni convertibles en
-  // cash (même règle que les points fidélité, voir BUSINESS-PLAN.md).
-  referralBonusPoints Int @default(0)
-
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
@@ -132,6 +127,12 @@ model Studio {
 
   // Facturation
   country       String   @default("FR") // Code pays pour le taux de TVA (voir src/lib/tax-config.ts)
+
+  // Offre de parrainage définie librement par le studio (texte, ex: "1h
+  // offerte"), affichée sur sa fiche publique. La plateforme ne fait que
+  // tracer les filleuls (voir Referral) - c'est au studio de définir et
+  // honorer lui-même cette offre, aucune responsabilité de notre côté.
+  referralOffer String?
 
   // Portefeuille studio
   walletBalance Float    @default(0) // Solde disponible (net après commission)
@@ -951,18 +952,22 @@ model MarketplacePurchase {
   @@unique([buyerId, itemId])
 }
 
-// Parrainage : récompense qui a amené un nouveau studio/artiste actif sur la
-// plateforme (voir BUSINESS-PLAN.md "Croissance et rétention") - un mois
-// d'abonnement offert si le parrain est un studio, des points bonus s'il est
-// artiste. Accordée une seule fois, à la première session menée à terme par
-// le filleul (voir src/lib/referrals.ts).
+// Parrainage : suivi de qui a amené un nouveau studio/artiste sur la
+// plateforme (voir BUSINESS-PLAN.md "Croissance et rétention"). Purement
+// informatif — la plateforme ne garantit ni ne finance aucune récompense
+// (aucune responsabilité de notre côté) : chaque studio définit lui-même
+// son éventuelle offre de parrainage (voir Studio.referralOffer) et
+// l'honore directement avec la personne concernée. `isActive` marque la
+// première session menée à terme par le filleul, simple signal envoyé au
+// parrain pour qu'il sache honorer sa propre offre s'il en a une (voir
+// src/lib/referrals.ts) — la plateforme ne crédite ni ne débite rien.
 model Referral {
-  id              String    @id @default(cuid())
-  referrerId      String
-  referrer        User      @relation("ReferralsMade", fields: [referrerId], references: [id])
-  referredUserId  String    @unique
-  referredUser    User      @relation("ReferralReceived", fields: [referredUserId], references: [id])
-  rewardGranted   Boolean   @default(false)
-  rewardGrantedAt DateTime?
-  createdAt       DateTime  @default(now())
+  id             String    @id @default(cuid())
+  referrerId     String
+  referrer       User      @relation("ReferralsMade", fields: [referrerId], references: [id])
+  referredUserId String    @unique
+  referredUser   User      @relation("ReferralReceived", fields: [referredUserId], references: [id])
+  isActive       Boolean   @default(false)
+  activatedAt    DateTime?
+  createdAt      DateTime  @default(now())
 }
