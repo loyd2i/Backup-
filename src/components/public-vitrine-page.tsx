@@ -219,10 +219,10 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
       {/* Hero */}
       <div className="relative h-72 md:h-96 overflow-hidden">
         <div
-          className="absolute inset-0 bg-cover bg-center"
+          className="absolute inset-0 bg-cover bg-center scale-110 blur-md"
           style={{ backgroundImage: `url(${allPhotos[0]?.url || '/background-studio.jpg'})` }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-[#121212]/50 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-[#121212]/60 to-transparent" />
 
         {/* Back Button / Studiolib home link */}
         {onBack ? (
@@ -241,13 +241,13 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
           </a>
         )}
 
-        {/* Photo Count */}
+        {/* Voir les photos */}
         {allPhotos.length > 1 && (
           <button
             onClick={() => setShowPhotoModal(true)}
-            className="absolute bottom-4 right-4 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-xl hover:bg-black/70"
+            className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-xl hover:bg-black/70"
           >
-            <Camera className="w-4 h-4" /> {allPhotos.length} photos
+            <Camera className="w-4 h-4" /> Voir les photos
           </button>
         )}
 
@@ -266,10 +266,13 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
               </div>
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-white mb-1">{studio.name}</h1>
-            <div className="flex items-center gap-1.5 text-gray-300 text-sm">
+            <div className="flex items-center gap-1.5 text-gray-300 text-sm mb-2">
               <MapPin className="w-4 h-4" />
               <span>{studio.location}{studio.address ? ` — ${studio.address}` : ''}</span>
             </div>
+            {studio.description && (
+              <p className="text-gray-300 text-sm max-w-2xl line-clamp-2">{studio.description}</p>
+            )}
           </div>
         </div>
       </div>

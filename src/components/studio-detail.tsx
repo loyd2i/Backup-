@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { MapPin, Star, Clock, Phone, ChevronLeft, Calendar, AlertCircle, Users, Wrench, Check, Gift } from 'lucide-react';
+import { MapPin, Star, Clock, Phone, ChevronLeft, ChevronRight, Calendar, AlertCircle, Users, Wrench, Check, Gift, Camera, X } from 'lucide-react';
 import { ARTIST_COMMISSION_RATE } from '@/lib/tax-config';
 
 interface Studio {
@@ -89,6 +89,8 @@ export default function StudioDetail({ studioId, onClose }: Props) {
   const [payWithPackId, setPayWithPackId] = useState<string | null>(null);
   const [isPurchasingPack, setIsPurchasingPack] = useState<string | null>(null);
   const [slotDiscounts, setSlotDiscounts] = useState<{ date: string; startTime: string; discountedPrice: number }[]>([]);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
   useEffect(() => {
     fetchStudio();
@@ -447,6 +449,11 @@ export default function StudioDetail({ studioId, onClose }: Props) {
 
   const { morning, afternoon, evening } = groupSlotsByPeriod();
 
+  const heroPhotos = [
+    ...(studio.imageUrl ? [{ id: 'main', url: studio.imageUrl }] : []),
+    ...(studio.photos || []).slice().sort((a, b) => a.order - b.order),
+  ];
+
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -476,34 +483,34 @@ export default function StudioDetail({ studioId, onClose }: Props) {
           </div>
         ) : (
           <>
-            {/* Photo Gallery - carrousel rectangulaire */}
-            {(() => {
-              const allPhotos = [
-                ...(studio.imageUrl ? [{ id: 'main', url: studio.imageUrl }] : []),
-                ...(studio.photos || []).slice().sort((a, b) => a.order - b.order),
-              ];
-              if (allPhotos.length === 0) return null;
-              return (
-                <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory p-3 border-b border-[#2a2a2a]">
-                  {allPhotos.map((photo) => (
-                    <div
-                      key={photo.id}
-                      className="flex-shrink-0 w-64 sm:w-80 aspect-video bg-[#2a2a2a] rounded-xl overflow-hidden snap-start"
-                    >
-                      <div
-                        className="w-full h-full bg-cover bg-center"
-                        style={{ backgroundImage: `url(${photo.url})` }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
+            {/* Hero - photo floutée en fond, titre + description incorporés */}
+            <div className="relative h-52 sm:h-60 overflow-hidden">
+              <div
+                className="absolute inset-0 bg-cover bg-center scale-110 blur-md"
+                style={{ backgroundImage: `url(${heroPhotos[0]?.url || '/background-studio.jpg'})` }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a] via-[#1a1a1a]/70 to-black/20" />
+
+              {heroPhotos.length > 0 && (
+                <button
+                  onClick={() => { setActivePhotoIndex(0); setShowPhotoModal(true); }}
+                  className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm text-white px-3 py-1.5 rounded-xl text-sm hover:bg-black/70 transition-colors"
+                >
+                  <Camera className="w-4 h-4" /> Voir les photos
+                </button>
+              )}
+
+              <div className="absolute bottom-0 left-0 right-0 p-5">
+                <h1 className="text-2xl font-bold text-white mb-1">{studio.name}</h1>
+                {studio.description && (
+                  <p className="text-gray-300 text-sm line-clamp-2">{studio.description}</p>
+                )}
+              </div>
+            </div>
 
             {/* Studio Info */}
             <div className="p-6 border-b border-[#2a2a2a]">
-              <h1 className="text-2xl font-bold text-white mb-2">{studio.name}</h1>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400 mb-4">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
                 <span className="flex items-center gap-1">
                   <MapPin className="w-4 h-4" />
                   {studio.location}
@@ -519,9 +526,6 @@ export default function StudioDetail({ studioId, onClose }: Props) {
                   </span>
                 )}
               </div>
-              {studio.description && (
-                <p className="text-gray-300">{studio.description}</p>
-              )}
             </div>
 
             {/* Tabs */}
@@ -924,6 +928,47 @@ export default function StudioDetail({ studioId, onClose }: Props) {
           </>
         )}
       </div>
+
+      {/* Photo Modal - carrousel, sans changer de page */}
+      {showPhotoModal && heroPhotos.length > 0 && (
+        <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4">
+          <button
+            onClick={() => setShowPhotoModal(false)}
+            className="absolute top-4 right-4 text-white/70 hover:text-white z-10"
+          >
+            <X className="w-8 h-8" />
+          </button>
+
+          {heroPhotos.length > 1 && (
+            <button
+              onClick={() => setActivePhotoIndex((prev) => (prev - 1 + heroPhotos.length) % heroPhotos.length)}
+              className="absolute left-4 text-white/70 hover:text-white"
+            >
+              <ChevronLeft className="w-8 h-8" />
+            </button>
+          )}
+
+          <img
+            src={heroPhotos[activePhotoIndex]?.url}
+            alt={studio.name}
+            className="max-w-full max-h-[80vh] object-contain rounded-lg"
+          />
+
+          {heroPhotos.length > 1 && (
+            <>
+              <button
+                onClick={() => setActivePhotoIndex((prev) => (prev + 1) % heroPhotos.length)}
+                className="absolute right-4 text-white/70 hover:text-white"
+              >
+                <ChevronRight className="w-8 h-8" />
+              </button>
+              <div className="absolute bottom-4 text-gray-400 text-sm">
+                {activePhotoIndex + 1} / {heroPhotos.length}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
