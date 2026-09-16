@@ -58,6 +58,7 @@ model User {
   hoursPacks        HoursPack[]
   trackComments     TrackComment[]
   sharedTracks      TrackShare[]
+  masterValidationsRequested MasterValidation[]
 
   // E-Studio (sessions collaboratives à distance)
   hostedEStudioSessions EStudioSession[]     @relation("EStudioHost")
@@ -415,6 +416,7 @@ model Track {
   sharedWith      TrackShare[]
   onelibRelease   OnelibRelease?
   collectionEntries OnelibCollectionTrack[]
+  masterValidation  MasterValidation?
 }
 
 // Version d'une track (V1, V2, etc.)
@@ -429,7 +431,27 @@ model TrackVersion {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  masterValidations MasterValidation[]
+
   @@unique([trackId, version])
+}
+
+// Validation du master final par l'artiste, sur proposition du studio.
+// Une seule proposition active par track : une nouvelle demande écrase
+// la précédente (upsert), après un refus par exemple.
+model MasterValidation {
+  id            String    @id @default(cuid())
+  trackId       String    @unique
+  track         Track     @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  versionId     String
+  version       TrackVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User      @relation(fields: [requestedById], references: [id])
+  status        String    @default("pending") // pending, validated, rejected
+  note          String?   // message du studio à la proposition
+  feedback      String?   // retour de l'artiste en cas de demande de révision
+  createdAt     DateTime  @default(now())
+  respondedAt   DateTime?
 }
 
 // Commentaire sur une track

@@ -43,7 +43,19 @@ interface Track {
   youtubeUrl?: string | null;
   appleMusicUrl?: string | null;
   deezerUrl?: string | null;
-  versions?: { id: string; label: string | null; audioUrl: string | null; duration: number | null; createdAt: string }[];
+  versions?: { id: string; version: number; label: string | null; audioUrl: string | null; duration: number | null; createdAt: string }[];
+  masterValidation?: MasterValidation | null;
+}
+
+interface MasterValidation {
+  id: string;
+  status: string; // pending, validated, rejected
+  note?: string | null;
+  feedback?: string | null;
+  createdAt: string;
+  respondedAt?: string | null;
+  version: { id: string; version: number; label: string | null; audioUrl: string; duration: number | null };
+  requestedBy?: { id: string; name: string } | null;
 }
 
 interface TextItem {
@@ -86,6 +98,9 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
   const [newText, setNewText] = useState({ title: '', artist: '', content: '' });
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [editText, setEditText] = useState({ title: '', artist: '', content: '' });
+  const [masterDraft, setMasterDraft] = useState<Record<string, string>>({});
+  const [showRevisionFor, setShowRevisionFor] = useState<Record<string, boolean>>({});
+  const [revisionDraft, setRevisionDraft] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchData();
@@ -324,6 +339,54 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
       throw new Error('Échec de l\'upload de la version');
     }
     fetchData();
+  };
+
+  const handleProposeMaster = async (trackId: string) => {
+    const versionId = masterDraft[trackId];
+    if (!versionId) return;
+    try {
+      const res = await fetch(`/api/tracks/${trackId}/master-validation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ versionId }),
+      });
+      if (res.ok) {
+        setMasterDraft((prev) => ({ ...prev, [trackId]: '' }));
+        fetchData();
+      }
+    } catch (error) {
+      console.error('Error proposing master:', error);
+    }
+  };
+
+  const handleValidateMaster = async (trackId: string) => {
+    try {
+      const res = await fetch(`/api/tracks/${trackId}/master-validation`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'validate' }),
+      });
+      if (res.ok) fetchData();
+    } catch (error) {
+      console.error('Error validating master:', error);
+    }
+  };
+
+  const handleRejectMaster = async (trackId: string) => {
+    try {
+      const res = await fetch(`/api/tracks/${trackId}/master-validation`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', feedback: revisionDraft[trackId] || undefined }),
+      });
+      if (res.ok) {
+        setRevisionDraft((prev) => ({ ...prev, [trackId]: '' }));
+        setShowRevisionFor((prev) => ({ ...prev, [trackId]: false }));
+        fetchData();
+      }
+    } catch (error) {
+      console.error('Error rejecting master:', error);
+    }
   };
 
   const finishedTracks = tracks.filter(t => t.status === 'finished');
@@ -850,6 +913,90 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         </button>
                       </div>
                     </div>
+
+                    {/* Studio : proposer une version comme master final */}
+                    {isStudioMode && track.versions && track.versions.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-[#3a3a3a]/50">
+                        {track.masterValidation?.status === 'pending' ? (
+                          <p className="text-xs text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2">
+                            En attente de validation par l'artiste — « {track.masterValidation.version.label || `V${track.masterValidation.version.version}`} »
+                          </p>
+                        ) : (
+                          <>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <select
+                                value={masterDraft[track.id] || ''}
+                                onChange={(e) => setMasterDraft((prev) => ({ ...prev, [track.id]: e.target.value }))}
+                                className="flex-1 min-w-[140px] bg-[#2a2a2a] text-white text-xs rounded-lg px-2 py-1.5 border border-[#3a3a3a] focus:outline-none focus:border-[#f59e0b]"
+                              >
+                                <option value="">Choisir une version…</option>
+                                {track.versions.map((v) => (
+                                  <option key={v.id} value={v.id}>{v.label || `V${v.version}`}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => handleProposeMaster(track.id)}
+                                disabled={!masterDraft[track.id]}
+                                className="text-xs bg-[#f59e0b]/20 text-[#f59e0b] px-3 py-1.5 rounded-full hover:bg-[#f59e0b]/30 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                              >
+                                Proposer comme master final
+                              </button>
+                            </div>
+                            {track.masterValidation?.status === 'rejected' && (
+                              <p className="text-xs text-red-400 mt-2">
+                                Révision demandée{track.masterValidation.feedback ? ` : "${track.masterValidation.feedback}"` : ''}
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Artiste : valider ou renvoyer le master proposé par le studio */}
+                    {!isStudioMode && track.masterValidation?.status === 'pending' && (
+                      <div className="mt-3 pt-3 border-t border-[#3a3a3a]/50">
+                        <div className="bg-[#f59e0b]/10 border border-[#f59e0b]/30 rounded-lg p-3">
+                          <p className="text-xs text-white font-medium mb-2">
+                            {track.studio?.name || 'Le studio'} propose un master final : « {track.masterValidation.version.label || `V${track.masterValidation.version.version}`} »
+                          </p>
+                          {track.masterValidation.note && (
+                            <p className="text-xs text-gray-400 mb-2">« {track.masterValidation.note} »</p>
+                          )}
+                          <audio controls src={track.masterValidation.version.audioUrl} className="w-full h-8 mb-2" />
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              onClick={() => handleValidateMaster(track.id)}
+                              className="text-xs bg-green-500/20 text-green-400 px-3 py-1.5 rounded-full hover:bg-green-500/30"
+                            >
+                              Valider le master
+                            </button>
+                            <button
+                              onClick={() => setShowRevisionFor((prev) => ({ ...prev, [track.id]: !prev[track.id] }))}
+                              className="text-xs bg-[#2a2a2a] text-gray-300 px-3 py-1.5 rounded-full hover:bg-[#3a3a3a]"
+                            >
+                              Demander une révision
+                            </button>
+                          </div>
+                          {showRevisionFor[track.id] && (
+                            <div className="mt-2 flex gap-2">
+                              <input
+                                type="text"
+                                value={revisionDraft[track.id] || ''}
+                                onChange={(e) => setRevisionDraft((prev) => ({ ...prev, [track.id]: e.target.value }))}
+                                placeholder="Ce qui doit être revu (optionnel)"
+                                className="flex-1 bg-[#2a2a2a] text-white text-xs rounded-lg px-2 py-1.5 border border-[#3a3a3a] focus:outline-none focus:border-[#f59e0b]"
+                              />
+                              <button
+                                onClick={() => handleRejectMaster(track.id)}
+                                className="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded-full hover:bg-red-500/30 whitespace-nowrap"
+                              >
+                                Envoyer
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

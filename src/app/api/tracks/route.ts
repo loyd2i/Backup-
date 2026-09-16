@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
           take: 5
         },
         versions: { orderBy: { version: 'asc' } },
+        masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
         _count: { select: { comments: true, sharedWith: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -53,6 +54,7 @@ export async function GET(request: NextRequest) {
             take: 5
           },
           versions: { orderBy: { version: 'asc' } },
+          masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
           _count: { select: { comments: true, sharedWith: true } }
         },
         orderBy: { createdAt: 'desc' }
@@ -73,6 +75,7 @@ export async function GET(request: NextRequest) {
               take: 5
             },
             versions: { orderBy: { version: 'asc' } },
+            masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
             _count: { select: { comments: true } }
           }
         }
