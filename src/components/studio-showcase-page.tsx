@@ -601,6 +601,12 @@ function StudioEditModal({
 }) {
   const [activeTab, setActiveTab] = useState<'info' | 'photos' | 'links' | 'social'>('info');
   const [isSaving, setIsSaving] = useState(false);
+  const [siretCheck, setSiretCheck] = useState<{
+    status: 'idle' | 'checking' | 'found' | 'not_found' | 'inactive' | 'error';
+    legalName?: string | null;
+    address?: string | null;
+    vatNumber?: string | null;
+  }>({ status: 'idle' });
   const [formData, setFormData] = useState({
     name: studio.name,
     description: studio.description || '',
@@ -688,6 +694,34 @@ function StudioEditModal({
     } catch (error) {
       console.error('Erreur suppression photo galerie:', error);
     }
+  };
+
+  const handleVerifySiret = async () => {
+    if (!/^\d{14}$/.test(formData.siret)) return;
+    setSiretCheck({ status: 'checking' });
+    try {
+      const res = await fetch(`/api/studios/${studio.id}/verify-siret?siret=${formData.siret}`);
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setSiretCheck({ status: 'error' });
+      } else if (!data.found) {
+        setSiretCheck({ status: 'not_found' });
+      } else if (!data.active) {
+        setSiretCheck({ status: 'inactive', legalName: data.legalName, address: data.address });
+      } else {
+        setSiretCheck({ status: 'found', legalName: data.legalName, address: data.address, vatNumber: data.vatNumber });
+      }
+    } catch {
+      setSiretCheck({ status: 'error' });
+    }
+  };
+
+  const applySiretSuggestion = () => {
+    setFormData(prev => ({
+      ...prev,
+      legalName: siretCheck.legalName || prev.legalName,
+      vatNumber: siretCheck.vatNumber || prev.vatNumber,
+    }));
   };
 
   const handleSaveInfo = async () => {
@@ -857,13 +891,47 @@ function StudioEditModal({
               </div>
               <div>
                 <label className="text-gray-400 text-sm mb-2 block">SIRET</label>
-                <input
-                  type="text"
-                  value={formData.siret}
-                  onChange={(e) => setFormData(prev => ({ ...prev, siret: e.target.value.replace(/\D/g, '').slice(0, 14) }))}
-                  placeholder="14 chiffres"
-                  className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.siret}
+                    onChange={(e) => {
+                      setFormData(prev => ({ ...prev, siret: e.target.value.replace(/\D/g, '').slice(0, 14) }));
+                      setSiretCheck({ status: 'idle' });
+                    }}
+                    placeholder="14 chiffres"
+                    className="flex-1 bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleVerifySiret}
+                    disabled={!/^\d{14}$/.test(formData.siret) || siretCheck.status === 'checking'}
+                    className="px-4 bg-[#2a2a2a] text-white rounded-lg border border-[#3a3a3a] hover:border-[#6366f1]/50 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {siretCheck.status === 'checking' ? 'Vérification…' : 'Vérifier'}
+                  </button>
+                </div>
+
+                {siretCheck.status === 'found' && (
+                  <div className="mt-2 bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                    <p className="text-green-400 text-sm font-medium">✓ SIRET actif — {siretCheck.legalName}</p>
+                    {siretCheck.address && <p className="text-gray-400 text-xs mt-1">{siretCheck.address}</p>}
+                    <button type="button" onClick={applySiretSuggestion} className="text-xs text-[#6366f1] hover:underline mt-2">
+                      Utiliser cette raison sociale{siretCheck.vatNumber ? ' et ce n° de TVA' : ''}
+                    </button>
+                  </div>
+                )}
+                {siretCheck.status === 'not_found' && (
+                  <p className="text-red-400 text-xs mt-2">SIRET introuvable dans la base des entreprises. Vérifiez le numéro.</p>
+                )}
+                {siretCheck.status === 'inactive' && (
+                  <p className="text-yellow-400 text-xs mt-2">
+                    Ce SIRET correspond à un établissement fermé{siretCheck.legalName ? ` (${siretCheck.legalName})` : ''}.
+                  </p>
+                )}
+                {siretCheck.status === 'error' && (
+                  <p className="text-gray-500 text-xs mt-2">Vérification indisponible pour le moment, réessayez plus tard.</p>
+                )}
               </div>
               <div>
                 <label className="text-gray-400 text-sm mb-2 block">Statut juridique</label>
