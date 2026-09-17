@@ -58,6 +58,11 @@ interface Studio {
   spotify: string | null;
   soundcloud: string | null;
   country: string;
+  legalName: string | null;
+  siret: string | null;
+  legalStatus: string | null;
+  vatNumber: string | null;
+  vatExempt: boolean;
   photos: StudioPhoto[];
   links: StudioLink[];
 }
@@ -602,6 +607,11 @@ function StudioEditModal({
     equipment: studio.equipment || '',
     phone: studio.phone || '',
     country: studio.country || 'FR',
+    legalName: studio.legalName || '',
+    siret: studio.siret || '',
+    legalStatus: studio.legalStatus || '',
+    vatNumber: studio.vatNumber || '',
+    vatExempt: studio.vatExempt || false,
     eStudioPricePerHour: String(studio.eStudioPricePerHour ?? studio.pricePerHour),
     website: studio.website || '',
     instagram: studio.instagram || '',
@@ -825,6 +835,72 @@ function StudioEditModal({
                   Détermine le taux de TVA appliqué sur vos factures et reçus.
                 </p>
               </div>
+
+              <div className="pt-4 border-t border-[#2a2a2a]">
+                <p className="text-white font-medium text-sm mb-1">Informations légales</p>
+                <p className="text-gray-500 text-xs mb-4">
+                  Utilisées pour générer des factures conformes (mentions obligatoires).
+                </p>
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-2 block">Raison sociale</label>
+                <input
+                  type="text"
+                  value={formData.legalName}
+                  onChange={(e) => setFormData(prev => ({ ...prev, legalName: e.target.value }))}
+                  placeholder={studio.name}
+                  className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
+                />
+                <p className="text-gray-500 text-xs mt-1.5">
+                  Si différente du nom commercial affiché sur votre vitrine.
+                </p>
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-2 block">SIRET</label>
+                <input
+                  type="text"
+                  value={formData.siret}
+                  onChange={(e) => setFormData(prev => ({ ...prev, siret: e.target.value.replace(/\D/g, '').slice(0, 14) }))}
+                  placeholder="14 chiffres"
+                  className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-2 block">Statut juridique</label>
+                <select
+                  value={formData.legalStatus}
+                  onChange={(e) => setFormData(prev => ({ ...prev, legalStatus: e.target.value }))}
+                  className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
+                >
+                  <option value="">Non renseigné</option>
+                  <option value="auto_entrepreneur">Auto-entrepreneur / micro-entreprise</option>
+                  <option value="societe">Société</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-3 bg-[#2a2a2a] rounded-lg p-3 border border-[#3a3a3a]">
+                <input
+                  type="checkbox"
+                  id="vatExempt"
+                  checked={formData.vatExempt}
+                  onChange={(e) => setFormData(prev => ({ ...prev, vatExempt: e.target.checked }))}
+                  className="w-4 h-4"
+                />
+                <label htmlFor="vatExempt" className="text-sm text-gray-300 flex-1">
+                  Franchise en base de TVA (TVA non applicable, art. 293 B du CGI)
+                </label>
+              </div>
+              {!formData.vatExempt && (
+                <div>
+                  <label className="text-gray-400 text-sm mb-2 block">Numéro de TVA intracommunautaire</label>
+                  <input
+                    type="text"
+                    value={formData.vatNumber}
+                    onChange={(e) => setFormData(prev => ({ ...prev, vatNumber: e.target.value }))}
+                    placeholder="FR12345678901"
+                    className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
+                  />
+                </div>
+              )}
               <button
                 onClick={handleSaveInfo}
                 disabled={isSaving}

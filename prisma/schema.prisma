@@ -129,6 +129,15 @@ model Studio {
   // Facturation
   country       String   @default("FR") // Code pays pour le taux de TVA (voir src/lib/tax-config.ts)
 
+  // Identité légale : mentions obligatoires sur les factures/reçus, et base
+  // pour une future conformité à la réforme de la facturation électronique
+  // (le studio reste l'émetteur légal, la plateforme ne fait qu'éditer le document).
+  legalName     String?  // Raison sociale, si différente du nom commercial affiché
+  siret         String?  // SIRET (14 chiffres)
+  legalStatus   String?  // auto_entrepreneur, societe
+  vatNumber     String?  // Numéro de TVA intracommunautaire (sociétés assujetties)
+  vatExempt     Boolean  @default(false) // Franchise en base de TVA (art. 293 B du CGI), courant en auto-entrepreneur
+
   // Offre de parrainage définie librement par le studio (texte, ex: "1h
   // offerte"), affichée sur sa fiche publique. La plateforme ne fait que
   // tracer les filleuls (voir Referral) - c'est au studio de définir et
@@ -156,6 +165,7 @@ model Studio {
   hoursPackOffers    HoursPackOffer[]
   hoursPacks         HoursPack[]
   slotDiscounts      SlotDiscount[]
+  invoices           Invoice[]
 }
 
 // Mouvement du portefeuille studio (crédit après session, commission plateforme)
@@ -525,15 +535,37 @@ model MessageAttachment {
 // Facture
 model Invoice {
   id             String   @id @default(cuid())
+  invoiceNumber  String   @unique // Numérotation séquentielle sans rupture (ex: 2026-000123), exigée par la loi
   userId         String
   user           User     @relation(fields: [userId], references: [id])
+  studioId       String?
+  studio         Studio?  @relation(fields: [studioId], references: [id])
   studioName     String
-  amount         Float
+
+  // Identité légale du studio figée au moment de l'émission : une facture
+  // ne doit pas changer rétroactivement si le studio modifie sa fiche ensuite.
+  sellerLegalName String?
+  sellerSiret     String?
+  sellerAddress   String?
+  sellerVatNumber String?
+  sellerVatExempt Boolean @default(false)
+
+  amountHT       Float?   // Montant hors taxes
+  vatRate        Float?   // Taux de TVA appliqué (0 si franchise en base)
+  vatAmount      Float?   // Montant de la TVA
+  amount         Float    // Montant TTC
   description    String
   appointmentId  String?
   status         String   @default("pending") // pending, paid
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// Compteur de numérotation légale des factures, par année civile
+// (numérotation séquentielle sans rupture exigée pour toute facture émise en France).
+model InvoiceCounter {
+  year       Int @id
+  lastNumber Int @default(0)
 }
 
 // Log des emails envoyés

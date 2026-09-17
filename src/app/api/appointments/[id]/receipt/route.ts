@@ -37,12 +37,20 @@ export async function GET(
       return NextResponse.json({ error: 'Aucun montant associé à ce rendez-vous' }, { status: 400 });
     }
 
-    const { countryName, vatRate } = getTaxConfig(appointment.studio.country);
+    const invoice = await prisma.invoice.findFirst({ where: { appointmentId: appointment.id } });
+
+    const { countryName, vatRate: countryVatRate } = getTaxConfig(appointment.studio.country);
+    const vatExempt = invoice?.sellerVatExempt ?? appointment.studio.vatExempt;
+    const vatRate = vatExempt ? 0 : countryVatRate;
     const totalTTC = appointment.totalPrice;
     const totalHT = totalTTC / (1 + vatRate);
     const vatAmount = totalTTC - totalHT;
     const commissionAmount = Math.round(totalTTC * PLATFORM_COMMISSION_RATE * 100) / 100;
     const netAmount = Math.round((totalTTC - commissionAmount) * 100) / 100;
+    const documentNumber = invoice?.invoiceNumber || appointment.id.slice(-8).toUpperCase();
+    const siret = invoice?.sellerSiret ?? appointment.studio.siret;
+    const legalName = invoice?.sellerLegalName ?? appointment.studio.legalName;
+    const vatNumber = invoice?.sellerVatNumber ?? appointment.studio.vatNumber;
 
     const dateStr = new Date(appointment.date).toLocaleDateString('fr-FR', {
       day: 'numeric', month: 'long', year: 'numeric'
@@ -59,7 +67,7 @@ export async function GET(
         </div>
         <div class="doc-title">
           <h1>Reçu studio</h1>
-          <p>N° ${appointment.id.slice(-8).toUpperCase()}</p>
+          <p>N° ${documentNumber}</p>
           <p>${issuedStr}</p>
         </div>
       </div>
@@ -67,9 +75,12 @@ export async function GET(
       <div class="parties">
         <div class="party">
           <h2>Studio</h2>
-          <p><strong>${appointment.studio.name}</strong></p>
+          <p><strong>${legalName || appointment.studio.name}</strong></p>
+          ${legalName && legalName !== appointment.studio.name ? `<p>${appointment.studio.name}</p>` : ''}
           <p>${appointment.studio.address || appointment.studio.location}</p>
           <p>${countryName}</p>
+          ${siret ? `<p>SIRET : ${siret}</p>` : ''}
+          ${vatNumber ? `<p>N° TVA : ${vatNumber}</p>` : ''}
         </div>
         <div class="party">
           <h2>Client</h2>
@@ -95,9 +106,12 @@ export async function GET(
       </div>
 
       <div class="totals">
+        ${vatExempt ? '' : `
         <div class="totals-row"><span>Total HT</span><span>${formatMoney(totalHT)}</span></div>
         <div class="totals-row"><span>TVA (${(vatRate * 100).toFixed(1)}%)</span><span>${formatMoney(vatAmount)}</span></div>
+        `}
         <div class="totals-row total"><span>Total TTC encaissé</span><span>${formatMoney(totalTTC)}</span></div>
+        ${vatExempt ? '<p style="font-size:0.85em;color:#666;margin:6px 0 0;">TVA non applicable, art. 293 B du CGI</p>' : ''}
         <div class="totals-row commission"><span>Commission plateforme (${(PLATFORM_COMMISSION_RATE * 100).toFixed(0)}%)</span><span>- ${formatMoney(commissionAmount)}</span></div>
         <div class="totals-row net"><span>Net studio</span><span>${formatMoney(netAmount)}</span></div>
       </div>

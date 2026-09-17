@@ -171,10 +171,19 @@ export async function PATCH(
       }
     }
 
+    if (body.siret !== undefined && body.siret !== null && body.siret !== '' && !/^\d{14}$/.test(body.siret)) {
+      return NextResponse.json({ error: 'SIRET invalide (14 chiffres attendus)' }, { status: 400 });
+    }
+
+    if (body.legalStatus !== undefined && body.legalStatus !== '' && !['auto_entrepreneur', 'societe'].includes(body.legalStatus)) {
+      return NextResponse.json({ error: 'Statut juridique invalide' }, { status: 400 });
+    }
+
     const data: Record<string, unknown> = {};
     for (const field of [
       'name', 'description', 'equipment', 'phone', 'country', 'referralOffer',
       'website', 'instagram', 'twitter', 'facebook', 'youtube', 'spotify', 'soundcloud',
+      'legalName', 'siret', 'legalStatus', 'vatNumber', 'vatExempt',
     ]) {
       if (body[field] !== undefined) data[field] = body[field];
     }

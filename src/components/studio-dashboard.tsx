@@ -50,6 +50,7 @@ interface WalletTransaction {
 
 interface Invoice {
   id: string;
+  invoiceNumber: string;
   amount: number;
   status: string;
   createdAt: string;
@@ -715,7 +716,7 @@ export default function StudioDashboard() {
                     <FileText className="w-6 h-6 text-orange-400" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-white font-medium">Facture #{invoice.id.slice(-6).toUpperCase()}</p>
+                    <p className="text-white font-medium">Facture {invoice.invoiceNumber}</p>
                     <p className="text-gray-500 text-sm">{invoice.user.name} • {invoice.appointment.date}</p>
                   </div>
                   <p className="text-xl font-bold text-white">{invoice.amount}€</p>

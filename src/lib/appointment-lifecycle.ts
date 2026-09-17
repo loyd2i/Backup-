@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/db';
-import { PLATFORM_COMMISSION_RATE } from '@/lib/tax-config';
+import { PLATFORM_COMMISSION_RATE, getTaxConfig } from '@/lib/tax-config';
 import { notifyAppointmentEvent } from '@/lib/notifications';
 import { markReferralActiveIfPending } from '@/lib/referrals';
+import { nextInvoiceNumber } from '@/lib/invoice-numbering';
 
 // Complète un rendez-vous confirmé : capture la pré-autorisation, génère la
 // facture, crédite le portefeuille studio (commission plateforme), clôture
@@ -33,11 +34,29 @@ export async function completeAppointment(appointmentId: string): Promise<void> 
   if (existingAppt.totalPrice) {
     const description = `Session du ${new Date(existingAppt.date).toLocaleDateString('fr-FR')} - ${existingAppt.startTime} (${existingAppt.duration}h)`;
 
+    // Mentions légales figées à l'émission : la facture ne doit pas changer
+    // rétroactivement si le studio modifie sa fiche (SIRET, adresse...) ensuite.
+    const { vatRate: countryVatRate } = getTaxConfig(existingAppt.studio.country);
+    const vatRate = existingAppt.studio.vatExempt ? 0 : countryVatRate;
+    const amountTTC = existingAppt.totalPrice;
+    const amountHT = Math.round((amountTTC / (1 + vatRate)) * 100) / 100;
+    const vatAmount = Math.round((amountTTC - amountHT) * 100) / 100;
+
     await prisma.invoice.create({
       data: {
+        invoiceNumber: await nextInvoiceNumber(),
         userId: existingAppt.userId,
+        studioId: existingAppt.studioId,
         studioName: existingAppt.studio.name,
-        amount: existingAppt.totalPrice,
+        sellerLegalName: existingAppt.studio.legalName || existingAppt.studio.name,
+        sellerSiret: existingAppt.studio.siret,
+        sellerAddress: existingAppt.studio.address || existingAppt.studio.location,
+        sellerVatNumber: existingAppt.studio.vatNumber,
+        sellerVatExempt: existingAppt.studio.vatExempt,
+        amountHT,
+        vatRate,
+        vatAmount,
+        amount: amountTTC,
         description,
         appointmentId: existingAppt.id,
         status: 'paid',
