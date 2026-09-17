@@ -31,22 +31,38 @@ export default function LoginPage({ referralCode }: Props) {
     phone: ''
   });
 
+  // Délai maximal avant d'abandonner une requête de connexion : sans ça, une
+  // requête qui ne répond jamais (réseau mobile capricieux, etc.) laisse le
+  // bouton indéfiniment sur "Chargement..." sans aucun message d'erreur.
+  const LOGIN_TIMEOUT_MS = 12000;
+
+  async function postJson(url: string, body: unknown) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      return res;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   // Quick login with demo account
   const handleDemoLogin = async (type: 'artiste' | 'studio') => {
     setError('');
     setIsLoading(true);
-    
-    const credentials = type === 'artiste' 
+
+    const credentials = type === 'artiste'
       ? { email: 'demo@studiolib.fr', password: 'demo123' }
       : { email: 'studio@studiolib.fr', password: 'demo123' };
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials)
-      });
-
+      const res = await postJson('/api/auth/login', credentials);
       const data = await res.json();
 
       if (!res.ok) {
@@ -56,8 +72,13 @@ export default function LoginPage({ referralCode }: Props) {
       }
 
       login(data.user);
+      setIsLoading(false);
     } catch (err) {
-      setError('Erreur de connexion au serveur');
+      setError(
+        err instanceof DOMException && err.name === 'AbortError'
+          ? 'La connexion prend trop de temps. Vérifiez votre connexion internet et réessayez.'
+          : 'Erreur de connexion au serveur'
+      );
       setIsLoading(false);
     }
   };
@@ -73,12 +94,7 @@ export default function LoginPage({ referralCode }: Props) {
         ? { ...formData, role: 'artiste', referralCode }
         : { email: formData.email, password: formData.password };
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
+      const res = await postJson(endpoint, body);
       const data = await res.json();
 
       if (!res.ok) {
@@ -89,8 +105,13 @@ export default function LoginPage({ referralCode }: Props) {
 
       // Login success
       login(data.user);
+      setIsLoading(false);
     } catch (err) {
-      setError('Erreur de connexion au serveur');
+      setError(
+        err instanceof DOMException && err.name === 'AbortError'
+          ? 'La connexion prend trop de temps. Vérifiez votre connexion internet et réessayez.'
+          : 'Erreur de connexion au serveur'
+      );
       setIsLoading(false);
     }
   };
