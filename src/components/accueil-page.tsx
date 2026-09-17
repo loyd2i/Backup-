@@ -1,11 +1,23 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Search, Sparkles, MapPin, Star, Filter, List, X, SlidersHorizontal, Users, Clock, ChevronRight, Navigation, Trophy } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import StudioDetail from './studio-detail';
 import EmptyState from './ui/empty-state';
 import AdBanners from './ad-banners';
+import type { MapStudio } from './studios-map';
+
+// Leaflet manipule `window` au chargement : impossible à rendre côté serveur.
+const StudiosMap = dynamic(() => import('./studios-map'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-[#1a1a1a]">
+      <div className="w-6 h-6 border-2 border-[#6366f1] border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
 
 interface PointsData {
   points: number;
@@ -48,8 +60,6 @@ export default function AccueilPage() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedMapStudio, setSelectedMapStudio] = useState<Studio | null>(null);
-  const [mapZoom, setMapZoom] = useState(1);
-  const mapRef = useRef<HTMLDivElement>(null);
   const [filters, setFilters] = useState<Filters>({
     priceMin: 0,
     priceMax: 500,
@@ -447,112 +457,43 @@ export default function AccueilPage() {
       ) : (
         /* Map View */
         <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden border border-[#2a2a2a]">
-          <div className="flex flex-col lg:flex-row h-[600px]">
+          <div className="flex flex-col lg:flex-row lg:h-[600px]">
             {/* Map Container */}
-            <div ref={mapRef} className="flex-1 relative bg-[#2a2a2a]">
-              {/* Custom Map Visualization */}
-              <div className="absolute inset-0">
-                {/* Map Background Pattern */}
-                <div className="absolute inset-0 opacity-20" style={{
-                  backgroundImage: `
-                    linear-gradient(rgba(99,102,241,0.1) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(99,102,241,0.1) 1px, transparent 1px)
-                  `,
-                  backgroundSize: '40px 40px'
-                }} />
-                
-                {/* Center Point */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                  <div className="relative">
-                    <div className="w-32 h-32 bg-[#6366f1]/10 rounded-full animate-ping" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-[#6366f1] rounded-full shadow-lg shadow-[#6366f1]/50" />
-                  </div>
-                </div>
-                
-                {/* Studio Markers */}
-                {studiosWithCoords.map((studio, index) => {
-                  // Position markers in a relative grid
-                  const offsetX = ((studio.longitude || 0) - mapCenter.lng) * 5000 * mapZoom;
-                  const offsetY = ((studio.latitude || 0) - mapCenter.lat) * -5000 * mapZoom;
-                  
-                  return (
-                    <button
-                      key={studio.id}
-                      onClick={() => setSelectedMapStudio(studio)}
-                      className={`absolute top-1/2 left-1/2 transform transition-all hover:scale-110 ${
-                        selectedMapStudio?.id === studio.id ? 'scale-125 z-20' : 'z-10'
-                      }`}
-                      style={{
-                        transform: `translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))`
-                      }}
-                    >
-                      <div className={`relative flex flex-col items-center ${
-                        selectedMapStudio?.id === studio.id ? '' : ''
-                      }`}>
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg ${
-                          selectedMapStudio?.id === studio.id
-                            ? 'bg-[#6366f1] shadow-[#6366f1]/50 scale-110'
-                            : 'bg-[#6366f1]/80 hover:bg-[#6366f1]'
-                        }`}>
-                          <MapPin className="w-6 h-6 text-white" />
-                        </div>
-                        <div className={`mt-1 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
-                          selectedMapStudio?.id === studio.id
-                            ? 'bg-[#6366f1] text-white'
-                            : 'bg-[#1a1a1a]/90 text-white'
-                        }`}>
-                          {studio.pricePerHour * 2}€/2h
-                        </div>
+            <div className="h-[420px] lg:h-auto lg:flex-1 relative bg-[#1a1a1a]">
+              {studiosWithCoords.length > 0 ? (
+                <>
+                  <StudiosMap
+                    studios={studiosWithCoords as MapStudio[]}
+                    center={mapCenter}
+                    selected={selectedMapStudio as MapStudio | null}
+                    onSelect={(studio) => setSelectedMapStudio(studio)}
+                    onViewDetails={(studioId) => setSelectedStudioId(studioId)}
+                  />
+                  {/* Legend */}
+                  <div className="absolute bottom-4 left-4 z-[1000] bg-[#1a1a1a]/90 backdrop-blur rounded-xl p-3 shadow-lg pointer-events-none">
+                    <div className="flex items-center gap-3 text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded-full border-[1.5px] border-[#3a3a3a] bg-[#1a1a1a]" />
+                        <span className="text-gray-400">Studio Pro</span>
                       </div>
-                    </button>
-                  );
-                })}
-                
-                {/* No coordinates fallback */}
-                {studiosWithCoords.length === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <Navigation className="w-12 h-12 text-[#6366f1] mx-auto mb-4" />
-                      <p className="text-gray-400 font-medium">Carte interactive</p>
-                      <p className="text-gray-500 text-sm mt-1">
-                        Les studios apparaîtront ici avec leurs coordonnées
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-3 h-3 rounded-full border-[1.5px] border-[#f59e0b] bg-[#1a1a1a]" />
+                        <span className="text-gray-400">Home Studio</span>
+                      </div>
                     </div>
                   </div>
-                )}
-              </div>
-              
-              {/* Map Controls */}
-              <div className="absolute top-4 right-4 flex flex-col gap-2">
-                <button
-                  onClick={() => setMapZoom((z) => Math.min(3, +(z + 0.5).toFixed(2)))}
-                  disabled={mapZoom >= 3}
-                  className="w-10 h-10 bg-[#1a1a1a]/90 backdrop-blur rounded-lg flex items-center justify-center text-white hover:bg-[#2a2a2a] transition-colors shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <span className="text-xl font-bold">+</span>
-                </button>
-                <button
-                  onClick={() => setMapZoom((z) => Math.max(0.5, +(z - 0.5).toFixed(2)))}
-                  disabled={mapZoom <= 0.5}
-                  className="w-10 h-10 bg-[#1a1a1a]/90 backdrop-blur rounded-lg flex items-center justify-center text-white hover:bg-[#2a2a2a] transition-colors shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <span className="text-xl font-bold">−</span>
-                </button>
-              </div>
-              
-              {/* Legend */}
-              <div className="absolute bottom-4 left-4 bg-[#1a1a1a]/90 backdrop-blur rounded-xl p-3 shadow-lg">
-                <div className="flex items-center gap-3 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-[#6366f1] rounded-full" />
-                    <span className="text-gray-400">Studio Pro</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-[#f59e0b] rounded-full" />
-                    <span className="text-gray-400">Home Studio</span>
+                </>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <Navigation className="w-12 h-12 text-[#6366f1] mx-auto mb-4" />
+                    <p className="text-gray-400 font-medium">Carte interactive</p>
+                    <p className="text-gray-500 text-sm mt-1">
+                      Les studios apparaîtront ici avec leurs coordonnées
+                    </p>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
             
             {/* Side Panel - Studio List */}
@@ -562,7 +503,7 @@ export default function AccueilPage() {
                   {filteredStudios.length} studio{filteredStudios.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              <div className="max-h-[320px] lg:max-h-none lg:flex-1 overflow-y-auto p-3 space-y-3">
                 {filteredStudios.map((studio) => (
                   <button
                     key={studio.id}
