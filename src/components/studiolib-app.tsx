@@ -34,6 +34,7 @@ export default function StudiolibApp() {
   const [publicStudioId, setPublicStudioId] = useState<string | null>(null);
   const [publicSlug, setPublicSlug] = useState<string | null>(null);
   const [publicArtistId, setPublicArtistId] = useState<string | null>(null);
+  const [publicTrackId, setPublicTrackId] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
 
   // Enregistre le service worker (PWA + notifications push), indépendamment
@@ -51,12 +52,14 @@ export default function StudiolibApp() {
     const studioParam = params.get('studio');
     const slugParam = params.get('slug');
     const artistParam = params.get('artist');
+    const trackParam = params.get('track');
 
     if (publicParam) {
       setPublicPage(publicParam);
       if (studioParam) setPublicStudioId(studioParam);
       if (slugParam) setPublicSlug(slugParam);
       if (artistParam) setPublicArtistId(artistParam);
+      if (trackParam) setPublicTrackId(trackParam);
     }
 
     const refParam = params.get('ref');
@@ -71,17 +74,20 @@ export default function StudiolibApp() {
       const studioParam = params.get('studio');
       const slugParam = params.get('slug');
       const artistParam = params.get('artist');
+      const trackParam = params.get('track');
 
       if (publicParam) {
         setPublicPage(publicParam);
         if (studioParam) setPublicStudioId(studioParam);
         if (slugParam) setPublicSlug(slugParam);
         if (artistParam) setPublicArtistId(artistParam);
+        if (trackParam) setPublicTrackId(trackParam);
       } else {
         setPublicPage(null);
         setPublicStudioId(null);
         setPublicSlug(null);
         setPublicArtistId(null);
+        setPublicTrackId(null);
       }
     };
 
@@ -140,7 +146,7 @@ export default function StudiolibApp() {
   if (publicPage) {
     switch (publicPage) {
       case 'creations':
-        return <PublicCreationsPage />;
+        return <PublicCreationsPage highlightTrackId={publicTrackId} />;
       
       case 'vitrine':
         if (publicStudioId) {

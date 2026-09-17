@@ -19,7 +19,11 @@ interface PublicTrack {
   _count: { comments: number };
 }
 
-export default function PublicCreationsPage() {
+interface Props {
+  highlightTrackId?: string | null;
+}
+
+export default function PublicCreationsPage({ highlightTrackId }: Props) {
   const [tracks, setTracks] = useState<PublicTrack[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,6 +36,14 @@ export default function PublicCreationsPage() {
   useEffect(() => {
     fetchPublicTracks();
   }, []);
+
+  // Lien direct vers un morceau précis (partagé via QR code / lien) : on le
+  // fait défiler en vue une fois le flux chargé.
+  useEffect(() => {
+    if (!highlightTrackId || isLoading) return;
+    const el = document.getElementById(`track-${highlightTrackId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlightTrackId, isLoading, tracks]);
 
   useEffect(() => {
     return () => {
@@ -172,11 +184,16 @@ export default function PublicCreationsPage() {
               const duration = track.duration || 180;
               const progress = isPlaying ? (currentTime / duration) * 100 : 0;
 
+              const isHighlighted = highlightTrackId === track.id;
+
               return (
                 <div
                   key={track.id}
+                  id={`track-${track.id}`}
                   className={`bg-[#1a1a1a] rounded-2xl border transition-all overflow-hidden ${
-                    isPlaying ? 'border-[#6366f1] shadow-lg shadow-[#6366f1]/10' : 'border-[#2a2a2a] hover:border-[#3a3a3a]'
+                    isHighlighted
+                      ? 'border-[#6366f1] ring-2 ring-[#6366f1] shadow-lg shadow-[#6366f1]/20'
+                      : isPlaying ? 'border-[#6366f1] shadow-lg shadow-[#6366f1]/10' : 'border-[#2a2a2a] hover:border-[#3a3a3a]'
                   }`}
                 >
                   <div className="p-5">

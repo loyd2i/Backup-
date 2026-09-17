@@ -6,6 +6,8 @@ import CoverDropzone from './cover-dropzone';
 import AudioPlayer from './audio-player';
 import AudioPlayerWithVersions from './audio-player-with-versions';
 import TrackShareButton from './track-share-button';
+import TrackDownloadButton from './track-download-button';
+import TrackQrCodeButton from './track-qrcode-button';
 import { analyzeAudio, AudioAnalysisResult } from '@/lib/audio-analyzer';
 import EmptyState from './ui/empty-state';
 
@@ -824,40 +826,59 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                             : undefined
                         }
                       />
-                      {!track.isPublic && !track.isShared && (
-                        <div className="absolute top-5 right-5 z-10">
+                      <div className="absolute top-5 right-5 z-10 flex items-center gap-1 bg-[#1a1a1a]/90 rounded-lg">
+                        <TrackDownloadButton
+                          title={track.title}
+                          artist={track.artist}
+                          audioUrl={track.audioUrl}
+                          versions={track.versions}
+                        />
+                        {track.isPublic && (
+                          <TrackQrCodeButton trackId={track.id} isPublic={track.isPublic} title={track.title} artist={track.artist} />
+                        )}
+                        {!track.isPublic && !track.isShared && (
                           <TrackShareButton trackId={track.id} />
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   ) : (
-                    <AudioPlayer
-                      key={track.id}
-                      trackId={track.id}
-                      title={track.title}
-                      artist={track.artist}
-                      bpm={track.bpm}
-                      keySignature={track.key}
-                      duration={track.duration || 180}
-                      audioUrl={track.audioUrl || undefined}
-                      isPublic={track.isPublic}
-                      isShared={track.isShared}
-                      onTogglePublic={() => handleTogglePublic(track.id, track.isPublic || false)}
-                      views={track.views}
-                      studio={track.studio}
-                      commentCount={track._count?.comments || 0}
-                      hideStudio={isStudioMode}
-                      onDelete={() => handleDeleteTrack(track.id)}
-                      status={track.status}
-                      genre={track.genre}
-                      releaseDate={track.releaseDate}
-                      spotifyUrl={track.spotifyUrl}
-                      youtubeUrl={track.youtubeUrl}
-                      appleMusicUrl={track.appleMusicUrl}
-                      deezerUrl={track.deezerUrl}
-                      canEditRelease={!isStudioMode && !track.isShared}
-                      onReleaseUpdate={fetchData}
-                    />
+                    <div key={track.id} className="relative">
+                      <AudioPlayer
+                        trackId={track.id}
+                        title={track.title}
+                        artist={track.artist}
+                        bpm={track.bpm}
+                        keySignature={track.key}
+                        duration={track.duration || 180}
+                        audioUrl={track.audioUrl || undefined}
+                        isPublic={track.isPublic}
+                        isShared={track.isShared}
+                        onTogglePublic={() => handleTogglePublic(track.id, track.isPublic || false)}
+                        views={track.views}
+                        studio={track.studio}
+                        commentCount={track._count?.comments || 0}
+                        hideStudio={isStudioMode}
+                        onDelete={() => handleDeleteTrack(track.id)}
+                        status={track.status}
+                        genre={track.genre}
+                        releaseDate={track.releaseDate}
+                        spotifyUrl={track.spotifyUrl}
+                        youtubeUrl={track.youtubeUrl}
+                        appleMusicUrl={track.appleMusicUrl}
+                        deezerUrl={track.deezerUrl}
+                        canEditRelease={!isStudioMode && !track.isShared}
+                        onReleaseUpdate={fetchData}
+                      />
+                      <div className="absolute top-5 right-5 z-10 flex items-center gap-1 bg-[#1a1a1a]/90 rounded-lg">
+                        <TrackDownloadButton title={track.title} artist={track.artist} audioUrl={track.audioUrl} />
+                        {track.isPublic && (
+                          <TrackQrCodeButton trackId={track.id} isPublic={track.isPublic} title={track.title} artist={track.artist} />
+                        )}
+                        {!track.isPublic && !track.isShared && (
+                          <TrackShareButton trackId={track.id} />
+                        )}
+                      </div>
+                    </div>
                   )
                 ))}
               </div>
