@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye, Star, Flag, Percent } from 'lucide-react';
+import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, ChevronLeft, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye, Star, Flag, Percent, Moon, Sun, Mail, Phone, User } from 'lucide-react';
 import StudioHoursSettings from './studio-hours-settings';
 import EmptyState from './ui/empty-state';
 import StudioShowcasePage from './studio-showcase-page';
@@ -28,6 +28,14 @@ interface Appointment {
     phone?: string;
   };
   eStudioSession?: { id: string; status: string } | null;
+}
+
+interface BlockedSlot {
+  id: string;
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  reason?: string | null;
 }
 
 interface Studio {
@@ -87,7 +95,17 @@ export default function StudioDashboard() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [walletTransactions, setWalletTransactions] = useState<WalletTransaction[]>([]);
+  const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return now;
+  });
+  const [nightModeEnabled, setNightModeEnabled] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [selectedBlockSlot, setSelectedBlockSlot] = useState<{ date: string; hour: number } | null>(null);
+  const [appointmentDetail, setAppointmentDetail] = useState<Appointment | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'invoices' | 'projects' | 'hours' | 'vitrine'>('overview');
   const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null);
   const [reportAppointmentId, setReportAppointmentId] = useState<string | null>(null);
@@ -216,6 +234,11 @@ export default function StudioDashboard() {
         const walletRes = await fetch(`/api/studios/${ownedStudio.id}/wallet`);
         const walletData = await walletRes.json();
         setWalletTransactions(walletData.transactions || []);
+
+        // Fetch blocked slots (agenda)
+        const blocksRes = await fetch(`/api/studios/${ownedStudio.id}/blocks`);
+        const blocksData = await blocksRes.json();
+        setBlockedSlots(blocksData.blocks || []);
       }
     } catch (error) {
       console.error('Error fetching studio data:', error);
@@ -288,6 +311,137 @@ export default function StudioDashboard() {
       case 'completed': return 'Terminé';
       case 'cancelled': return 'Annulé';
       default: return status;
+    }
+  };
+
+  // ---------- Agenda hebdomadaire ----------
+  const prevWeek = () => {
+    const newDate = new Date(currentWeekStart);
+    newDate.setDate(newDate.getDate() - 7);
+    setCurrentWeekStart(newDate);
+  };
+
+  const nextWeek = () => {
+    const newDate = new Date(currentWeekStart);
+    newDate.setDate(newDate.getDate() + 7);
+    setCurrentWeekStart(newDate);
+  };
+
+  const goToToday = () => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    setCurrentWeekStart(now);
+  };
+
+  const getWeekDays = () => {
+    const days: { date: Date; dateStr: string; dayName: string; dayNumber: number; monthName: string; isToday: boolean }[] = [];
+    const dayNames = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    const monthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(currentWeekStart);
+      date.setDate(currentWeekStart.getDate() + i);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      days.push({
+        date,
+        dateStr,
+        dayName: dayNames[date.getDay()],
+        dayNumber: date.getDate(),
+        monthName: monthNames[date.getMonth()],
+        isToday: date.toDateString() === new Date().toDateString()
+      });
+    }
+    return days;
+  };
+
+  const weekDays = getWeekDays();
+  const dayHours = Array.from({ length: 13 }, (_, i) => i + 8); // 8h à 20h
+  const nightHours = Array.from({ length: 5 }, (_, i) => i + 21); // 21h à 2h (20h déjà dans dayHours)
+  const agendaHours = nightModeEnabled ? [...dayHours, ...nightHours] : dayHours;
+
+  const getCellStatus = (dateStr: string, hour: number): {
+    isOccupied: boolean;
+    type: 'block' | 'appointment' | null;
+    isFirstHour: boolean;
+    data: BlockedSlot | Appointment | null;
+    isNight: boolean;
+  } => {
+    for (const block of blockedSlots) {
+      let blockDateStr = block.date;
+      if (typeof blockDateStr === 'string' && blockDateStr.includes('T')) {
+        blockDateStr = blockDateStr.split('T')[0];
+      }
+      if (blockDateStr !== dateStr) continue;
+
+      const startHour = parseInt((block.startTime || '00:00').split(':')[0]);
+      const endHour = parseInt((block.endTime || '23:59').split(':')[0]);
+
+      if (endHour < startHour) {
+        if (hour >= startHour || hour < endHour) {
+          return { isOccupied: true, type: 'block', isFirstHour: hour === startHour, data: block, isNight: hour >= 20 || hour < 8 };
+        }
+      } else if (hour >= startHour && hour < endHour) {
+        return { isOccupied: true, type: 'block', isFirstHour: hour === startHour, data: block, isNight: hour >= 20 };
+      }
+    }
+
+    for (const apt of appointments) {
+      if (apt.status === 'cancelled') continue;
+
+      let aptDateStr = apt.date;
+      if (typeof aptDateStr === 'string' && aptDateStr.includes('T')) {
+        aptDateStr = aptDateStr.split('T')[0];
+      }
+      if (aptDateStr !== dateStr) continue;
+
+      const startHour = parseInt(apt.startTime.split(':')[0]);
+      const endHour = parseInt(apt.endTime.split(':')[0]);
+
+      if (hour >= startHour && hour < endHour) {
+        return { isOccupied: true, type: 'appointment', isFirstHour: hour === startHour, data: apt, isNight: hour >= 20 };
+      }
+    }
+
+    return { isOccupied: false, type: null, isFirstHour: false, data: null, isNight: hour >= 20 };
+  };
+
+  const handleSlotClick = (dateStr: string, hour: number) => {
+    const status = getCellStatus(dateStr, hour);
+    if (status.isOccupied) return;
+    setSelectedBlockSlot({ date: dateStr, hour });
+    setShowBlockModal(true);
+  };
+
+  const handleBlockSlot = async (date: string, hour: number) => {
+    if (!studio) return;
+    const endHour = hour + 2;
+    try {
+      const res = await fetch(`/api/studios/${studio.id}/blocks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date,
+          startTime: `${hour.toString().padStart(2, '0')}:00`,
+          endTime: `${endHour.toString().padStart(2, '0')}:00`,
+          reason: hour >= 20 ? 'Horaire de nuit' : ''
+        })
+      });
+      if (res.ok) fetchStudioData();
+    } catch (error) {
+      console.error('Error blocking slot:', error);
+    }
+  };
+
+  const handleUnblockSlot = async (blockId: string) => {
+    if (!studio) return;
+    try {
+      const res = await fetch(`/api/studios/${studio.id}/blocks?id=${blockId}`, { method: 'DELETE' });
+      if (res.ok) fetchStudioData();
+    } catch (error) {
+      console.error('Error unblocking slot:', error);
     }
   };
 
@@ -474,42 +628,150 @@ export default function StudioDashboard() {
             )}
           </div>
 
-          {/* Today's Schedule */}
+          {/* Agenda - Vue hebdomadaire */}
           <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
-            <div className="p-5 border-b border-[#2a2a2a] flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Clock className="w-5 h-5 text-[#6366f1]" />
-                Planning du jour
-              </h2>
-              <span className="text-gray-500 text-sm">
-                {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-              </span>
-            </div>
-            
-            {todayAppointments.length === 0 ? (
-              <EmptyState icon={Calendar} title="Aucun rendez-vous aujourd'hui" size="sm" />
-            ) : (
-              <div className="divide-y divide-[#2a2a2a]">
-                {todayAppointments.map((apt) => (
-                  <div key={apt.id} className="p-5 flex items-center gap-4 hover:bg-[#222] transition-colors">
-                    <div className="text-center min-w-[60px]">
-                      <p className="text-2xl font-bold text-white">{formatTime(apt.startTime)}</p>
-                      <p className="text-gray-500 text-sm">{apt.duration}h</p>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-white font-medium">{apt.user.name}</p>
-                      <p className="text-gray-500 text-sm">{apt.user.email}</p>
-                    </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(apt.status)}`}>
-                      {getStatusLabel(apt.status)}
-                    </span>
-                    {apt.totalPrice && (
-                      <p className="text-[#6366f1] font-semibold">{apt.totalPrice}€</p>
-                    )}
-                  </div>
-                ))}
+            <div className="p-4 border-b border-[#2a2a2a] flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <button onClick={prevWeek} className="p-2 hover:bg-[#2a2a2a] rounded-lg transition-colors">
+                  <ChevronLeft className="w-5 h-5 text-gray-400" />
+                </button>
+                <button onClick={nextWeek} className="p-2 hover:bg-[#2a2a2a] rounded-lg transition-colors">
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                </button>
+                <h2 className="text-lg font-semibold text-white">
+                  {weekDays[0].dayNumber} {weekDays[0].monthName} - {weekDays[6].dayNumber} {weekDays[6].monthName} {weekDays[6].date.getFullYear()}
+                </h2>
+                <button
+                  onClick={goToToday}
+                  className="px-3 py-1.5 bg-[#6366f1]/20 text-[#6366f1] rounded-lg text-sm hover:bg-[#6366f1]/30 transition-colors"
+                >
+                  Aujourd'hui
+                </button>
               </div>
-            )}
+
+              <button
+                onClick={() => setNightModeEnabled(!nightModeEnabled)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                  nightModeEnabled ? 'bg-indigo-500/20 text-indigo-400' : 'bg-[#2a2a2a] text-gray-400 hover:text-white'
+                }`}
+              >
+                {nightModeEnabled ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                Horaires de nuit (20h-2h)
+              </button>
+            </div>
+
+            {/* En-tête des jours */}
+            <div className="grid grid-cols-8 border-b border-[#2a2a2a]">
+              <div className="p-2 text-center text-gray-500 text-xs font-medium border-r border-[#2a2a2a]">
+                Heure
+              </div>
+              {weekDays.map((day) => (
+                <div
+                  key={day.dateStr}
+                  className={`p-2 text-center border-r border-[#2a2a2a] last:border-r-0 ${day.isToday ? 'bg-[#6366f1]/10' : ''}`}
+                >
+                  <p className={`text-xs ${day.isToday ? 'text-[#6366f1] font-semibold' : 'text-gray-500'}`}>{day.dayName}</p>
+                  <p className={`text-lg font-bold ${day.isToday ? 'text-[#6366f1]' : 'text-white'}`}>{day.dayNumber}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Grille des créneaux */}
+            <div className="max-h-[500px] overflow-y-auto">
+              {agendaHours.map((hour) => {
+                const displayHour = hour >= 24 ? hour - 24 : hour;
+                const isNightHour = hour >= 20 || hour < 8;
+
+                return (
+                  <div key={hour} className="grid grid-cols-8">
+                    <div className={`relative h-[50px] border-r border-b border-[#2a2a2a] ${isNightHour ? 'bg-indigo-900/20' : 'bg-[#1a1a1a]'}`}>
+                      <span className={`absolute top-0 left-2 text-xs font-medium leading-[20px] ${isNightHour ? 'text-indigo-400' : 'text-gray-500'}`}>
+                        {displayHour.toString().padStart(2, '0')}:00
+                        {isNightHour && <Moon className="w-3 h-3 inline ml-1" />}
+                      </span>
+                    </div>
+
+                    {weekDays.map((day) => {
+                      const status = getCellStatus(day.dateStr, hour);
+
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const dayDate = new Date(day.date);
+                      dayDate.setHours(0, 0, 0, 0);
+                      const isPast = dayDate < today;
+
+                      return (
+                        <div
+                          key={day.dateStr}
+                          onClick={() => !status.isOccupied && !isPast && handleSlotClick(day.dateStr, hour)}
+                          className={`h-[50px] border-r border-b border-[#2a2a2a] last:border-r-0 transition-colors relative
+                            ${status.isOccupied ? '' : isPast ? 'bg-[#1a1a1a]/50 cursor-not-allowed' : 'cursor-pointer hover:bg-[#2a2a2a]/50'}
+                            ${day.isToday && !status.isOccupied ? 'bg-[#6366f1]/5' : ''}
+                            ${status.isNight && !status.isOccupied ? 'bg-indigo-900/10' : ''}
+                          `}
+                        >
+                          {status.type === 'appointment' && status.isFirstHour && status.data && (
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAppointmentDetail(status.data as Appointment);
+                              }}
+                              className="absolute inset-1 bg-[#6366f1]/30 border border-[#6366f1]/50 rounded p-1 overflow-hidden cursor-pointer hover:bg-[#6366f1]/40 transition-colors"
+                            >
+                              <p className="text-white font-medium text-xs truncate">{(status.data as Appointment).user.name}</p>
+                              <span className={`inline-block px-1 py-0.5 rounded text-[10px] ${getStatusColor((status.data as Appointment).status)}`}>
+                                {getStatusLabel((status.data as Appointment).status)}
+                              </span>
+                            </div>
+                          )}
+
+                          {status.type === 'appointment' && !status.isFirstHour && (
+                            <div className={`absolute inset-0 ${status.isNight ? 'bg-indigo-500/20' : 'bg-[#6366f1]/20'}`} />
+                          )}
+
+                          {status.type === 'block' && status.isFirstHour && status.data && (
+                            <div
+                              className="absolute inset-0 cursor-pointer group"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUnblockSlot((status.data as BlockedSlot).id);
+                              }}
+                            >
+                              <div className="absolute inset-0 overflow-hidden">
+                                <div className={`absolute inset-0 ${status.isNight ? 'bg-red-900/60' : 'bg-red-600/50'}`} />
+                                <div
+                                  className="absolute inset-0 opacity-30"
+                                  style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.3) 4px, rgba(0,0,0,0.3) 8px)' }}
+                                />
+                              </div>
+                              <div className="absolute inset-1 flex items-center justify-center">
+                                <div className="text-center">
+                                  <X className="w-4 h-4 text-white mx-auto mb-0.5" />
+                                  <span className="text-white text-[9px] font-medium">INDISPONIBLE</span>
+                                </div>
+                              </div>
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <span className="text-white text-xs font-medium bg-red-500 px-2 py-1 rounded">Cliquer pour débloquer</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {status.type === 'block' && !status.isFirstHour && (
+                            <div className="absolute inset-0 overflow-hidden">
+                              <div className={`absolute inset-0 ${status.isNight ? 'bg-red-900/50' : 'bg-red-600/40'}`} />
+                              <div
+                                className="absolute inset-0 opacity-20"
+                                style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.3) 4px, rgba(0,0,0,0.3) 8px)' }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Upcoming Appointments */}
@@ -976,6 +1238,150 @@ export default function StudioDashboard() {
           appointmentId={reportAppointmentId}
           onClose={() => setReportAppointmentId(null)}
         />
+      )}
+
+      {/* Modale : bloquer un créneau */}
+      {showBlockModal && selectedBlockSlot && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Plus className="w-6 h-6 text-[#6366f1]" />
+                Bloquer ce créneau
+              </h2>
+              <button onClick={() => { setShowBlockModal(false); setSelectedBlockSlot(null); }} className="text-gray-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="bg-[#2a2a2a] rounded-lg p-4 mb-6">
+              <p className="text-white font-medium mb-2 capitalize">
+                {new Date(selectedBlockSlot.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </p>
+              <p className="text-[#6366f1] font-semibold text-lg">
+                {selectedBlockSlot.hour}h - {selectedBlockSlot.hour + 2}h (2h)
+              </p>
+            </div>
+
+            <p className="text-gray-400 text-sm mb-6">
+              Ce créneau sera marqué comme non disponible. Les artistes ne pourront pas le réserver.
+            </p>
+
+            <div className="flex gap-3">
+              <button onClick={() => { setShowBlockModal(false); setSelectedBlockSlot(null); }} className="flex-1 bg-[#2a2a2a] text-white py-3 rounded-lg font-medium hover:bg-[#3a3a3a]">
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  handleBlockSlot(selectedBlockSlot.date, selectedBlockSlot.hour);
+                  setShowBlockModal(false);
+                  setSelectedBlockSlot(null);
+                }}
+                className="flex-1 bg-[#6366f1] text-white py-3 rounded-lg font-medium hover:bg-[#5558e3] flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Bloquer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale : détail d'un rendez-vous (depuis la grille) */}
+      {appointmentDetail && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <User className="w-6 h-6 text-[#6366f1]" />
+                Détails du rendez-vous
+              </h2>
+              <button onClick={() => setAppointmentDetail(null)} className="text-gray-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="bg-[#2a2a2a] rounded-lg p-4 mb-4">
+              <p className="text-gray-400 text-sm mb-2">Client</p>
+              <p className="text-white font-semibold text-lg">{appointmentDetail.user.name}</p>
+              <div className="flex items-center gap-4 mt-2 flex-wrap">
+                <a href={`mailto:${appointmentDetail.user.email}`} className="flex items-center gap-1 text-[#6366f1] text-sm hover:underline">
+                  <Mail className="w-3 h-3" />
+                  {appointmentDetail.user.email}
+                </a>
+                {appointmentDetail.user.phone && (
+                  <a href={`tel:${appointmentDetail.user.phone}`} className="flex items-center gap-1 text-gray-400 text-sm hover:text-white">
+                    <Phone className="w-3 h-3" />
+                    {appointmentDetail.user.phone}
+                  </a>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-[#2a2a2a] rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-[#6366f1]/20 rounded-xl flex items-center justify-center">
+                  <Calendar className="w-6 h-6 text-[#6366f1]" />
+                </div>
+                <div>
+                  <p className="text-white font-medium capitalize">
+                    {new Date(appointmentDetail.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </p>
+                  <p className="text-[#6366f1] font-semibold">{formatTime(appointmentDetail.startTime)} - {formatTime(appointmentDetail.endTime)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-4 p-3 bg-[#121212] rounded-lg">
+              <div>
+                <p className="text-gray-400 text-xs">Statut</p>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(appointmentDetail.status)}`}>
+                  {getStatusLabel(appointmentDetail.status)}
+                </span>
+              </div>
+              {appointmentDetail.totalPrice && (
+                <div className="text-right">
+                  <p className="text-gray-400 text-xs">Total</p>
+                  <p className="text-[#6366f1] font-bold text-2xl">{appointmentDetail.totalPrice}€</p>
+                </div>
+              )}
+            </div>
+
+            {appointmentDetail.notes && (
+              <div className="bg-[#2a2a2a] rounded-lg p-4 mb-4">
+                <p className="text-gray-400 text-sm mb-1">Notes</p>
+                <p className="text-white text-sm">{appointmentDetail.notes}</p>
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setAppointmentDetail(null)} className="flex-1 bg-[#2a2a2a] text-white py-3 rounded-lg font-medium hover:bg-[#3a3a3a]">
+                Fermer
+              </button>
+              {appointmentDetail.status === 'pending' && (
+                <button
+                  onClick={() => {
+                    handleStatusChange(appointmentDetail.id, 'confirmed');
+                    setAppointmentDetail(null);
+                  }}
+                  className="flex-1 bg-green-500 text-white py-3 rounded-lg font-medium hover:bg-green-600 flex items-center justify-center gap-2"
+                >
+                  <Check className="w-4 h-4" /> Confirmer
+                </button>
+              )}
+              {(appointmentDetail.status === 'pending' || appointmentDetail.status === 'confirmed') && (
+                <button
+                  onClick={() => {
+                    handleStatusChange(appointmentDetail.id, 'cancelled');
+                    setAppointmentDetail(null);
+                  }}
+                  className="flex-1 bg-red-500 text-white py-3 rounded-lg font-medium hover:bg-red-600 flex items-center justify-center gap-2"
+                >
+                  <X className="w-4 h-4" /> Annuler
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

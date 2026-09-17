@@ -2,6 +2,40 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
+// GET - List blocks for a studio (agenda hebdomadaire)
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+    }
+
+    const { id } = await params;
+
+    // Seul le propriétaire du studio peut consulter ses blocages
+    const studio = await prisma.studio.findFirst({
+      where: { id, ownerId: user.id }
+    });
+
+    if (!studio) {
+      return NextResponse.json({ blocks: [] });
+    }
+
+    const blocks = await prisma.studioBlock.findMany({
+      where: { studioId: id },
+      orderBy: { date: 'asc' }
+    });
+
+    return NextResponse.json({ blocks });
+  } catch (error) {
+    console.error('Error fetching blocks:', error);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+  }
+}
+
 // POST - Add a block
 export async function POST(
   request: NextRequest,
