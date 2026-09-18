@@ -57,6 +57,7 @@ interface AudioPlayerProps {
   audioFormat?: string | null;
   truePeak?: number | null;
   lufs?: number | null;
+  waveformPeaks?: string | null;
 }
 
 export default function AudioPlayer({
@@ -90,7 +91,8 @@ export default function AudioPlayer({
   bitrate,
   audioFormat,
   truePeak,
-  lufs
+  lufs,
+  waveformPeaks
 }: AudioPlayerProps) {
   const technicalSpecs = formatTechnicalSpecs({ audioFormat, sampleRate, bitDepth, bitrate, truePeak, lufs });
   const [isPlaying, setIsPlaying] = useState(false);
@@ -121,13 +123,26 @@ export default function AudioPlayer({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const user = useAppStore((state) => state.user);
 
-  // Generate waveform bars for visualization
-  const waveformBars = useRef<number[]>([]);
-  if (waveformBars.current.length === 0) {
+  // Forme d'onde : vraies crêtes d'amplitude calculées à l'upload si
+  // disponibles, sinon barres aléatoires stables en repli pour les
+  // morceaux uploadés avant cette fonctionnalité.
+  const fallbackWaveformBars = useRef<number[]>([]);
+  if (fallbackWaveformBars.current.length === 0) {
     for (let i = 0; i < 64; i++) {
-      waveformBars.current.push(Math.random() * 0.6 + 0.2);
+      fallbackWaveformBars.current.push(Math.random() * 0.6 + 0.2);
     }
   }
+  const waveformBars = (() => {
+    if (waveformPeaks) {
+      try {
+        const parsed = JSON.parse(waveformPeaks);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed as number[];
+      } catch {
+        // Données corrompues : on retombe sur les barres aléatoires
+      }
+    }
+    return fallbackWaveformBars.current;
+  })();
 
   useEffect(() => {
     if (audioRef.current) {
@@ -519,8 +534,8 @@ export default function AudioPlayer({
             className="h-14 bg-[#1a1a24] rounded-xl cursor-pointer relative overflow-hidden"
           >
             <div className="absolute inset-0 flex items-center justify-center gap-[2px] px-3">
-              {waveformBars.current.map((height, i) => {
-                const barProgress = (i / waveformBars.current.length) * 100;
+              {waveformBars.map((height, i) => {
+                const barProgress = (i / waveformBars.length) * 100;
                 const isActive = barProgress <= progress;
                 
                 return (

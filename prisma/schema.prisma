@@ -411,6 +411,7 @@ model Track {
   audioFormat String?  // WAV, MP3, FLAC, M4A, OGG...
   truePeak    Float?   // dBTP (True Peak, norme ITU-R BS.1770 / EBU R128)
   lufs        Float?   // LUFS intégré (loudness), norme ITU-R BS.1770 / EBU R128
+  waveformPeaks String? // Crêtes d'amplitude par segment (JSON, ex: "[0.2,0.8,...]"), pour l'affichage de la forme d'onde réelle
 
   // Fiche Release
   genre         String?
@@ -451,6 +452,7 @@ model TrackVersion {
   audioFormat String?  // WAV, MP3, FLAC, M4A, OGG...
   truePeak    Float?   // dBTP (True Peak, norme ITU-R BS.1770 / EBU R128)
   lufs        Float?   // LUFS intégré (loudness), norme ITU-R BS.1770 / EBU R128
+  waveformPeaks String? // Crêtes d'amplitude par segment (JSON, ex: "[0.2,0.8,...]"), pour l'affichage de la forme d'onde réelle
 
   masterValidations MasterValidation[]
 

@@ -30,6 +30,10 @@ export interface AudioAnalysisResult {
   // pondérage K et le double seuillage (absolu -70 LUFS, relatif -10 LU)
   // définis par la norme ITU-R BS.1770 / EBU R128.
   lufs: number;
+  // Empreinte de la forme d'onde réelle : crête d'amplitude par segment
+  // (valeurs normalisées 0-1), pour afficher le vrai profil du morceau
+  // plutôt que des barres aléatoires.
+  waveformPeaks: number[];
 }
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -121,6 +125,7 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
           channels.push(audioBuffer.getChannelData(ch));
         }
         const { integratedLufs, truePeakDb } = analyzeLoudness(channels, sampleRate);
+        const waveformPeaks = computeWaveformPeaks(channels);
 
         const audioFormat = detectAudioFormat(file);
         const isUncompressed = UNCOMPRESSED_MIME_TYPES.has(file.type) || audioFormat === 'WAV';
@@ -140,6 +145,7 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
           bitrate,
           truePeak: Math.round(truePeakDb * 10) / 10,
           lufs: Math.round(integratedLufs * 10) / 10,
+          waveformPeaks,
         });
       } catch (error) {
         reject(error);
@@ -593,6 +599,36 @@ function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integr
   const truePeakDb = peak > 0 ? 20 * Math.log10(peak) : -100;
 
   return { integratedLufs, truePeakDb };
+}
+
+/**
+ * Calcule une empreinte de forme d'onde réelle (crête d'amplitude par
+ * segment, normalisée 0-1) à partir du signal décodé, pour afficher le
+ * vrai profil du morceau dans le lecteur au lieu de barres aléatoires.
+ * Une légère compression (racine carrée) évite que les passages calmes
+ * disparaissent complètement, comme sur les vrais lecteurs (SoundCloud...).
+ */
+function computeWaveformPeaks(channels: Float32Array[], numBars = 64): number[] {
+  const length = channels[0]?.length || 0;
+  if (length === 0) return new Array(numBars).fill(0.05);
+
+  const segmentSize = Math.max(1, Math.floor(length / numBars));
+  const peaks: number[] = [];
+  for (let bar = 0; bar < numBars; bar++) {
+    const start = bar * segmentSize;
+    const end = bar === numBars - 1 ? length : start + segmentSize;
+    let peak = 0;
+    for (const chan of channels) {
+      for (let i = start; i < end; i++) {
+        const abs = Math.abs(chan[i]);
+        if (abs > peak) peak = abs;
+      }
+    }
+    peaks.push(peak);
+  }
+
+  const maxPeak = Math.max(...peaks, 0.0001);
+  return peaks.map((p) => Math.max(0.05, Math.min(1, Math.sqrt(p / maxPeak))));
 }
 
 export interface TechnicalSpecs {

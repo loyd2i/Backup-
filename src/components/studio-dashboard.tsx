@@ -89,10 +89,11 @@ interface Project {
   audioFormat?: string | null;
   truePeak?: number | null;
   lufs?: number | null;
+  waveformPeaks?: string | null;
   versions?: {
     id: string; label: string | null; audioUrl: string | null; duration: number | null; createdAt: string;
     sampleRate?: number | null; bitDepth?: number | null; bitrate?: number | null; audioFormat?: string | null;
-    truePeak?: number | null; lufs?: number | null;
+    truePeak?: number | null; lufs?: number | null; waveformPeaks?: string | null;
   }[];
 }
 
@@ -1068,6 +1069,7 @@ export default function StudioDashboard() {
                       audioFormat={project.audioFormat}
                       truePeak={project.truePeak}
                       lufs={project.lufs}
+                      waveformPeaks={project.waveformPeaks}
                       versions={project.versions.map(v => ({
                         id: v.id,
                         label: v.label || 'Version',
@@ -1081,6 +1083,7 @@ export default function StudioDashboard() {
                         audioFormat: v.audioFormat,
                         truePeak: v.truePeak,
                         lufs: v.lufs,
+                        waveformPeaks: v.waveformPeaks,
                       }))}
                       isPublic={project.isPublic}
                       isShared={project.isShared}
@@ -1104,6 +1107,7 @@ export default function StudioDashboard() {
                       audioFormat={project.audioFormat}
                       truePeak={project.truePeak}
                       lufs={project.lufs}
+                      waveformPeaks={project.waveformPeaks}
                       isPublic={project.isPublic}
                       isShared={project.isShared}
                       views={project.views}

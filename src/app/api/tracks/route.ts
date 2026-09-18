@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
     const audioFormat = formData.get('audioFormat') as string;
     const truePeak = formData.get('truePeak') as string;
     const lufs = formData.get('lufs') as string;
+    const waveformPeaks = formData.get('waveformPeaks') as string;
 
     if (!title || !artist) {
       return NextResponse.json(
@@ -169,6 +170,7 @@ export async function POST(request: NextRequest) {
         audioFormat: audioFormat || null,
         truePeak: truePeak ? parseFloat(truePeak) : null,
         lufs: lufs ? parseFloat(lufs) : null,
+        waveformPeaks: waveformPeaks || null,
       },
       include: {
         studio: { select: { id: true, name: true } }

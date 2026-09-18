@@ -18,6 +18,7 @@ interface TrackVersion {
   audioFormat?: string | null;
   truePeak?: number | null;
   lufs?: number | null;
+  waveformPeaks?: string | null;
 }
 
 interface Comment {
@@ -56,6 +57,7 @@ interface AudioPlayerWithVersionsProps {
   audioFormat?: string | null;
   truePeak?: number | null;
   lufs?: number | null;
+  waveformPeaks?: string | null;
 }
 
 export default function AudioPlayerWithVersions({
@@ -81,7 +83,8 @@ export default function AudioPlayerWithVersions({
   bitrate,
   audioFormat,
   truePeak,
-  lufs
+  lufs,
+  waveformPeaks
 }: AudioPlayerWithVersionsProps) {
   // Current version state
   const [activeVersionIndex, setActiveVersionIndex] = useState(0);
@@ -118,7 +121,7 @@ export default function AudioPlayerWithVersions({
   const allVersions: TrackVersion[] = [
     {
       id: 'original', label: 'V1 (Original)', audioUrl: audioUrl || null, duration, uploadedAt: '', notes: null,
-      sampleRate, bitDepth, bitrate, audioFormat, truePeak, lufs,
+      sampleRate, bitDepth, bitrate, audioFormat, truePeak, lufs, waveformPeaks,
     },
     ...versions
   ];
@@ -140,13 +143,27 @@ export default function AudioPlayerWithVersions({
     lufs: displayedVersion?.lufs,
   });
 
-  // Generate waveform bars
-  const waveformBars = useRef<number[]>([]);
-  if (waveformBars.current.length === 0) {
+  // Forme d'onde : vraies crêtes d'amplitude calculées à l'upload si
+  // disponibles (suit la version affichée), sinon barres aléatoires stables
+  // en repli pour les morceaux uploadés avant cette fonctionnalité.
+  const fallbackWaveformBars = useRef<number[]>([]);
+  if (fallbackWaveformBars.current.length === 0) {
     for (let i = 0; i < 64; i++) {
-      waveformBars.current.push(Math.random() * 0.6 + 0.2);
+      fallbackWaveformBars.current.push(Math.random() * 0.6 + 0.2);
     }
   }
+  const waveformBars = (() => {
+    const raw = displayedVersion?.waveformPeaks;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed as number[];
+      } catch {
+        // Données corrompues : on retombe sur les barres aléatoires
+      }
+    }
+    return fallbackWaveformBars.current;
+  })();
 
   // Route volume to whichever side is audible - this is the whole trick behind
   // gapless A/B: both elements keep playing, only their volume changes.
@@ -578,8 +595,8 @@ export default function AudioPlayerWithVersions({
             className="h-14 bg-[#12121e] rounded-xl cursor-pointer relative overflow-hidden"
           >
             <div className="absolute inset-0 flex items-center justify-center gap-[2px] px-3">
-              {waveformBars.current.map((height, i) => {
-                const barProgress = (i / waveformBars.current.length) * 100;
+              {waveformBars.map((height, i) => {
+                const barProgress = (i / waveformBars.length) * 100;
                 const isActive = barProgress <= progress;
 
                 return (
