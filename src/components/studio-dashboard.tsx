@@ -83,7 +83,17 @@ interface Project {
   views?: number;
   studio?: { id: string; name: string } | null;
   _count?: { comments: number };
-  versions?: { id: string; label: string | null; audioUrl: string | null; duration: number | null; createdAt: string }[];
+  sampleRate?: number | null;
+  bitDepth?: number | null;
+  bitrate?: number | null;
+  audioFormat?: string | null;
+  truePeak?: number | null;
+  lufs?: number | null;
+  versions?: {
+    id: string; label: string | null; audioUrl: string | null; duration: number | null; createdAt: string;
+    sampleRate?: number | null; bitDepth?: number | null; bitrate?: number | null; audioFormat?: string | null;
+    truePeak?: number | null; lufs?: number | null;
+  }[];
 }
 
 export default function StudioDashboard() {
@@ -1052,13 +1062,25 @@ export default function StudioDashboard() {
                       keySignature={project.key}
                       duration={project.duration || 180}
                       audioUrl={project.audioUrl || undefined}
+                      sampleRate={project.sampleRate}
+                      bitDepth={project.bitDepth}
+                      bitrate={project.bitrate}
+                      audioFormat={project.audioFormat}
+                      truePeak={project.truePeak}
+                      lufs={project.lufs}
                       versions={project.versions.map(v => ({
                         id: v.id,
                         label: v.label || 'Version',
                         audioUrl: v.audioUrl,
                         duration: v.duration,
                         uploadedAt: v.createdAt,
-                        notes: null
+                        notes: null,
+                        sampleRate: v.sampleRate,
+                        bitDepth: v.bitDepth,
+                        bitrate: v.bitrate,
+                        audioFormat: v.audioFormat,
+                        truePeak: v.truePeak,
+                        lufs: v.lufs,
                       }))}
                       isPublic={project.isPublic}
                       isShared={project.isShared}
@@ -1076,6 +1098,12 @@ export default function StudioDashboard() {
                       keySignature={project.key}
                       duration={project.duration || 180}
                       audioUrl={project.audioUrl || undefined}
+                      sampleRate={project.sampleRate}
+                      bitDepth={project.bitDepth}
+                      bitrate={project.bitrate}
+                      audioFormat={project.audioFormat}
+                      truePeak={project.truePeak}
+                      lufs={project.lufs}
                       isPublic={project.isPublic}
                       isShared={project.isShared}
                       views={project.views}

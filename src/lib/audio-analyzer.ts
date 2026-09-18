@@ -23,6 +23,13 @@ export interface AudioAnalysisResult {
   // Débit binaire en kbps : uniquement pour les formats compressés. Estimé à partir
   // de la taille du fichier et de sa durée (précis pour un encodage CBR, approximatif en VBR).
   bitrate: number | null;
+  // Crête réelle (True Peak) en dBTP, mesurée après sur-échantillonnage x4
+  // pour détecter les dépassements inter-échantillons (norme ITU-R BS.1770).
+  truePeak: number;
+  // Loudness intégré en LUFS sur toute la durée du morceau, avec le
+  // pondérage K et le double seuillage (absolu -70 LUFS, relatif -10 LU)
+  // définis par la norme ITU-R BS.1770 / EBU R128.
+  lufs: number;
 }
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -93,7 +100,7 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
         const arrayBuffer = e.target?.result as ArrayBuffer;
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
 
-        // Get the audio data (mono)
+        // Get the audio data (mono, pour le BPM et la tonalité)
         const channelData = audioBuffer.getChannelData(0);
         const sampleRate = audioBuffer.sampleRate;
         const duration = audioBuffer.duration;
@@ -106,6 +113,14 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
 
         // Calculate confidence based on signal quality
         const confidence = calculateConfidence(channelData);
+
+        // Loudness (LUFS) et crête réelle (True Peak) : nécessitent tous les
+        // canaux (le pondérage stéréo de la norme diffère du mono)
+        const channels: Float32Array[] = [];
+        for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+          channels.push(audioBuffer.getChannelData(ch));
+        }
+        const { integratedLufs, truePeakDb } = analyzeLoudness(channels, sampleRate);
 
         const audioFormat = detectAudioFormat(file);
         const isUncompressed = UNCOMPRESSED_MIME_TYPES.has(file.type) || audioFormat === 'WAV';
@@ -123,6 +138,8 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
           audioFormat,
           bitDepth,
           bitrate,
+          truePeak: Math.round(truePeakDb * 10) / 10,
+          lufs: Math.round(integratedLufs * 10) / 10,
         });
       } catch (error) {
         reject(error);
@@ -411,6 +428,196 @@ function calculateConfidence(channelData: Float32Array): number {
   const crestScore = Math.min(1, 1 / (crestFactor - 1 || 1));
 
   return (rmsScore + crestScore) / 2;
+}
+
+interface BiquadCoeffs {
+  b0: number; b1: number; b2: number; a1: number; a2: number;
+}
+
+/**
+ * Filtre biquad, forme directe II transposée (stable numériquement).
+ */
+function applyBiquad(input: Float32Array | Float64Array, c: BiquadCoeffs): Float64Array {
+  const output = new Float64Array(input.length);
+  let z1 = 0;
+  let z2 = 0;
+  for (let n = 0; n < input.length; n++) {
+    const x = input[n];
+    const y = c.b0 * x + z1;
+    z1 = c.b1 * x - c.a1 * y + z2;
+    z2 = c.b2 * x - c.a2 * y;
+    output[n] = y;
+  }
+  return output;
+}
+
+/**
+ * Filtre de pondération K (norme ITU-R BS.1770) : un premier étage en
+ * plateau haute fréquence qui modélise l'effet de la tête, puis un filtre
+ * RLB passe-haut. Les coefficients sont dérivés par transformée bilinéaire
+ * pré-déformée pour n'importe quelle fréquence d'échantillonnage (les
+ * formules de la norme sont données pour 48 kHz mais se généralisent ainsi).
+ */
+function kWeightingFilters(sampleRate: number): [BiquadCoeffs, BiquadCoeffs] {
+  // Étage 1 : plateau haute fréquence (simule la résonance de la tête)
+  const f0_1 = 1681.9744509555319;
+  const G = 3.99984385397;
+  const Q1 = 0.7071752369554193;
+  const K1 = Math.tan((Math.PI * f0_1) / sampleRate);
+  const Vh = Math.pow(10, G / 20);
+  const Vb = Math.pow(Vh, 0.4996667741545416);
+  const a0_1 = 1 + K1 / Q1 + K1 * K1;
+  const stage1: BiquadCoeffs = {
+    b0: (Vh + (Vb * K1) / Q1 + K1 * K1) / a0_1,
+    b1: (2 * (K1 * K1 - Vh)) / a0_1,
+    b2: (Vh - (Vb * K1) / Q1 + K1 * K1) / a0_1,
+    a1: (2 * (K1 * K1 - 1)) / a0_1,
+    a2: (1 - K1 / Q1 + K1 * K1) / a0_1,
+  };
+
+  // Étage 2 : filtre RLB, passe-haut du second ordre
+  const f0_2 = 38.13547087602;
+  const Q2 = 0.5003270373238;
+  const K2 = Math.tan((Math.PI * f0_2) / sampleRate);
+  const a0_2 = 1 + K2 / Q2 + K2 * K2;
+  const stage2: BiquadCoeffs = {
+    b0: 1 / a0_2,
+    b1: -2 / a0_2,
+    b2: 1 / a0_2,
+    a1: (2 * (K2 * K2 - 1)) / a0_2,
+    a2: (1 - K2 / Q2 + K2 * K2) / a0_2,
+  };
+
+  return [stage1, stage2];
+}
+
+/**
+ * Interpolation de Catmull-Rom (spline cubique) - utilisée pour estimer les
+ * valeurs inter-échantillons lors du sur-échantillonnage x4 de la crête réelle.
+ */
+function catmullRom(y0: number, y1: number, y2: number, y3: number, t: number): number {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return 0.5 * (
+    2 * y1 +
+    (-y0 + y2) * t +
+    (2 * y0 - 5 * y1 + 4 * y2 - y3) * t2 +
+    (-y0 + 3 * y1 - 3 * y2 + y3) * t3
+  );
+}
+
+/**
+ * Estime la crête réelle (True Peak) d'un canal en sur-échantillonnant x4
+ * par interpolation cubique, pour détecter les dépassements inter-échantillons
+ * qu'un simple max() sur les échantillons d'origine manquerait (norme
+ * ITU-R BS.1770). Approximation par interpolation plutôt que le filtre
+ * polyphasé exact de la norme, mais du même ordre de précision en pratique.
+ */
+function estimateTruePeak(channel: Float32Array, oversample = 4): number {
+  let peak = 0;
+  const n = channel.length;
+  for (let i = 0; i < n; i++) {
+    const y0 = i > 0 ? channel[i - 1] : channel[i];
+    const y1 = channel[i];
+    const y2 = i + 1 < n ? channel[i + 1] : channel[i];
+    const y3 = i + 2 < n ? channel[i + 2] : y2;
+    for (let k = 0; k < oversample; k++) {
+      const abs = Math.abs(catmullRom(y0, y1, y2, y3, k / oversample));
+      if (abs > peak) peak = abs;
+    }
+  }
+  return peak;
+}
+
+/**
+ * Mesure le loudness intégré (LUFS) et la crête réelle (True Peak, dBTP)
+ * sur l'ensemble du morceau, selon la norme ITU-R BS.1770 / EBU R128 :
+ * pondération K, découpage en blocs de 400ms (pas de 100ms), puis double
+ * seuillage (absolu à -70 LUFS, relatif à -10 LU sous la moyenne).
+ */
+function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integratedLufs: number; truePeakDb: number } {
+  const [stage1, stage2] = kWeightingFilters(sampleRate);
+  const weightedChannels = channels.map((chan) => applyBiquad(applyBiquad(chan, stage1), stage2));
+  // Pondération de canal de la norme : 1.0 pour chaque canal avant/gauche-droite
+  // (le cas 5.1 avec ses canaux surround à 1.41 ne s'applique pas aux mixdowns
+  // mono/stéréo qu'on traite ici).
+  const channelWeight = 1.0;
+
+  const blockSize = Math.max(1, Math.round(0.4 * sampleRate));
+  const hopSize = Math.max(1, Math.round(0.1 * sampleRate));
+  const totalLength = weightedChannels[0]?.length || 0;
+
+  const blockPowers: number[] = [];
+  if (totalLength <= blockSize) {
+    // Morceau plus court qu'un bloc : on mesure sur toute la longueur disponible.
+    let weightedSum = 0;
+    for (const chan of weightedChannels) {
+      let sumSq = 0;
+      for (let i = 0; i < totalLength; i++) sumSq += chan[i] * chan[i];
+      weightedSum += channelWeight * (totalLength > 0 ? sumSq / totalLength : 0);
+    }
+    blockPowers.push(weightedSum);
+  } else {
+    for (let start = 0; start + blockSize <= totalLength; start += hopSize) {
+      let weightedSum = 0;
+      for (const chan of weightedChannels) {
+        let sumSq = 0;
+        for (let i = start; i < start + blockSize; i++) sumSq += chan[i] * chan[i];
+        weightedSum += channelWeight * (sumSq / blockSize);
+      }
+      blockPowers.push(weightedSum);
+    }
+  }
+
+  const powerToLoudness = (power: number) => (power > 0 ? -0.691 + 10 * Math.log10(power) : -Infinity);
+
+  const absoluteGated = blockPowers.filter((p) => powerToLoudness(p) > -70);
+  let integratedLufs: number;
+  if (absoluteGated.length === 0) {
+    integratedLufs = -70;
+  } else {
+    const meanAbsPower = absoluteGated.reduce((a, b) => a + b, 0) / absoluteGated.length;
+    const relativeThreshold = powerToLoudness(meanAbsPower) - 10;
+    const relativeGated = absoluteGated.filter((p) => powerToLoudness(p) > relativeThreshold);
+    const finalPower = relativeGated.length > 0
+      ? relativeGated.reduce((a, b) => a + b, 0) / relativeGated.length
+      : meanAbsPower;
+    integratedLufs = powerToLoudness(finalPower);
+  }
+
+  let peak = 0;
+  for (const chan of channels) {
+    const chanPeak = estimateTruePeak(chan);
+    if (chanPeak > peak) peak = chanPeak;
+  }
+  const truePeakDb = peak > 0 ? 20 * Math.log10(peak) : -100;
+
+  return { integratedLufs, truePeakDb };
+}
+
+export interface TechnicalSpecs {
+  audioFormat?: string | null;
+  sampleRate?: number | null;
+  bitDepth?: number | null;
+  bitrate?: number | null;
+  truePeak?: number | null;
+  lufs?: number | null;
+}
+
+/**
+ * Formate les caractéristiques techniques d'un fichier audio en une ligne
+ * discrète, ex: "WAV · 44.1 kHz · 24 bits · Crête -1.2 dBTP · -14.0 LUFS".
+ * Ignore les champs absents (analyse non disponible pour ce fichier).
+ */
+export function formatTechnicalSpecs(specs: TechnicalSpecs): string | null {
+  const parts: string[] = [];
+  if (specs.audioFormat) parts.push(specs.audioFormat);
+  if (specs.sampleRate) parts.push(`${(specs.sampleRate / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} kHz`);
+  if (specs.bitDepth) parts.push(`${specs.bitDepth} bits`);
+  else if (specs.bitrate) parts.push(`${specs.bitrate} kbps`);
+  if (specs.truePeak !== null && specs.truePeak !== undefined) parts.push(`Crête ${specs.truePeak.toFixed(1)} dBTP`);
+  if (specs.lufs !== null && specs.lufs !== undefined) parts.push(`${specs.lufs.toFixed(1)} LUFS`);
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 /**

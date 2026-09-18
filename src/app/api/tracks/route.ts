@@ -117,6 +117,8 @@ export async function POST(request: NextRequest) {
     const bitDepth = formData.get('bitDepth') as string;
     const bitrate = formData.get('bitrate') as string;
     const audioFormat = formData.get('audioFormat') as string;
+    const truePeak = formData.get('truePeak') as string;
+    const lufs = formData.get('lufs') as string;
 
     if (!title || !artist) {
       return NextResponse.json(
@@ -165,6 +167,8 @@ export async function POST(request: NextRequest) {
         bitDepth: bitDepth ? parseInt(bitDepth) : null,
         bitrate: bitrate ? parseInt(bitrate) : null,
         audioFormat: audioFormat || null,
+        truePeak: truePeak ? parseFloat(truePeak) : null,
+        lufs: lufs ? parseFloat(lufs) : null,
       },
       include: {
         studio: { select: { id: true, name: true } }

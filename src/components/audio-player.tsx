@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Share2, Download, Globe, Lock, Repeat, Shuffle, Eye, MessageCircle, X, Send, Users, MoreHorizontal, Trash2, Disc3, Music, Youtube, Headphones, Calendar } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { formatTechnicalSpecs } from '@/lib/audio-analyzer';
 
 interface Comment {
   id: string;
@@ -50,6 +51,12 @@ interface AudioPlayerProps {
   deezerUrl?: string | null;
   canEditRelease?: boolean; // Owner can edit the release sheet
   onReleaseUpdate?: () => void;
+  sampleRate?: number | null;
+  bitDepth?: number | null;
+  bitrate?: number | null;
+  audioFormat?: string | null;
+  truePeak?: number | null;
+  lufs?: number | null;
 }
 
 export default function AudioPlayer({
@@ -77,8 +84,15 @@ export default function AudioPlayer({
   appleMusicUrl,
   deezerUrl,
   canEditRelease = false,
-  onReleaseUpdate
+  onReleaseUpdate,
+  sampleRate,
+  bitDepth,
+  bitrate,
+  audioFormat,
+  truePeak,
+  lufs
 }: AudioPlayerProps) {
+  const technicalSpecs = formatTechnicalSpecs({ audioFormat, sampleRate, bitDepth, bitrate, truePeak, lufs });
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(0.8);
@@ -551,6 +565,10 @@ export default function AudioPlayer({
             
             <span className="text-xs text-gray-500">{formatTime(duration)}</span>
           </div>
+
+          {technicalSpecs && (
+            <p className="text-[10px] text-gray-600 text-center mt-2 tracking-wide">{technicalSpecs}</p>
+          )}
         </div>
 
         {audioUrl && (

@@ -45,7 +45,17 @@ interface Track {
   youtubeUrl?: string | null;
   appleMusicUrl?: string | null;
   deezerUrl?: string | null;
-  versions?: { id: string; version: number; label: string | null; audioUrl: string | null; duration: number | null; createdAt: string }[];
+  sampleRate?: number | null;
+  bitDepth?: number | null;
+  bitrate?: number | null;
+  audioFormat?: string | null;
+  truePeak?: number | null;
+  lufs?: number | null;
+  versions?: {
+    id: string; version: number; label: string | null; audioUrl: string | null; duration: number | null; createdAt: string;
+    sampleRate?: number | null; bitDepth?: number | null; bitrate?: number | null; audioFormat?: string | null;
+    truePeak?: number | null; lufs?: number | null;
+  }[];
   masterValidation?: MasterValidation | null;
 }
 
@@ -210,6 +220,8 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     formData.append('bitDepth', analysisResult?.bitDepth?.toString() || '');
     formData.append('bitrate', analysisResult?.bitrate?.toString() || '');
     formData.append('audioFormat', analysisResult?.audioFormat || '');
+    formData.append('truePeak', analysisResult?.truePeak?.toString() || '');
+    formData.append('lufs', analysisResult?.lufs?.toString() || '');
 
     if (uploadedFile) {
       formData.append('audioFile', uploadedFile);
@@ -332,6 +344,19 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     const formData = new FormData();
     formData.append('audioFile', file);
     formData.append('label', label);
+
+    try {
+      const analysis = await analyzeAudio(file);
+      formData.append('duration', analysis.duration.toString());
+      formData.append('sampleRate', analysis.sampleRate.toString());
+      formData.append('bitDepth', analysis.bitDepth?.toString() || '');
+      formData.append('bitrate', analysis.bitrate?.toString() || '');
+      formData.append('audioFormat', analysis.audioFormat);
+      formData.append('truePeak', analysis.truePeak.toString());
+      formData.append('lufs', analysis.lufs.toString());
+    } catch (e) {
+      console.error('Analyse audio de la version échouée:', e);
+    }
 
     const res = await fetch(`/api/tracks/${trackId}/versions`, {
       method: 'POST',
@@ -804,13 +829,25 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         keySignature={track.key}
                         duration={track.duration || 180}
                         audioUrl={track.audioUrl || undefined}
+                        sampleRate={track.sampleRate}
+                        bitDepth={track.bitDepth}
+                        bitrate={track.bitrate}
+                        audioFormat={track.audioFormat}
+                        truePeak={track.truePeak}
+                        lufs={track.lufs}
                         versions={track.versions.map(v => ({
                           id: v.id,
                           label: v.label || 'Version',
                           audioUrl: v.audioUrl,
                           duration: v.duration,
                           uploadedAt: v.createdAt,
-                          notes: null
+                          notes: null,
+                          sampleRate: v.sampleRate,
+                          bitDepth: v.bitDepth,
+                          bitrate: v.bitrate,
+                          audioFormat: v.audioFormat,
+                          truePeak: v.truePeak,
+                          lufs: v.lufs,
                         }))}
                         isPublic={track.isPublic}
                         isShared={track.isShared}
@@ -851,6 +888,12 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         keySignature={track.key}
                         duration={track.duration || 180}
                         audioUrl={track.audioUrl || undefined}
+                        sampleRate={track.sampleRate}
+                        bitDepth={track.bitDepth}
+                        bitrate={track.bitrate}
+                        audioFormat={track.audioFormat}
+                        truePeak={track.truePeak}
+                        lufs={track.lufs}
                         isPublic={track.isPublic}
                         isShared={track.isShared}
                         onTogglePublic={() => handleTogglePublic(track.id, track.isPublic || false)}

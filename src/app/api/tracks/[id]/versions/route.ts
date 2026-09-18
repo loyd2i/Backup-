@@ -55,6 +55,12 @@ export async function POST(
     const audioFile = formData.get('audioFile') as File | null;
     const label = formData.get('label') as string | null;
     const duration = formData.get('duration') as string | null;
+    const sampleRate = formData.get('sampleRate') as string | null;
+    const bitDepth = formData.get('bitDepth') as string | null;
+    const bitrate = formData.get('bitrate') as string | null;
+    const audioFormat = formData.get('audioFormat') as string | null;
+    const truePeak = formData.get('truePeak') as string | null;
+    const lufs = formData.get('lufs') as string | null;
 
     // Check track ownership
     const track = await prisma.track.findFirst({
@@ -91,14 +97,29 @@ export async function POST(
         label: label || `V${nextVersion}`,
         audioUrl,
         duration: duration ? parseInt(duration) : null,
+        sampleRate: sampleRate ? parseInt(sampleRate) : null,
+        bitDepth: bitDepth ? parseInt(bitDepth) : null,
+        bitrate: bitrate ? parseInt(bitrate) : null,
+        audioFormat: audioFormat || null,
+        truePeak: truePeak ? parseFloat(truePeak) : null,
+        lufs: lufs ? parseFloat(lufs) : null,
       },
     });
 
-    // If this is V1 and track has no audioUrl, set it
+    // If this is V1 and track has no audioUrl, set it (avec les mêmes specs techniques)
     if (nextVersion === 1 && !track.audioUrl && audioUrl) {
       await prisma.track.update({
         where: { id },
-        data: { audioUrl, duration: duration ? parseInt(duration) : null },
+        data: {
+          audioUrl,
+          duration: duration ? parseInt(duration) : null,
+          sampleRate: sampleRate ? parseInt(sampleRate) : null,
+          bitDepth: bitDepth ? parseInt(bitDepth) : null,
+          bitrate: bitrate ? parseInt(bitrate) : null,
+          audioFormat: audioFormat || null,
+          truePeak: truePeak ? parseFloat(truePeak) : null,
+          lufs: lufs ? parseFloat(lufs) : null,
+        },
       });
     }
 

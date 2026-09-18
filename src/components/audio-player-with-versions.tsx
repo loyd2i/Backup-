@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Globe, Lock, Eye, MessageCircle, X, Send, Users, Trash2, ArrowLeftRight, ChevronDown, Upload, Loader2, Repeat } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
+import { formatTechnicalSpecs } from '@/lib/audio-analyzer';
 
 interface TrackVersion {
   id: string;
@@ -11,6 +12,12 @@ interface TrackVersion {
   duration: number | null;
   uploadedAt: string;
   notes: string | null;
+  sampleRate?: number | null;
+  bitDepth?: number | null;
+  bitrate?: number | null;
+  audioFormat?: string | null;
+  truePeak?: number | null;
+  lufs?: number | null;
 }
 
 interface Comment {
@@ -43,6 +50,12 @@ interface AudioPlayerWithVersionsProps {
   hideStudio?: boolean;
   onDelete?: () => void;
   onUploadVersion?: (file: File, label: string) => Promise<void>;
+  sampleRate?: number | null;
+  bitDepth?: number | null;
+  bitrate?: number | null;
+  audioFormat?: string | null;
+  truePeak?: number | null;
+  lufs?: number | null;
 }
 
 export default function AudioPlayerWithVersions({
@@ -62,7 +75,13 @@ export default function AudioPlayerWithVersions({
   commentCount = 0,
   hideStudio = false,
   onDelete,
-  onUploadVersion
+  onUploadVersion,
+  sampleRate,
+  bitDepth,
+  bitrate,
+  audioFormat,
+  truePeak,
+  lufs
 }: AudioPlayerWithVersionsProps) {
   // Current version state
   const [activeVersionIndex, setActiveVersionIndex] = useState(0);
@@ -97,7 +116,10 @@ export default function AudioPlayerWithVersions({
 
   // Determine all versions (main + uploaded versions)
   const allVersions: TrackVersion[] = [
-    { id: 'original', label: 'V1 (Original)', audioUrl: audioUrl || null, duration, uploadedAt: '', notes: null },
+    {
+      id: 'original', label: 'V1 (Original)', audioUrl: audioUrl || null, duration, uploadedAt: '', notes: null,
+      sampleRate, bitDepth, bitrate, audioFormat, truePeak, lufs,
+    },
     ...versions
   ];
 
@@ -109,6 +131,14 @@ export default function AudioPlayerWithVersions({
   const displayedVersion = compareMode && audibleSide === 'B' && slotBVersion ? slotBVersion : slotAVersion;
   const activeDuration = displayedVersion?.duration || duration;
   const activeAudioUrl = slotAVersion?.audioUrl || audioUrl;
+  const technicalSpecs = formatTechnicalSpecs({
+    audioFormat: displayedVersion?.audioFormat,
+    sampleRate: displayedVersion?.sampleRate,
+    bitDepth: displayedVersion?.bitDepth,
+    bitrate: displayedVersion?.bitrate,
+    truePeak: displayedVersion?.truePeak,
+    lufs: displayedVersion?.lufs,
+  });
 
   // Generate waveform bars
   const waveformBars = useRef<number[]>([]);
@@ -612,6 +642,10 @@ export default function AudioPlayerWithVersions({
 
             <span className="text-xs text-gray-500">{formatTime(activeDuration)}</span>
           </div>
+
+          {technicalSpecs && (
+            <p className="text-[10px] text-gray-600 text-center mt-2 tracking-wide">{technicalSpecs}</p>
+          )}
         </div>
 
         {activeAudioUrl && (

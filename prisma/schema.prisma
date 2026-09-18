@@ -409,6 +409,8 @@ model Track {
   bitDepth    Int?     // bits, uniquement pour les formats non compressés (WAV, FLAC)
   bitrate     Int?     // kbps, uniquement pour les formats compressés (MP3, AAC...)
   audioFormat String?  // WAV, MP3, FLAC, M4A, OGG...
+  truePeak    Float?   // dBTP (True Peak, norme ITU-R BS.1770 / EBU R128)
+  lufs        Float?   // LUFS intégré (loudness), norme ITU-R BS.1770 / EBU R128
 
   // Fiche Release
   genre         String?
@@ -440,6 +442,15 @@ model TrackVersion {
   duration  Int?     // Durée en secondes
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Analyse technique automatique à l'upload (chaque version est un fichier
+  // distinct, potentiellement un master différent : specs propres à la version)
+  sampleRate  Int?     // Hz (ex: 44100)
+  bitDepth    Int?     // bits, uniquement pour les formats non compressés (WAV, FLAC)
+  bitrate     Int?     // kbps, uniquement pour les formats compressés (MP3, AAC...)
+  audioFormat String?  // WAV, MP3, FLAC, M4A, OGG...
+  truePeak    Float?   // dBTP (True Peak, norme ITU-R BS.1770 / EBU R128)
+  lufs        Float?   // LUFS intégré (loudness), norme ITU-R BS.1770 / EBU R128
 
   masterValidations MasterValidation[]
 
