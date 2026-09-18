@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Globe, Lock, Eye, MessageCircle, X, Send, Users, Trash2, ArrowLeftRight, ChevronDown, Upload, Loader2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Globe, Lock, Eye, MessageCircle, X, Send, Users, Trash2, ArrowLeftRight, ChevronDown, Upload, Loader2, Repeat } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 
 interface TrackVersion {
@@ -81,8 +81,15 @@ export default function AudioPlayerWithVersions({
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [addTimestamp, setAddTimestamp] = useState(false);
-  
+
+  // A/B comparison state - lets two versions play in sync with instant,
+  // gapless switching (volume swap instead of src reload/seek)
+  const [compareMode, setCompareMode] = useState(false);
+  const [abIndexB, setAbIndexB] = useState<number | null>(null);
+  const [audibleSide, setAudibleSide] = useState<'A' | 'B'>('A');
+
   const audioRef = useRef<HTMLAudioElement>(null);
+  const audioRefB = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -93,10 +100,15 @@ export default function AudioPlayerWithVersions({
     { id: 'original', label: 'V1 (Original)', audioUrl: audioUrl || null, duration, uploadedAt: '', notes: null },
     ...versions
   ];
-  
-  const activeVersion = allVersions[activeVersionIndex];
-  const activeDuration = activeVersion?.duration || duration;
-  const activeAudioUrl = activeVersion?.audioUrl || audioUrl;
+
+  // Slot A is the "main" audio element - unchanged semantics from before A/B existed.
+  // Slot B only exists while compareMode is on. The <audio> element bound to audioRef
+  // always uses slotAVersion's URL so toggling audibleSide never touches its src/currentTime.
+  const slotAVersion = allVersions[activeVersionIndex];
+  const slotBVersion = compareMode && abIndexB !== null ? allVersions[abIndexB] : null;
+  const displayedVersion = compareMode && audibleSide === 'B' && slotBVersion ? slotBVersion : slotAVersion;
+  const activeDuration = displayedVersion?.duration || duration;
+  const activeAudioUrl = slotAVersion?.audioUrl || audioUrl;
 
   // Generate waveform bars
   const waveformBars = useRef<number[]>([]);
@@ -106,11 +118,33 @@ export default function AudioPlayerWithVersions({
     }
   }
 
+  // Route volume to whichever side is audible - this is the whole trick behind
+  // gapless A/B: both elements keep playing, only their volume changes.
   useEffect(() => {
     if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
+      audioRef.current.volume = isMuted ? 0 : (compareMode && audibleSide === 'B' ? 0 : volume);
     }
-  }, [volume, isMuted]);
+    if (audioRefB.current) {
+      audioRefB.current.volume = isMuted ? 0 : (compareMode && audibleSide === 'B' ? volume : 0);
+    }
+  }, [volume, isMuted, compareMode, audibleSide]);
+
+  // Seed / re-seed slot B whenever compare mode starts or its version changes:
+  // sync it to slot A's current position and play state so it's ready to be
+  // toggled to instantly, with no seek or buffering at toggle time.
+  useEffect(() => {
+    if (compareMode && slotBVersion?.audioUrl && audioRefB.current) {
+      if (audioRefB.current.src !== slotBVersion.audioUrl) {
+        audioRefB.current.src = slotBVersion.audioUrl;
+      }
+      audioRefB.current.currentTime = audioRef.current?.currentTime ?? currentTime;
+      audioRefB.current.volume = isMuted ? 0 : (audibleSide === 'B' ? volume : 0);
+      if (isPlaying) {
+        audioRefB.current.play().catch(() => {});
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compareMode, abIndexB]);
 
   useEffect(() => {
     return () => {
@@ -154,16 +188,65 @@ export default function AudioPlayerWithVersions({
     }, 100);
   };
 
+  // Enter A/B compare mode: pick the first version different from the current
+  // one as slot B. Seeding/starting slot B is handled by the effect above.
+  const enterCompareMode = () => {
+    if (allVersions.length < 2) return;
+    const firstOther = allVersions.findIndex((_, i) => i !== activeVersionIndex);
+    setAbIndexB(firstOther === -1 ? null : firstOther);
+    setAudibleSide('A');
+    setCompareMode(true);
+    setShowVersionSelect(false);
+  };
+
+  // Exit compare mode. If slot A was the audible side, nothing needs to reload -
+  // truly zero interruption. If slot B was audible, promote it to slot A so what
+  // you were hearing keeps playing; that one transition needs a brief reload,
+  // same trade-off as the normal version switcher.
+  const exitCompareMode = () => {
+    const wasPlaying = isPlaying;
+    const exitTime = audioRefB.current?.currentTime ?? currentTime;
+    const promote = audibleSide === 'B' && abIndexB !== null;
+    const newVersion = promote ? allVersions[abIndexB!] : null;
+
+    if (audioRefB.current) audioRefB.current.pause();
+
+    if (promote && newVersion) {
+      setActiveVersionIndex(abIndexB!);
+      setCurrentTime(exitTime);
+      setTimeout(() => {
+        if (newVersion.audioUrl && audioRef.current) {
+          audioRef.current.src = newVersion.audioUrl;
+          audioRef.current.currentTime = exitTime;
+          audioRef.current.volume = isMuted ? 0 : volume;
+          if (wasPlaying) audioRef.current.play().catch(() => {});
+        }
+      }, 50);
+    }
+
+    setCompareMode(false);
+    setAbIndexB(null);
+    setAudibleSide('A');
+  };
+
   const togglePlay = () => {
     if (audioRef.current && activeAudioUrl) {
       if (isPlaying) {
         audioRef.current.pause();
+        if (compareMode && audioRefB.current) audioRefB.current.pause();
         if (intervalRef.current) clearInterval(intervalRef.current);
       } else {
         if (audioRef.current.src !== activeAudioUrl) {
           audioRef.current.src = activeAudioUrl;
         }
         audioRef.current.play();
+        if (compareMode && slotBVersion?.audioUrl && audioRefB.current) {
+          if (audioRefB.current.src !== slotBVersion.audioUrl) {
+            audioRefB.current.src = slotBVersion.audioUrl;
+          }
+          audioRefB.current.currentTime = audioRef.current.currentTime;
+          audioRefB.current.play().catch(() => {});
+        }
         intervalRef.current = setInterval(() => {
           if (audioRef.current) setCurrentTime(audioRef.current.currentTime);
         }, 100);
@@ -192,6 +275,7 @@ export default function AudioPlayerWithVersions({
       const newTime = percent * activeDuration;
       setCurrentTime(newTime);
       if (audioRef.current) audioRef.current.currentTime = newTime;
+      if (compareMode && audioRefB.current) audioRefB.current.currentTime = newTime;
     }
   };
 
@@ -199,6 +283,7 @@ export default function AudioPlayerWithVersions({
     const newTime = Math.min(Math.max(currentTime + delta, 0), activeDuration || 0);
     setCurrentTime(newTime);
     if (audioRef.current) audioRef.current.currentTime = newTime;
+    if (compareMode && audioRefB.current) audioRefB.current.currentTime = newTime;
   };
 
   const formatTime = (seconds: number) => {
@@ -257,6 +342,7 @@ export default function AudioPlayerWithVersions({
   const jumpToTimestamp = (timestamp: number) => {
     setCurrentTime(timestamp);
     if (audioRef.current) audioRef.current.currentTime = timestamp;
+    if (compareMode && audioRefB.current) audioRefB.current.currentTime = timestamp;
     if (!isPlaying) togglePlay();
   };
 
@@ -317,45 +403,102 @@ export default function AudioPlayerWithVersions({
             </div>
 
             {/* Version Switcher */}
-            {allVersions.length > 1 && (
-              <div className="relative flex-shrink-0">
-                <button
-                  onClick={() => setShowVersionSelect(!showVersionSelect)}
-                  className="flex items-center gap-2 bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90 transition-all shadow-lg shadow-[#6366f1]/20"
-                >
-                  <ArrowLeftRight className="w-4 h-4" />
-                  {activeVersion?.label || 'V1'}
-                  <ChevronDown className="w-3 h-3" />
-                </button>
+            {allVersions.length > 1 && !compareMode && (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowVersionSelect(!showVersionSelect)}
+                    className="flex items-center gap-2 bg-gradient-to-r from-[#6366f1] to-[#8b5cf6] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:opacity-90 transition-all shadow-lg shadow-[#6366f1]/20"
+                  >
+                    <ArrowLeftRight className="w-4 h-4" />
+                    {slotAVersion?.label || 'V1'}
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
 
-                {showVersionSelect && (
-                  <div className="absolute right-0 top-full mt-2 bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl overflow-hidden shadow-xl z-20 min-w-[180px]">
-                    {allVersions.map((version, i) => (
-                      <button
-                        key={version.id}
-                        onClick={() => switchVersion(i)}
-                        className={`w-full text-left px-4 py-3 text-sm transition-colors flex items-center justify-between ${
-                          i === activeVersionIndex
-                            ? 'bg-[#6366f1] text-white'
-                            : 'text-gray-300 hover:bg-[#3a3a3a]'
-                        }`}
-                      >
-                        <span className="font-medium">{version.label}</span>
-                        {i === activeVersionIndex && (
-                          <span className="text-xs opacity-75">▶ En cours</span>
-                        )}
-                      </button>
-                    ))}
-                    {onUploadVersion && (
-                      <button
-                        onClick={() => { setShowVersionSelect(false); setShowUploadVersion(true); }}
-                        className="w-full text-left px-4 py-3 text-sm text-[#6366f1] hover:bg-[#3a3a3a] border-t border-[#3a3a3a] flex items-center gap-2"
-                      >
-                        <Upload className="w-4 h-4" /> Ajouter une version
-                      </button>
-                    )}
-                  </div>
-                )}
+                  {showVersionSelect && (
+                    <div className="absolute right-0 top-full mt-2 bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl overflow-hidden shadow-xl z-20 min-w-[180px]">
+                      {allVersions.map((version, i) => (
+                        <button
+                          key={version.id}
+                          onClick={() => switchVersion(i)}
+                          className={`w-full text-left px-4 py-3 text-sm transition-colors flex items-center justify-between ${
+                            i === activeVersionIndex
+                              ? 'bg-[#6366f1] text-white'
+                              : 'text-gray-300 hover:bg-[#3a3a3a]'
+                          }`}
+                        >
+                          <span className="font-medium">{version.label}</span>
+                          {i === activeVersionIndex && (
+                            <span className="text-xs opacity-75">▶ En cours</span>
+                          )}
+                        </button>
+                      ))}
+                      {onUploadVersion && (
+                        <button
+                          onClick={() => { setShowVersionSelect(false); setShowUploadVersion(true); }}
+                          className="w-full text-left px-4 py-3 text-sm text-[#6366f1] hover:bg-[#3a3a3a] border-t border-[#3a3a3a] flex items-center gap-2"
+                        >
+                          <Upload className="w-4 h-4" /> Ajouter une version
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={enterCompareMode}
+                  className="p-2 text-gray-400 hover:text-white hover:bg-[#2a2a2a] rounded-xl transition-colors"
+                  title="Comparer 2 versions (A/B)"
+                >
+                  <Repeat className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* A/B Compare Mode Controls */}
+            {compareMode && (
+              <div className="flex items-center gap-1.5 flex-shrink-0 bg-[#12121e] rounded-xl p-1.5">
+                <select
+                  value={activeVersionIndex}
+                  onChange={(e) => switchVersion(Number(e.target.value))}
+                  className="bg-[#2a2a2a] text-white text-xs rounded-lg px-2 py-1.5 focus:outline-none max-w-[90px]"
+                >
+                  {allVersions.map((v, i) => (
+                    <option key={v.id} value={i}>{v.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setAudibleSide('A')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                    audibleSide === 'A' ? 'bg-[#6366f1] text-white' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  A
+                </button>
+                <button
+                  onClick={() => setAudibleSide('B')}
+                  disabled={abIndexB === null}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                    audibleSide === 'B' ? 'bg-[#6366f1] text-white' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  B
+                </button>
+                <select
+                  value={abIndexB ?? ''}
+                  onChange={(e) => setAbIndexB(Number(e.target.value))}
+                  className="bg-[#2a2a2a] text-white text-xs rounded-lg px-2 py-1.5 focus:outline-none max-w-[90px]"
+                >
+                  {allVersions.map((v, i) => (
+                    <option key={v.id} value={i} disabled={i === activeVersionIndex}>{v.label}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={exitCompareMode}
+                  className="p-1.5 text-gray-400 hover:text-white transition-colors"
+                  title="Quitter le mode comparaison"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             )}
 
@@ -476,7 +619,22 @@ export default function AudioPlayerWithVersions({
             ref={audioRef}
             src={activeAudioUrl}
             onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-            onEnded={() => { setIsPlaying(false); if (intervalRef.current) clearInterval(intervalRef.current); }}
+            onEnded={() => {
+              setIsPlaying(false);
+              if (intervalRef.current) clearInterval(intervalRef.current);
+              if (audioRefB.current) audioRefB.current.pause();
+            }}
+          />
+        )}
+        {compareMode && slotBVersion?.audioUrl && (
+          <audio
+            ref={audioRefB}
+            src={slotBVersion.audioUrl}
+            onEnded={() => {
+              setIsPlaying(false);
+              if (intervalRef.current) clearInterval(intervalRef.current);
+              if (audioRef.current) audioRef.current.pause();
+            }}
           />
         )}
       </div>
