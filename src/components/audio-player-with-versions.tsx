@@ -148,7 +148,7 @@ export default function AudioPlayerWithVersions({
   // en repli pour les morceaux uploadés avant cette fonctionnalité.
   const fallbackWaveformBars = useRef<number[]>([]);
   if (fallbackWaveformBars.current.length === 0) {
-    for (let i = 0; i < 64; i++) {
+    for (let i = 0; i < 96; i++) {
       fallbackWaveformBars.current.push(Math.random() * 0.6 + 0.2);
     }
   }
@@ -592,9 +592,9 @@ export default function AudioPlayerWithVersions({
           <div
             ref={progressRef}
             onClick={handleProgressClick}
-            className="h-14 bg-[#12121e] rounded-xl cursor-pointer relative overflow-hidden"
+            className="h-16 bg-[#12121e] rounded-xl cursor-pointer relative overflow-hidden"
           >
-            <div className="absolute inset-0 flex items-center justify-center gap-[2px] px-3">
+            <div className="absolute inset-0 flex items-center justify-center gap-[1px] px-3">
               {waveformBars.map((height, i) => {
                 const barProgress = (i / waveformBars.length) * 100;
                 const isActive = barProgress <= progress;
@@ -607,7 +607,7 @@ export default function AudioPlayerWithVersions({
                         ? 'bg-gradient-to-t from-[#6366f1] to-[#8b5cf6]'
                         : 'bg-[#2a2a3a]'
                     }`}
-                    style={{ height: `${height * 45}px` }}
+                    style={{ height: `${height * 56}px`, opacity: isActive ? 1 : 0.45 + height * 0.55 }}
                   />
                 );
               })}

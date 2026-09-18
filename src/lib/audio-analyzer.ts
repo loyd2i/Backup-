@@ -608,7 +608,7 @@ function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integr
  * Une légère compression (racine carrée) évite que les passages calmes
  * disparaissent complètement, comme sur les vrais lecteurs (SoundCloud...).
  */
-function computeWaveformPeaks(channels: Float32Array[], numBars = 64): number[] {
+function computeWaveformPeaks(channels: Float32Array[], numBars = 96): number[] {
   const length = channels[0]?.length || 0;
   if (length === 0) return new Array(numBars).fill(0.05);
 
