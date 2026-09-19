@@ -108,6 +108,7 @@ export async function POST(request: NextRequest) {
     const artist = formData.get('artist') as string;
     const bpm = formData.get('bpm') as string;
     const key = formData.get('key') as string;
+    const genre = formData.get('genre') as string;
     const studioId = formData.get('studioId') as string;
     const status = formData.get('status') as string;
     const isPublic = formData.get('isPublic') === 'true';
@@ -160,6 +161,7 @@ export async function POST(request: NextRequest) {
         artist,
         bpm: bpm ? parseInt(bpm) : null,
         key,
+        genre: genre || null,
         studioId: studioId || null,
         status: status || 'in_progress',
         isPublic,

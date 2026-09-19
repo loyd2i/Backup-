@@ -39,6 +39,10 @@ export interface AudioAnalysisResult {
   // (valeurs normalisées 0-1), pour afficher le vrai profil du morceau
   // plutôt que des barres aléatoires.
   waveformPeaks: number[];
+  // Style musical détecté (YAMNet, cf. genre-detector.ts) - null si aucun
+  // style ne ressort avec une confiance suffisante.
+  genre: string | null;
+  genreConfidence: number | null;
 }
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -144,6 +148,20 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
         const { integratedLufs, lra, truePeakDb } = analyzeLoudness(channels, sampleRate);
         const waveformPeaks = computeWaveformPeaks(channels);
 
+        // Détection du style musical (YAMNet) - best-effort : ne doit jamais
+        // faire échouer ni bloquer le reste de l'analyse. Sur un appareil sans
+        // accélération GPU (WebGL logiciel), l'inférence peut être lente :
+        // on abandonne au-delà d'un délai raisonnable plutôt que de faire
+        // attendre l'utilisateur indéfiniment pour cette seule enrichissement.
+        let genreResult: { genre: string; confidence: number } | null = null;
+        try {
+          const { detectGenre } = await import('./genre-detector');
+          const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 20000));
+          genreResult = await Promise.race([detectGenre(audioBuffer), timeout]);
+        } catch (genreError) {
+          console.error('Détection du style musical indisponible:', genreError);
+        }
+
         const audioFormat = detectAudioFormat(file);
         const isUncompressed = UNCOMPRESSED_MIME_TYPES.has(file.type) || audioFormat === 'WAV';
         const wavFormat = isUncompressed ? parseWavFormat(arrayBuffer) : null;
@@ -169,6 +187,8 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
           lufs: Math.round(integratedLufs * 10) / 10,
           lra: Math.round(lra * 10) / 10,
           waveformPeaks,
+          genre: genreResult?.genre ?? null,
+          genreConfidence: genreResult ? Math.round(genreResult.confidence * 100) / 100 : null,
         });
       } catch (error) {
         reject(error);

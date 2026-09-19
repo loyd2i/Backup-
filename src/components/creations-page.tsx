@@ -100,14 +100,15 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [newTrack, setNewTrack] = useState({ 
-    title: '', 
-    artist: '', 
-    bpm: '', 
-    key: '', 
-    studioId: '', 
+  const [newTrack, setNewTrack] = useState({
+    title: '',
+    artist: '',
+    bpm: '',
+    key: '',
+    genre: '',
+    studioId: '',
     status: 'in_progress',
-    isPublic: false 
+    isPublic: false
   });
   const [newText, setNewText] = useState({ title: '', artist: '', content: '' });
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -158,6 +159,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
       setTimeout(() => setAnalysisProgress('Analyse des fréquences...'), 500);
       setTimeout(() => setAnalysisProgress('Détection du tempo...'), 1500);
       setTimeout(() => setAnalysisProgress('Analyse de la tonalité...'), 2500);
+      setTimeout(() => setAnalysisProgress('Détection du style musical...'), 3500);
 
       const result = await analyzeAudio(file);
       setAnalysisResult(result);
@@ -166,6 +168,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
         ...prev,
         bpm: result.bpm.toString(),
         key: result.key,
+        genre: result.genre || prev.genre,
         title: prev.title || file.name.replace(/\.[^/.]+$/, '')
       }));
 
@@ -213,6 +216,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     formData.append('artist', newTrack.artist);
     formData.append('bpm', newTrack.bpm || '');
     formData.append('key', newTrack.key || '');
+    formData.append('genre', newTrack.genre || '');
     formData.append('studioId', newTrack.studioId || '');
     formData.append('status', newTrack.status);
     // Studio tracks are always private
@@ -249,6 +253,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
           artist: '',
           bpm: '',
           key: '',
+          genre: '',
           studioId: '',
           status: 'in_progress',
           isPublic: false
@@ -570,7 +575,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                     <p className="text-white font-medium mb-1">
                       {isDraggingFile ? 'Déposez le fichier ici' : 'Glissez-déposez votre fichier audio, ou cliquez'}
                     </p>
-                    <p className="text-gray-500 text-sm">BPM, tonalité, fréquence, format & résolution automatiques</p>
+                    <p className="text-gray-500 text-sm">BPM, tonalité, genre, fréquence, format & résolution automatiques</p>
                     <div className="flex items-center justify-center gap-2 mt-3">
                       <Zap className="w-4 h-4 text-yellow-400" />
                       <span className="text-yellow-400 text-xs font-medium">Analyse automatique</span>
@@ -642,6 +647,12 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                             <p className="text-gray-500 text-xs">{analysisResult.bitDepth ? 'Résolution' : 'Débit (estimé)'}</p>
                           </div>
                         </div>
+                        {analysisResult.genre && (
+                          <div className="mt-3 bg-[#1a1a1a] rounded-lg p-3 text-center">
+                            <p className="text-sm font-bold text-[#f59e0b]">{analysisResult.genre}</p>
+                            <p className="text-gray-500 text-xs">Style musical détecté</p>
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
@@ -671,35 +682,45 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                 </div>
               </div>
               
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-gray-400 text-sm mb-2 block flex items-center gap-1">
                     <Zap className="w-3 h-3 text-yellow-400" />
                     BPM
                   </label>
-                  <input 
-                    type="number" 
-                    value={newTrack.bpm} 
-                    onChange={(e) => setNewTrack({...newTrack, bpm: e.target.value})} 
-                    className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]" 
+                  <input
+                    type="number"
+                    value={newTrack.bpm}
+                    onChange={(e) => setNewTrack({...newTrack, bpm: e.target.value})}
+                    className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
                     placeholder="Auto"
                   />
                 </div>
                 <div>
                   <label className="text-gray-400 text-sm mb-2 block">Tonalité</label>
-                  <input 
-                    type="text" 
-                    value={newTrack.key} 
-                    onChange={(e) => setNewTrack({...newTrack, key: e.target.value})} 
-                    placeholder="Auto" 
-                    className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]" 
+                  <input
+                    type="text"
+                    value={newTrack.key}
+                    onChange={(e) => setNewTrack({...newTrack, key: e.target.value})}
+                    placeholder="Auto"
+                    className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
+                  />
+                </div>
+                <div>
+                  <label className="text-gray-400 text-sm mb-2 block">Genre</label>
+                  <input
+                    type="text"
+                    value={newTrack.genre}
+                    onChange={(e) => setNewTrack({...newTrack, genre: e.target.value})}
+                    placeholder="Auto"
+                    className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
                   />
                 </div>
                 <div>
                   <label className="text-gray-400 text-sm mb-2 block">Statut</label>
-                  <select 
-                    value={newTrack.status} 
-                    onChange={(e) => setNewTrack({...newTrack, status: e.target.value})} 
+                  <select
+                    value={newTrack.status}
+                    onChange={(e) => setNewTrack({...newTrack, status: e.target.value})}
                     className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
                   >
                     <option value="in_progress">En cours</option>
@@ -707,7 +728,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                   </select>
                 </div>
               </div>
-              
+
               {/* Studio Selection - Only for artist mode */}
               {!isStudioMode && (
                 <div>
