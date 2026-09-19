@@ -601,11 +601,6 @@ function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integr
   return { integratedLufs, truePeakDb };
 }
 
-// Seuil (sur l'amplitude normalisée 0-1, après compression) à partir duquel
-// un segment de la forme d'onde est mis en évidence en rouge dans le lecteur
-// comme étant l'un des passages les plus forts du morceau.
-export const LOUD_WAVEFORM_THRESHOLD = 0.85;
-
 /**
  * Calcule une empreinte de forme d'onde réelle (crête d'amplitude par
  * segment, normalisée 0-1) à partir du signal décodé, pour afficher le
@@ -645,9 +640,37 @@ export interface TechnicalSpecs {
   lufs?: number | null;
 }
 
+// Cible générale des principales plateformes de streaming actuelles (Spotify
+// et YouTube normalisent vers -14 LUFS, Apple Music vers -16, Tidal/Amazon
+// autour de -14) : une master dans cette fourchette, avec assez de marge de
+// crête, ne sera pas fortement écrêtée/compressée par leur normalisation.
+// Ce ne sont que des repères généraux ("à peu près"), pas une norme unique.
+const STREAMING_LUFS_TARGET_MIN = -16;
+const STREAMING_LUFS_TARGET_MAX = -13;
+// Au-delà, master "guerre du volume" (loudness war) : sera fortement
+// écrêtée par les plateformes et perd en dynamique.
+const STREAMING_LUFS_HOT = -9;
+// Marge usuelle contre l'écrêtage inter-échantillon après transcodage.
+const SAFE_TRUE_PEAK_MAX = -1;
+
+export type StreamingLoudnessStatus = 'optimal' | 'hot' | 'neutral';
+
+/**
+ * Évalue si le loudness mesuré correspond, à peu près, au niveau de sortie
+ * attendu par les plateformes de streaming actuelles. Renvoie 'neutral'
+ * quand la donnée n'est pas disponible (pas d'alerte injustifiée).
+ */
+export function getStreamingLoudnessStatus(lufs?: number | null, truePeak?: number | null): StreamingLoudnessStatus {
+  if (lufs === null || lufs === undefined || truePeak === null || truePeak === undefined) return 'neutral';
+  if (truePeak > SAFE_TRUE_PEAK_MAX || lufs > STREAMING_LUFS_HOT) return 'hot';
+  if (lufs >= STREAMING_LUFS_TARGET_MIN && lufs <= STREAMING_LUFS_TARGET_MAX && truePeak <= SAFE_TRUE_PEAK_MAX) return 'optimal';
+  return 'neutral';
+}
+
 /**
  * Formate les caractéristiques techniques d'un fichier audio en une ligne
- * discrète, ex: "WAV · 44.1 kHz · 24 bits · Crête -1.2 dBTP · -14.0 LUFS".
+ * discrète, ex: "WAV · 44.1 kHz · 24 bits · Crête -1.2 dBTP · -14.0 LUFS",
+ * complétée d'un repère sur le niveau de sortie streaming quand pertinent.
  * Ignore les champs absents (analyse non disponible pour ce fichier).
  */
 export function formatTechnicalSpecs(specs: TechnicalSpecs): string | null {
@@ -658,7 +681,13 @@ export function formatTechnicalSpecs(specs: TechnicalSpecs): string | null {
   else if (specs.bitrate) parts.push(`${specs.bitrate} kbps`);
   if (specs.truePeak !== null && specs.truePeak !== undefined) parts.push(`Crête ${specs.truePeak.toFixed(1)} dBTP`);
   if (specs.lufs !== null && specs.lufs !== undefined) parts.push(`${specs.lufs.toFixed(1)} LUFS`);
-  return parts.length > 0 ? parts.join(' · ') : null;
+  if (parts.length === 0) return null;
+
+  const status = getStreamingLoudnessStatus(specs.lufs, specs.truePeak);
+  const line = parts.join(' · ');
+  if (status === 'optimal') return `${line} · ✓ Prêt streaming`;
+  if (status === 'hot') return `${line} · ⚠ Trop fort pour le streaming`;
+  return line;
 }
 
 /**

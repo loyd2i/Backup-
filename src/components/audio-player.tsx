@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Share2, Download, Globe, Lock, Repeat, Shuffle, Eye, MessageCircle, X, Send, Users, MoreHorizontal, Trash2, Disc3, Music, Youtube, Headphones, Calendar } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { formatTechnicalSpecs, LOUD_WAVEFORM_THRESHOLD } from '@/lib/audio-analyzer';
+import { formatTechnicalSpecs, getStreamingLoudnessStatus } from '@/lib/audio-analyzer';
 
 interface Comment {
   id: string;
@@ -95,6 +95,7 @@ export default function AudioPlayer({
   waveformPeaks
 }: AudioPlayerProps) {
   const technicalSpecs = formatTechnicalSpecs({ audioFormat, sampleRate, bitDepth, bitrate, truePeak, lufs });
+  const loudnessStatus = getStreamingLoudnessStatus(lufs, truePeak);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(0.8);
@@ -537,19 +538,22 @@ export default function AudioPlayer({
               {waveformBars.map((height, i) => {
                 const barProgress = (i / waveformBars.length) * 100;
                 const isActive = barProgress <= progress;
-                const isLoud = height >= LOUD_WAVEFORM_THRESHOLD;
 
                 return (
                   <div
                     key={i}
                     className={`flex-1 rounded-full transition-all duration-150 ${
-                      isLoud
+                      loudnessStatus === 'hot'
                         ? isActive
                           ? 'bg-gradient-to-t from-red-600 to-red-400'
                           : 'bg-gradient-to-t from-red-900 to-red-700'
-                        : isActive
-                          ? 'bg-gradient-to-t from-[#6366f1] to-[#8b5cf6]'
-                          : 'bg-[#2a2a3a]'
+                        : loudnessStatus === 'optimal'
+                          ? isActive
+                            ? 'bg-gradient-to-t from-green-600 to-green-400'
+                            : 'bg-gradient-to-t from-green-900 to-green-700'
+                          : isActive
+                            ? 'bg-gradient-to-t from-[#6366f1] to-[#8b5cf6]'
+                            : 'bg-[#2a2a3a]'
                     }`}
                     style={{ height: `${height * 56}px`, opacity: isActive ? 1 : 0.45 + height * 0.55 }}
                   />
