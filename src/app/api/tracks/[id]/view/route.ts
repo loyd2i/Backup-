@@ -10,6 +10,8 @@ export async function POST(
   try {
     const { id: trackId } = await params;
     const user = await getCurrentUser();
+    const { searchParams } = new URL(request.url);
+    const token = searchParams.get('token');
 
     // Get track
     const track = await prisma.track.findUnique({
@@ -22,8 +24,9 @@ export async function POST(
     }
 
     // Check access
-    const hasAccess = 
+    const hasAccess =
       track.isPublic ||
+      (!!token && !!track.linkToken && token === track.linkToken) ||
       (user && track.userId === user.id) ||
       (user && track.sharedWith.some(s => s.userId === user.id));
 

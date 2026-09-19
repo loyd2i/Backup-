@@ -84,6 +84,8 @@ function roleLabel(role: string) {
 
 export default function OnelibPage() {
   const user = useAppStore((state) => state.user);
+  const pendingOnelibReleaseId = useAppStore((state) => state.pendingOnelibReleaseId);
+  const setPendingOnelibReleaseId = useAppStore((state) => state.setPendingOnelibReleaseId);
   const [releases, setReleases] = useState<Release[]>([]);
   const [eligibleTracks, setEligibleTracks] = useState<EligibleTrack[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -145,6 +147,18 @@ export default function OnelibPage() {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  // Ouvre automatiquement la release visée par le bouton "Envoyer vers
+  // Onelib" depuis une track terminée dans Créations.
+  useEffect(() => {
+    if (!pendingOnelibReleaseId) return;
+    const release = releases.find(r => r.id === pendingOnelibReleaseId);
+    if (release) {
+      openRelease(release);
+      setPendingOnelibReleaseId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOnelibReleaseId, releases]);
 
   const openRelease = (release: Release) => {
     setSelectedReleaseId(release.id);

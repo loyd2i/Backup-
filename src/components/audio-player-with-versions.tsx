@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Globe, Lock, Eye, MessageCircle, X, Send, Users, Trash2, ArrowLeftRight, ChevronDown, Upload, Loader2, Repeat, Info, ChevronUp } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Globe, Lock, Eye, MessageCircle, X, Send, Trash2, ArrowLeftRight, ChevronDown, Upload, Loader2, Repeat, Info, ChevronUp } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { formatTechnicalSpecs, getStreamingLoudnessStatus, getMasteringAdvice, getWaveformBarBackground } from '@/lib/audio-analyzer';
+import VisibilityMenu from './visibility-menu';
 
 interface TrackVersion {
   id: string;
@@ -42,8 +43,9 @@ interface AudioPlayerWithVersionsProps {
   audioUrl?: string;
   versions?: TrackVersion[];
   isPublic?: boolean;
+  linkToken?: string | null;
   isShared?: boolean;
-  onTogglePublic?: () => void;
+  onSetVisibility?: (mode: 'public' | 'link' | 'private') => void;
   bpm?: number | null;
   keySignature?: string | null;
   views?: number;
@@ -70,8 +72,9 @@ export default function AudioPlayerWithVersions({
   audioUrl,
   versions = [],
   isPublic = false,
+  linkToken,
   isShared = false,
-  onTogglePublic,
+  onSetVisibility,
   bpm,
   keySignature,
   views = 0,
@@ -424,6 +427,35 @@ export default function AudioPlayerWithVersions({
       <div className="bg-[#1a1a1a] rounded-2xl overflow-hidden border border-[#2a2a2a] shadow-lg">
         {/* Header */}
         <div className="p-5 pb-3">
+          {/* Actions bar - regroupées en haut à gauche */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-1 text-gray-500 text-sm">
+              <Eye className="w-4 h-4" /> {views}
+            </div>
+            <button
+              onClick={() => { setShowComments(true); fetchComments(); }}
+              className="flex items-center gap-1 text-gray-500 hover:text-white text-sm transition-colors"
+            >
+              <MessageCircle className="w-4 h-4" /> {commentCount}
+            </button>
+            {onSetVisibility && (
+              <VisibilityMenu isPublic={isPublic} linkToken={linkToken} onChange={onSetVisibility} />
+            )}
+            <button
+              onClick={() => setIsLiked(!isLiked)}
+              className={`p-2 rounded-xl transition-all ${
+                isLiked ? 'text-red-500 bg-red-500/10' : 'text-gray-500 hover:text-white hover:bg-[#2a2a3a]'
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500' : ''}`} />
+            </button>
+            {onDelete && (
+              <button onClick={onDelete} className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
           <div className="flex items-start gap-4 flex-wrap">
             {/* Cover + Info */}
             <div className="flex items-start gap-4 flex-1 min-w-[180px]">
@@ -554,42 +586,6 @@ export default function AudioPlayerWithVersions({
                 </button>
               </div>
             )}
-
-            {/* Stats & Actions */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <div className="flex items-center gap-1 text-gray-500 text-sm">
-                <Eye className="w-4 h-4" /> {views}
-              </div>
-              <button
-                onClick={() => { setShowComments(true); fetchComments(); }}
-                className="flex items-center gap-1 text-gray-500 hover:text-white text-sm transition-colors"
-              >
-                <MessageCircle className="w-4 h-4" /> {commentCount}
-              </button>
-              {onTogglePublic && (
-                <button
-                  onClick={onTogglePublic}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-                    isPublic ? 'bg-[#6366f1] text-white' : 'bg-[#2a2a3a] text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {isPublic ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                </button>
-              )}
-              <button
-                onClick={() => setIsLiked(!isLiked)}
-                className={`p-2 rounded-xl transition-all ${
-                  isLiked ? 'text-red-500 bg-red-500/10' : 'text-gray-500 hover:text-white hover:bg-[#2a2a3a]'
-                }`}
-              >
-                <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500' : ''}`} />
-              </button>
-              {onDelete && (
-                <button onClick={onDelete} className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
-            </div>
           </div>
         </div>
 

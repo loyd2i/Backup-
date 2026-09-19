@@ -20,6 +20,7 @@ import PublicStudiosPage from './public-studios-page';
 import PublicVitrinePage from './public-vitrine-page';
 import PublicOnelibPage from './public-onelib-page';
 import PublicOnelibArtistPage from './public-onelib-artist-page';
+import PublicTrackLinkPage from './public-track-link-page';
 
 export default function StudiolibApp() {
   const currentPage = useAppStore((state) => state.currentPage);
@@ -35,6 +36,7 @@ export default function StudiolibApp() {
   const [publicSlug, setPublicSlug] = useState<string | null>(null);
   const [publicArtistId, setPublicArtistId] = useState<string | null>(null);
   const [publicTrackId, setPublicTrackId] = useState<string | null>(null);
+  const [publicToken, setPublicToken] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
 
   // Enregistre le service worker (PWA + notifications push), indépendamment
@@ -53,6 +55,7 @@ export default function StudiolibApp() {
     const slugParam = params.get('slug');
     const artistParam = params.get('artist');
     const trackParam = params.get('track');
+    const tokenParam = params.get('token');
 
     if (publicParam) {
       setPublicPage(publicParam);
@@ -60,6 +63,7 @@ export default function StudiolibApp() {
       if (slugParam) setPublicSlug(slugParam);
       if (artistParam) setPublicArtistId(artistParam);
       if (trackParam) setPublicTrackId(trackParam);
+      if (tokenParam) setPublicToken(tokenParam);
     }
 
     const refParam = params.get('ref');
@@ -75,6 +79,7 @@ export default function StudiolibApp() {
       const slugParam = params.get('slug');
       const artistParam = params.get('artist');
       const trackParam = params.get('track');
+      const tokenParam = params.get('token');
 
       if (publicParam) {
         setPublicPage(publicParam);
@@ -82,12 +87,14 @@ export default function StudiolibApp() {
         if (slugParam) setPublicSlug(slugParam);
         if (artistParam) setPublicArtistId(artistParam);
         if (trackParam) setPublicTrackId(trackParam);
+        if (tokenParam) setPublicToken(tokenParam);
       } else {
         setPublicPage(null);
         setPublicStudioId(null);
         setPublicSlug(null);
         setPublicArtistId(null);
         setPublicTrackId(null);
+        setPublicToken(null);
       }
     };
 
@@ -147,7 +154,13 @@ export default function StudiolibApp() {
     switch (publicPage) {
       case 'creations':
         return <PublicCreationsPage highlightTrackId={publicTrackId} />;
-      
+
+      case 'track':
+        if (publicToken) {
+          return <PublicTrackLinkPage token={publicToken} />;
+        }
+        return <PublicCreationsPage />;
+
       case 'vitrine':
         if (publicStudioId) {
           return (

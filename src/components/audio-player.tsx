@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Share2, Download, Globe, Lock, Repeat, Shuffle, Eye, MessageCircle, X, Send, Users, MoreHorizontal, Trash2, Disc3, Music, Youtube, Headphones, Calendar, Info, ChevronUp } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Share2, Download, Repeat, Shuffle, Eye, MessageCircle, X, Send, Users, MoreHorizontal, Trash2, Disc3, Music, Youtube, Headphones, Calendar, Info, ChevronUp } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { formatTechnicalSpecs, getStreamingLoudnessStatus, getMasteringAdvice, getWaveformBarBackground } from '@/lib/audio-analyzer';
+import VisibilityMenu from './visibility-menu';
 
 interface Comment {
   id: string;
@@ -33,8 +34,9 @@ interface AudioPlayerProps {
   audioUrl?: string;
   coverUrl?: string;
   isPublic?: boolean;
+  linkToken?: string | null;
   isShared?: boolean;
-  onTogglePublic?: () => void;
+  onSetVisibility?: (mode: 'public' | 'link' | 'private') => void;
   bpm?: number | null;
   keySignature?: string | null;
   views?: number;
@@ -69,8 +71,9 @@ export default function AudioPlayer({
   audioUrl,
   coverUrl,
   isPublic = false,
+  linkToken,
   isShared = false,
-  onTogglePublic,
+  onSetVisibility,
   bpm,
   keySignature,
   views = 0,
@@ -361,6 +364,71 @@ export default function AudioPlayer({
       <div className="bg-gradient-to-br from-[#1e1e2e] to-[#121218] rounded-2xl border border-[#2a2a3a] overflow-hidden group hover:border-[#6366f1]/50 transition-all duration-300">
         {/* Main Player Section */}
         <div className="p-5">
+          {/* Actions bar - regroupées en haut à gauche */}
+          <div className="flex items-center gap-2 mb-3">
+            {/* Views */}
+            <div className="flex items-center gap-1 text-gray-500 text-sm">
+              <Eye className="w-4 h-4" />
+              {views}
+            </div>
+
+            {/* Comments */}
+            <button
+              onClick={() => { setShowComments(true); fetchComments(); }}
+              className="flex items-center gap-1 text-gray-500 hover:text-white text-sm transition-colors"
+            >
+              <MessageCircle className="w-4 h-4" />
+              {commentCount}
+            </button>
+
+            {/* Visibility menu (public / lien uniquement / privé) */}
+            {onSetVisibility && (
+              <VisibilityMenu isPublic={isPublic} linkToken={linkToken} onChange={onSetVisibility} />
+            )}
+
+            {/* Share button for private tracks */}
+            {!isPublic && !isShared && (
+              <button
+                onClick={() => { setShowShare(true); fetchShares(); }}
+                className="p-2 text-gray-500 hover:text-white hover:bg-[#2a2a3a] rounded-xl transition-all"
+              >
+                <Users className="w-4 h-4" />
+              </button>
+            )}
+
+            <button
+              onClick={() => setIsLiked(!isLiked)}
+              className={`p-2 rounded-xl transition-all ${
+                isLiked
+                  ? 'text-red-500 bg-red-500/10'
+                  : 'text-gray-500 hover:text-white hover:bg-[#2a2a3a]'
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500' : ''}`} />
+            </button>
+
+            {/* Release sheet edit button */}
+            {canEditRelease && status === 'finished' && (
+              <button
+                onClick={() => setShowRelease(true)}
+                className="p-2 text-gray-500 hover:text-white hover:bg-[#2a2a3a] rounded-xl transition-all"
+                title="Fiche de sortie"
+              >
+                <Disc3 className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Delete button */}
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center gap-5">
             {/* Album Art */}
             <div className="relative flex-shrink-0">
@@ -452,80 +520,6 @@ export default function AudioPlayer({
                     </a>
                   )}
                 </div>
-              )}
-            </div>
-
-            {/* Stats & Actions */}
-            <div className="flex items-center gap-2">
-              {/* Views */}
-              <div className="flex items-center gap-1 text-gray-500 text-sm">
-                <Eye className="w-4 h-4" />
-                {views}
-              </div>
-              
-              {/* Comments */}
-              <button 
-                onClick={() => { setShowComments(true); fetchComments(); }}
-                className="flex items-center gap-1 text-gray-500 hover:text-white text-sm transition-colors"
-              >
-                <MessageCircle className="w-4 h-4" />
-                {commentCount}
-              </button>
-
-              {/* Visibility toggle */}
-              {onTogglePublic && (
-                <button
-                  onClick={onTogglePublic}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-                    isPublic 
-                      ? 'bg-[#6366f1] text-white' 
-                      : 'bg-[#2a2a3a] text-gray-400 hover:text-white'
-                  }`}
-                >
-                  {isPublic ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-                </button>
-              )}
-
-              {/* Share button for private tracks */}
-              {!isPublic && !isShared && (
-                <button
-                  onClick={() => { setShowShare(true); fetchShares(); }}
-                  className="p-2 text-gray-500 hover:text-white hover:bg-[#2a2a3a] rounded-xl transition-all"
-                >
-                  <Users className="w-4 h-4" />
-                </button>
-              )}
-              
-              <button
-                onClick={() => setIsLiked(!isLiked)}
-                className={`p-2 rounded-xl transition-all ${
-                  isLiked 
-                    ? 'text-red-500 bg-red-500/10' 
-                    : 'text-gray-500 hover:text-white hover:bg-[#2a2a3a]'
-                }`}
-              >
-                <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500' : ''}`} />
-              </button>
-              
-              {/* Release sheet edit button */}
-              {canEditRelease && status === 'finished' && (
-                <button
-                  onClick={() => setShowRelease(true)}
-                  className="p-2 text-gray-500 hover:text-white hover:bg-[#2a2a3a] rounded-xl transition-all"
-                  title="Fiche de sortie"
-                >
-                  <Disc3 className="w-4 h-4" />
-                </button>
-              )}
-
-              {/* Delete button */}
-              {onDelete && (
-                <button
-                  onClick={onDelete}
-                  className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
               )}
             </div>
           </div>

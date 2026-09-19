@@ -401,6 +401,7 @@ model Track {
   audioUrl    String?
   duration    Int?     // Durée en secondes
   isPublic    Boolean  @default(false) // Public ou privé
+  linkToken   String?  @unique // Jeton d'accès "lien uniquement" (morceau privé mais consultable par quiconque a le lien)
   coverUrl    String?  // Image de couverture
   views       Int      @default(0) // Nombre de vues
 

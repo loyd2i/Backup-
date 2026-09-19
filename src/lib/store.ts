@@ -96,6 +96,11 @@ interface AppState {
   pendingEStudioSessionId: string | null;
   setPendingEStudioSessionId: (sessionId: string | null) => void;
 
+  // Release Onelib à ouvrir automatiquement en arrivant sur la page Onelib
+  // (bouton "Envoyer vers Onelib" depuis une track terminée dans Créations)
+  pendingOnelibReleaseId: string | null;
+  setPendingOnelibReleaseId: (releaseId: string | null) => void;
+
   // User
   user: User | null;
   setUser: (user: User | null) => void;
@@ -143,6 +148,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   pendingEStudioSessionId: null,
   setPendingEStudioSessionId: (sessionId) => set({ pendingEStudioSessionId: sessionId }),
+
+  pendingOnelibReleaseId: null,
+  setPendingOnelibReleaseId: (releaseId) => set({ pendingOnelibReleaseId: releaseId }),
 
   // User
   user: null,

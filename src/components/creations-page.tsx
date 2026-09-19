@@ -8,6 +8,7 @@ import AudioPlayerWithVersions from './audio-player-with-versions';
 import TrackShareButton from './track-share-button';
 import TrackDownloadButton from './track-download-button';
 import TrackQrCodeButton from './track-qrcode-button';
+import TrackOnelibButton from './track-onelib-button';
 import { analyzeAudio, AudioAnalysisResult } from '@/lib/audio-analyzer';
 import EmptyState from './ui/empty-state';
 
@@ -32,6 +33,7 @@ interface Track {
   key?: string | null;
   status: string;
   isPublic?: boolean;
+  linkToken?: string | null;
   isShared?: boolean;
   audioUrl?: string | null;
   duration?: number | null;
@@ -59,6 +61,7 @@ interface Track {
     truePeak?: number | null; lufs?: number | null; lra?: number | null; waveformPeaks?: string | null;
   }[];
   masterValidation?: MasterValidation | null;
+  onelibRelease?: { id: string; slug: string } | null;
 }
 
 interface MasterValidation {
@@ -322,16 +325,16 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     }
   };
 
-  const handleTogglePublic = async (id: string, isPublic: boolean) => {
+  const handleSetVisibility = async (id: string, visibility: 'public' | 'link' | 'private') => {
     try {
       await fetch('/api/tracks', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, isPublic: !isPublic })
+        body: JSON.stringify({ id, visibility })
       });
       fetchData();
     } catch (error) {
-      console.error('Error updating track:', error);
+      console.error('Error updating track visibility:', error);
     }
   };
 
@@ -888,8 +891,9 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                           waveformPeaks: v.waveformPeaks,
                         }))}
                         isPublic={track.isPublic}
+                        linkToken={track.linkToken}
                         isShared={track.isShared}
-                        onTogglePublic={() => handleTogglePublic(track.id, track.isPublic || false)}
+                        onSetVisibility={!isStudioMode ? (mode) => handleSetVisibility(track.id, mode) : undefined}
                         views={track.views}
                         studio={track.studio}
                         commentCount={track._count?.comments || 0}
@@ -914,6 +918,9 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         {!track.isPublic && !track.isShared && (
                           <TrackShareButton trackId={track.id} />
                         )}
+                        {!isStudioMode && !track.isShared && (
+                          <TrackOnelibButton trackId={track.id} onelibReleaseId={track.onelibRelease?.id} />
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -935,8 +942,9 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         lra={track.lra}
                         waveformPeaks={track.waveformPeaks}
                         isPublic={track.isPublic}
+                        linkToken={track.linkToken}
                         isShared={track.isShared}
-                        onTogglePublic={() => handleTogglePublic(track.id, track.isPublic || false)}
+                        onSetVisibility={!isStudioMode ? (mode) => handleSetVisibility(track.id, mode) : undefined}
                         views={track.views}
                         studio={track.studio}
                         commentCount={track._count?.comments || 0}
@@ -959,6 +967,9 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         )}
                         {!track.isPublic && !track.isShared && (
                           <TrackShareButton trackId={track.id} />
+                        )}
+                        {!isStudioMode && !track.isShared && (
+                          <TrackOnelibButton trackId={track.id} onelibReleaseId={track.onelibRelease?.id} />
                         )}
                       </div>
                     </div>

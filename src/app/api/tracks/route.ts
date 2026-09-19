@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { randomBytes } from 'crypto';
 
 // GET - Tracks de l'utilisateur + tracks partagées avec lui + tracks du studio (si studio owner)
 export async function GET(request: NextRequest) {
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
         },
         versions: { orderBy: { version: 'asc' } },
         masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
+        onelibRelease: { select: { id: true, slug: true } },
         _count: { select: { comments: true, sharedWith: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -55,6 +57,7 @@ export async function GET(request: NextRequest) {
           },
           versions: { orderBy: { version: 'asc' } },
           masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
+          onelibRelease: { select: { id: true, slug: true } },
           _count: { select: { comments: true, sharedWith: true } }
         },
         orderBy: { createdAt: 'desc' }
@@ -76,6 +79,7 @@ export async function GET(request: NextRequest) {
             },
             versions: { orderBy: { version: 'asc' } },
             masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
+            onelibRelease: { select: { id: true, slug: true } },
             _count: { select: { comments: true } }
           }
         }
@@ -111,7 +115,9 @@ export async function POST(request: NextRequest) {
     const genre = formData.get('genre') as string;
     const studioId = formData.get('studioId') as string;
     const status = formData.get('status') as string;
-    const isPublic = formData.get('isPublic') === 'true';
+    // Une track en cours ne peut être rendue publique : seules les tracks
+    // terminées peuvent être visibles publiquement ou via un lien.
+    const isPublic = (status || 'in_progress') === 'finished' && formData.get('isPublic') === 'true';
     const duration = formData.get('duration') as string;
     const audioFile = formData.get('audioFile') as File | null;
     const sampleRate = formData.get('sampleRate') as string;
@@ -202,9 +208,52 @@ export async function PUT(request: NextRequest) {
     const { id, ...data } = body;
 
     const updateData: Record<string, unknown> = {};
-    
+
     if (data.status !== undefined) updateData.status = data.status;
-    if (data.isPublic !== undefined) updateData.isPublic = data.isPublic;
+
+    // Visibilité : publique, lien uniquement (jeton d'accès partageable), ou
+    // privée (invités seulement) — réservée aux tracks terminées. On charge
+    // la track dès qu'une de ces trois choses est en jeu, pour vérifier le
+    // statut effectif (celui déjà en base, ou celui demandé dans ce même PUT).
+    if (data.visibility !== undefined || data.isPublic !== undefined) {
+      const existing = await prisma.track.findUnique({
+        where: { id },
+        select: { userId: true, status: true, linkToken: true }
+      });
+      if (!existing || existing.userId !== user.id) {
+        return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
+      }
+
+      const effectiveStatus = data.status !== undefined ? data.status : existing.status;
+      const wantsVisible = data.visibility !== undefined ? data.visibility !== 'private' : !!data.isPublic;
+
+      if (wantsVisible && effectiveStatus !== 'finished') {
+        return NextResponse.json(
+          { error: 'Seules les tracks terminées peuvent être rendues publiques ou partagées par lien' },
+          { status: 400 }
+        );
+      }
+
+      if (data.visibility === 'public') {
+        updateData.isPublic = true;
+      } else if (data.visibility === 'link') {
+        updateData.isPublic = false;
+        updateData.linkToken = existing.linkToken || randomBytes(24).toString('base64url');
+      } else if (data.visibility === 'private') {
+        updateData.isPublic = false;
+        updateData.linkToken = null;
+      } else if (data.isPublic !== undefined) {
+        updateData.isPublic = data.isPublic;
+      }
+    }
+
+    // Filet de sécurité : une track qui redevient "en cours" perd sa
+    // visibilité publique et son lien de partage actif.
+    if (data.status !== undefined && data.status !== 'finished') {
+      updateData.isPublic = false;
+      updateData.linkToken = null;
+    }
+
     if (data.bpm !== undefined) updateData.bpm = data.bpm ? parseInt(data.bpm) : null;
     if (data.key !== undefined) updateData.key = data.key;
     if (data.title !== undefined) updateData.title = data.title;
