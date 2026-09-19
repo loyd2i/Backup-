@@ -61,6 +61,7 @@ export async function POST(
     const audioFormat = formData.get('audioFormat') as string | null;
     const truePeak = formData.get('truePeak') as string | null;
     const lufs = formData.get('lufs') as string | null;
+    const lra = formData.get('lra') as string | null;
     const waveformPeaks = formData.get('waveformPeaks') as string | null;
 
     // Check track ownership
@@ -104,6 +105,7 @@ export async function POST(
         audioFormat: audioFormat || null,
         truePeak: truePeak ? parseFloat(truePeak) : null,
         lufs: lufs ? parseFloat(lufs) : null,
+        lra: lra ? parseFloat(lra) : null,
         waveformPeaks: waveformPeaks || null,
       },
     });
@@ -121,6 +123,7 @@ export async function POST(
           audioFormat: audioFormat || null,
           truePeak: truePeak ? parseFloat(truePeak) : null,
           lufs: lufs ? parseFloat(lufs) : null,
+          lra: lra ? parseFloat(lra) : null,
           waveformPeaks: waveformPeaks || null,
         },
       });

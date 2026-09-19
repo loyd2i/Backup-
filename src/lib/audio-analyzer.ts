@@ -30,6 +30,11 @@ export interface AudioAnalysisResult {
   // pondérage K et le double seuillage (absolu -70 LUFS, relatif -10 LU)
   // définis par la norme ITU-R BS.1770 / EBU R128.
   lufs: number;
+  // Loudness Range (LRA) en LU : variation de volume du morceau dans le
+  // temps (norme EBU Tech 3342). Un master très compressé/limité aura un
+  // LRA proche de 0 ; un morceau avec de vrais passages calmes et forts
+  // aura un LRA plus élevé.
+  lra: number;
   // Empreinte de la forme d'onde réelle : crête d'amplitude par segment
   // (valeurs normalisées 0-1), pour afficher le vrai profil du morceau
   // plutôt que des barres aléatoires.
@@ -136,7 +141,7 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
         for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
           channels.push(audioBuffer.getChannelData(ch));
         }
-        const { integratedLufs, truePeakDb } = analyzeLoudness(channels, sampleRate);
+        const { integratedLufs, lra, truePeakDb } = analyzeLoudness(channels, sampleRate);
         const waveformPeaks = computeWaveformPeaks(channels);
 
         const audioFormat = detectAudioFormat(file);
@@ -162,6 +167,7 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
           bitrate,
           truePeak: Math.round(truePeakDb * 10) / 10,
           lufs: Math.round(integratedLufs * 10) / 10,
+          lra: Math.round(lra * 10) / 10,
           waveformPeaks,
         });
       } catch (error) {
@@ -552,27 +558,20 @@ function estimateTruePeak(channel: Float32Array, oversample = 4): number {
   return peak;
 }
 
+const powerToLoudness = (power: number) => (power > 0 ? -0.691 + 10 * Math.log10(power) : -Infinity);
+
 /**
- * Mesure le loudness intégré (LUFS) et la crête réelle (True Peak, dBTP)
- * sur l'ensemble du morceau, selon la norme ITU-R BS.1770 / EBU R128 :
- * pondération K, découpage en blocs de 400ms (pas de 100ms), puis double
- * seuillage (absolu à -70 LUFS, relatif à -10 LU sous la moyenne).
+ * Découpe les canaux (déjà pondérés K) en blocs de `blockSize` échantillons
+ * (pas de `hopSize`) et renvoie la puissance moyenne (somme pondérée des
+ * canaux) de chaque bloc - la brique de base commune au loudness intégré
+ * et au LRA, qui ne diffèrent que par la taille de bloc et le seuillage.
  */
-function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integratedLufs: number; truePeakDb: number } {
-  const [stage1, stage2] = kWeightingFilters(sampleRate);
-  const weightedChannels = channels.map((chan) => applyBiquad(applyBiquad(chan, stage1), stage2));
-  // Pondération de canal de la norme : 1.0 pour chaque canal avant/gauche-droite
-  // (le cas 5.1 avec ses canaux surround à 1.41 ne s'applique pas aux mixdowns
-  // mono/stéréo qu'on traite ici).
-  const channelWeight = 1.0;
-
-  const blockSize = Math.max(1, Math.round(0.4 * sampleRate));
-  const hopSize = Math.max(1, Math.round(0.1 * sampleRate));
+function computeBlockPowers(weightedChannels: Float64Array[], blockSize: number, hopSize: number): number[] {
   const totalLength = weightedChannels[0]?.length || 0;
-
+  const channelWeight = 1.0;
   const blockPowers: number[] = [];
+
   if (totalLength <= blockSize) {
-    // Morceau plus court qu'un bloc : on mesure sur toute la longueur disponible.
     let weightedSum = 0;
     for (const chan of weightedChannels) {
       let sumSq = 0;
@@ -591,22 +590,76 @@ function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integr
       blockPowers.push(weightedSum);
     }
   }
+  return blockPowers;
+}
 
-  const powerToLoudness = (power: number) => (power > 0 ? -0.691 + 10 * Math.log10(power) : -Infinity);
+/**
+ * Loudness intégré (LUFS), norme ITU-R BS.1770 / EBU R128 : blocs de 400ms
+ * (pas 100ms), double seuillage (absolu -70 LUFS, relatif -10 LU sous la
+ * moyenne des blocs restants).
+ */
+function computeIntegratedLoudness(weightedChannels: Float64Array[], sampleRate: number): number {
+  const blockSize = Math.max(1, Math.round(0.4 * sampleRate));
+  const hopSize = Math.max(1, Math.round(0.1 * sampleRate));
+  const blockPowers = computeBlockPowers(weightedChannels, blockSize, hopSize);
 
   const absoluteGated = blockPowers.filter((p) => powerToLoudness(p) > -70);
-  let integratedLufs: number;
-  if (absoluteGated.length === 0) {
-    integratedLufs = -70;
-  } else {
-    const meanAbsPower = absoluteGated.reduce((a, b) => a + b, 0) / absoluteGated.length;
-    const relativeThreshold = powerToLoudness(meanAbsPower) - 10;
-    const relativeGated = absoluteGated.filter((p) => powerToLoudness(p) > relativeThreshold);
-    const finalPower = relativeGated.length > 0
-      ? relativeGated.reduce((a, b) => a + b, 0) / relativeGated.length
-      : meanAbsPower;
-    integratedLufs = powerToLoudness(finalPower);
-  }
+  if (absoluteGated.length === 0) return -70;
+
+  const meanAbsPower = absoluteGated.reduce((a, b) => a + b, 0) / absoluteGated.length;
+  const relativeThreshold = powerToLoudness(meanAbsPower) - 10;
+  const relativeGated = absoluteGated.filter((p) => powerToLoudness(p) > relativeThreshold);
+  const finalPower = relativeGated.length > 0
+    ? relativeGated.reduce((a, b) => a + b, 0) / relativeGated.length
+    : meanAbsPower;
+  return powerToLoudness(finalPower);
+}
+
+/**
+ * Loudness Range (LRA), norme EBU Tech 3342 : blocs de 3s (pas 100ms),
+ * seuillage absolu à -70 LUFS puis relatif à -20 LU (specifique au LRA,
+ * différent des -10 LU du loudness intégré), puis écart entre les 10e et
+ * 95e centiles des loudness de blocs restants. Reflète la variation de
+ * volume du morceau (un master très compressé aura un LRA proche de 0).
+ */
+function computeLoudnessRange(weightedChannels: Float64Array[], sampleRate: number): number {
+  const blockSize = Math.max(1, Math.round(3 * sampleRate));
+  const hopSize = Math.max(1, Math.round(0.1 * sampleRate));
+  const blockPowers = computeBlockPowers(weightedChannels, blockSize, hopSize);
+
+  const absoluteGated = blockPowers.filter((p) => powerToLoudness(p) > -70);
+  if (absoluteGated.length === 0) return 0;
+
+  const meanAbsPower = absoluteGated.reduce((a, b) => a + b, 0) / absoluteGated.length;
+  const relativeThreshold = powerToLoudness(meanAbsPower) - 20;
+  const loudnessValues = absoluteGated
+    .filter((p) => powerToLoudness(p) > relativeThreshold)
+    .map(powerToLoudness)
+    .sort((a, b) => a - b);
+  if (loudnessValues.length === 0) return 0;
+
+  const percentile = (sorted: number[], p: number) => {
+    const idx = p * (sorted.length - 1);
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if (lo === hi) return sorted[lo];
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+  };
+
+  return percentile(loudnessValues, 0.95) - percentile(loudnessValues, 0.10);
+}
+
+/**
+ * Mesure le loudness intégré (LUFS), le Loudness Range (LRA) et la crête
+ * réelle (True Peak, dBTP) sur l'ensemble du morceau, selon la norme
+ * ITU-R BS.1770 / EBU R128.
+ */
+function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integratedLufs: number; lra: number; truePeakDb: number } {
+  const [stage1, stage2] = kWeightingFilters(sampleRate);
+  const weightedChannels = channels.map((chan) => applyBiquad(applyBiquad(chan, stage1), stage2));
+
+  const integratedLufs = computeIntegratedLoudness(weightedChannels, sampleRate);
+  const lra = computeLoudnessRange(weightedChannels, sampleRate);
 
   let peak = 0;
   for (const chan of channels) {
@@ -615,7 +668,7 @@ function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integr
   }
   const truePeakDb = peak > 0 ? 20 * Math.log10(peak) : -100;
 
-  return { integratedLufs, truePeakDb };
+  return { integratedLufs, lra, truePeakDb };
 }
 
 /**
@@ -682,6 +735,63 @@ export function getStreamingLoudnessStatus(lufs?: number | null, truePeak?: numb
   if (truePeak > SAFE_TRUE_PEAK_MAX || lufs > STREAMING_LUFS_HOT) return 'hot';
   if (lufs >= STREAMING_LUFS_TARGET_MIN && lufs <= STREAMING_LUFS_TARGET_MAX && truePeak <= SAFE_TRUE_PEAK_MAX) return 'optimal';
   return 'neutral';
+}
+
+export interface MasteringAdvice {
+  severity: 'good' | 'warning' | 'info' | 'unknown';
+  message: string;
+}
+
+/**
+ * Sous le repère simple (optimal/hot/neutral) utilisé pour la couleur de la
+ * waveform, un diagnostic plus nuancé en une phrase, adapté au profil du
+ * master : écrêtage technique, mastering "guerre du volume", master fort
+ * mais encore correct, niveau optimal, ou master trop calme (les
+ * plateformes vont alors le remonter elles-mêmes, ce qui n'est pas neutre).
+ * Le LRA vient nuancer le diagnostic de dynamique quand il est disponible.
+ */
+export function getMasteringAdvice(lufs?: number | null, truePeak?: number | null, lra?: number | null): MasteringAdvice {
+  if (lufs === null || lufs === undefined || truePeak === null || truePeak === undefined) {
+    return { severity: 'unknown', message: 'Analyse de loudness non disponible pour ce fichier.' };
+  }
+
+  const lowDynamics = lra !== null && lra !== undefined && lra < 4;
+  const dynamicsNote = lowDynamics
+    ? ' La dynamique est par ailleurs très réduite (LRA faible), signe d\'un mastering très compressé.'
+    : '';
+
+  if (truePeak > SAFE_TRUE_PEAK_MAX) {
+    return {
+      severity: 'warning',
+      message: `Crête à ${truePeak.toFixed(1)} dBTP : risque d'écrêtage inter-échantillon après encodage (MP3/AAC) sur certaines plateformes. Réduisez le gain de sortie ou le limiteur final.${dynamicsNote}`,
+    };
+  }
+
+  if (lufs > STREAMING_LUFS_HOT) {
+    return {
+      severity: 'warning',
+      message: `Master très compressé (${lufs.toFixed(1)} LUFS) : les plateformes de streaming vont fortement l'atténuer à la lecture. À ce niveau, la dynamique est souvent déjà sacrifiée.${dynamicsNote}`,
+    };
+  }
+
+  if (lufs > STREAMING_LUFS_TARGET_MAX) {
+    return {
+      severity: 'info',
+      message: `Master plus fort que la cible streaming (${lufs.toFixed(1)} LUFS). Le son peut très bien sonner ainsi, mais les plateformes vont l'atténuer à l'écoute : attention à la perte de dynamique perçue une fois remis au niveau standard.${dynamicsNote}`,
+    };
+  }
+
+  if (lufs < STREAMING_LUFS_TARGET_MIN) {
+    return {
+      severity: 'info',
+      message: `Master plus calme que la cible streaming (${lufs.toFixed(1)} LUFS). Les plateformes vont le remonter automatiquement pour l'aligner sur les autres titres : cet ajustement n'est pas toujours neutre (bruit de fond remonté, moins de contrôle qu'un gain réglé en amont).`,
+    };
+  }
+
+  return {
+    severity: 'good',
+    message: `Niveau optimal pour le streaming (${lufs.toFixed(1)} LUFS, crête ${truePeak.toFixed(1)} dBTP) : proche des cibles Spotify/YouTube (~-14 LUFS) et Apple Music (-16 LUFS).${dynamicsNote}`,
+  };
 }
 
 /**

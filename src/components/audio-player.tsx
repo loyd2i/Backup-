@@ -1,9 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Share2, Download, Globe, Lock, Repeat, Shuffle, Eye, MessageCircle, X, Send, Users, MoreHorizontal, Trash2, Disc3, Music, Youtube, Headphones, Calendar } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Share2, Download, Globe, Lock, Repeat, Shuffle, Eye, MessageCircle, X, Send, Users, MoreHorizontal, Trash2, Disc3, Music, Youtube, Headphones, Calendar, Info, ChevronUp } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { formatTechnicalSpecs, getStreamingLoudnessStatus } from '@/lib/audio-analyzer';
+import { formatTechnicalSpecs, getStreamingLoudnessStatus, getMasteringAdvice } from '@/lib/audio-analyzer';
+
+// Amplitude (0-1, normalisée par rapport au pic du morceau) à partir de
+// laquelle un segment de la waveform est considéré comme un pic et reçoit
+// un accent de couleur à sa pointe (rouge/vert selon l'état de loudness).
+const PEAK_BAR_THRESHOLD = 0.85;
 
 interface Comment {
   id: string;
@@ -57,6 +62,7 @@ interface AudioPlayerProps {
   audioFormat?: string | null;
   truePeak?: number | null;
   lufs?: number | null;
+  lra?: number | null;
   waveformPeaks?: string | null;
 }
 
@@ -92,10 +98,13 @@ export default function AudioPlayer({
   audioFormat,
   truePeak,
   lufs,
+  lra,
   waveformPeaks
 }: AudioPlayerProps) {
   const technicalSpecs = formatTechnicalSpecs({ audioFormat, sampleRate, bitDepth, bitrate, truePeak, lufs });
   const loudnessStatus = getStreamingLoudnessStatus(lufs, truePeak);
+  const masteringAdvice = getMasteringAdvice(lufs, truePeak, lra);
+  const [showDetail, setShowDetail] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(0.8);
@@ -538,24 +547,22 @@ export default function AudioPlayer({
               {waveformBars.map((height, i) => {
                 const barProgress = (i / waveformBars.length) * 100;
                 const isActive = barProgress <= progress;
+                // Le corps de la barre reste bleu/indigo - seule la pointe des pics
+                // (les segments les plus forts du morceau) prend une couleur d'alerte :
+                // rouge si le master écrête, vert si le pic reste dans une marge saine.
+                const isPeak = height >= PEAK_BAR_THRESHOLD;
+                const tipColor = loudnessStatus === 'hot' ? '#ef4444' : '#22c55e';
+                const bodyFrom = isActive ? '#6366f1' : '#2a2a3a';
+                const bodyTo = isActive ? '#8b5cf6' : '#2a2a3a';
+                const background = isPeak
+                  ? `linear-gradient(to top, ${bodyFrom} 0%, ${bodyFrom} 72%, ${tipColor} 72%, ${tipColor} 100%)`
+                  : `linear-gradient(to top, ${bodyFrom}, ${bodyTo})`;
 
                 return (
                   <div
                     key={i}
-                    className={`flex-1 rounded-full transition-all duration-150 ${
-                      loudnessStatus === 'hot'
-                        ? isActive
-                          ? 'bg-gradient-to-t from-red-600 to-red-400'
-                          : 'bg-gradient-to-t from-red-900 to-red-700'
-                        : loudnessStatus === 'optimal'
-                          ? isActive
-                            ? 'bg-gradient-to-t from-green-600 to-green-400'
-                            : 'bg-gradient-to-t from-green-900 to-green-700'
-                          : isActive
-                            ? 'bg-gradient-to-t from-[#6366f1] to-[#8b5cf6]'
-                            : 'bg-[#2a2a3a]'
-                    }`}
-                    style={{ height: `${height * 100}px`, opacity: isActive ? 1 : 0.45 + height * 0.55 }}
+                    className="flex-1 rounded-full transition-all duration-150"
+                    style={{ height: `${height * 100}px`, opacity: isActive ? 1 : 0.45 + height * 0.55, background }}
                   />
                 );
               })}
@@ -591,7 +598,71 @@ export default function AudioPlayer({
           </div>
 
           {technicalSpecs && (
-            <p className="text-[10px] text-gray-600 text-center mt-2 tracking-wide">{technicalSpecs}</p>
+            <div className="mt-2">
+              <div className="flex items-center justify-center gap-1.5">
+                <p className="text-[10px] text-gray-600 text-center tracking-wide">{technicalSpecs}</p>
+                <button
+                  onClick={() => setShowDetail(!showDetail)}
+                  className="text-gray-600 hover:text-gray-400 transition-colors"
+                  title={showDetail ? 'Masquer le mode détail' : 'Mode détail (peak, LUFS, LRA...)'}
+                >
+                  {showDetail ? <ChevronUp className="w-3 h-3" /> : <Info className="w-3 h-3" />}
+                </button>
+              </div>
+
+              {showDetail && (
+                <div className="mt-3 bg-[#12121a] rounded-xl p-3 space-y-3">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-[#1a1a24] rounded-lg py-2 px-1">
+                      <p className="text-white text-sm font-semibold truncate">{audioFormat || '—'}</p>
+                      <p className="text-gray-500 text-[10px] mt-0.5">Format</p>
+                    </div>
+                    <div className="bg-[#1a1a24] rounded-lg py-2 px-1">
+                      <p className="text-white text-sm font-semibold truncate">
+                        {sampleRate ? `${(sampleRate / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} kHz` : '—'}
+                      </p>
+                      <p className="text-gray-500 text-[10px] mt-0.5">Fréquence</p>
+                    </div>
+                    <div className="bg-[#1a1a24] rounded-lg py-2 px-1">
+                      <p className="text-white text-sm font-semibold truncate">
+                        {bitDepth ? `${bitDepth}-bit` : bitrate ? `${bitrate} kbps` : '—'}
+                      </p>
+                      <p className="text-gray-500 text-[10px] mt-0.5">Résolution</p>
+                    </div>
+                    <div className="bg-[#1a1a24] rounded-lg py-2 px-1">
+                      <p className="text-white text-sm font-semibold truncate">
+                        {truePeak !== null && truePeak !== undefined ? `${truePeak.toFixed(1)} dBTP` : '—'}
+                      </p>
+                      <p className="text-gray-500 text-[10px] mt-0.5">Crête (True Peak)</p>
+                    </div>
+                    <div className="bg-[#1a1a24] rounded-lg py-2 px-1">
+                      <p className="text-white text-sm font-semibold truncate">
+                        {lufs !== null && lufs !== undefined ? `${lufs.toFixed(1)} LUFS` : '—'}
+                      </p>
+                      <p className="text-gray-500 text-[10px] mt-0.5">Loudness intégré</p>
+                    </div>
+                    <div className="bg-[#1a1a24] rounded-lg py-2 px-1">
+                      <p className="text-white text-sm font-semibold truncate">
+                        {lra !== null && lra !== undefined ? `${lra.toFixed(1)} LU` : '—'}
+                      </p>
+                      <p className="text-gray-500 text-[10px] mt-0.5">LRA (dynamique)</p>
+                    </div>
+                  </div>
+
+                  {masteringAdvice.severity !== 'unknown' && (
+                    <p className={`text-xs leading-relaxed ${
+                      masteringAdvice.severity === 'good'
+                        ? 'text-green-400'
+                        : masteringAdvice.severity === 'warning'
+                          ? 'text-red-400'
+                          : 'text-amber-400'
+                    }`}>
+                      {masteringAdvice.message}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
 

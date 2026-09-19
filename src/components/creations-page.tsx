@@ -51,11 +51,12 @@ interface Track {
   audioFormat?: string | null;
   truePeak?: number | null;
   lufs?: number | null;
+  lra?: number | null;
   waveformPeaks?: string | null;
   versions?: {
     id: string; version: number; label: string | null; audioUrl: string | null; duration: number | null; createdAt: string;
     sampleRate?: number | null; bitDepth?: number | null; bitrate?: number | null; audioFormat?: string | null;
-    truePeak?: number | null; lufs?: number | null; waveformPeaks?: string | null;
+    truePeak?: number | null; lufs?: number | null; lra?: number | null; waveformPeaks?: string | null;
   }[];
   masterValidation?: MasterValidation | null;
 }
@@ -223,6 +224,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     formData.append('audioFormat', analysisResult?.audioFormat || '');
     formData.append('truePeak', analysisResult?.truePeak?.toString() || '');
     formData.append('lufs', analysisResult?.lufs?.toString() || '');
+    formData.append('lra', analysisResult?.lra?.toString() || '');
     formData.append('waveformPeaks', analysisResult?.waveformPeaks ? JSON.stringify(analysisResult.waveformPeaks) : '');
 
     if (uploadedFile) {
@@ -356,6 +358,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
       formData.append('audioFormat', analysis.audioFormat);
       formData.append('truePeak', analysis.truePeak.toString());
       formData.append('lufs', analysis.lufs.toString());
+      formData.append('lra', analysis.lra.toString());
       formData.append('waveformPeaks', JSON.stringify(analysis.waveformPeaks));
     } catch (e) {
       console.error('Analyse audio de la version échouée:', e);
@@ -838,6 +841,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         audioFormat={track.audioFormat}
                         truePeak={track.truePeak}
                         lufs={track.lufs}
+                        lra={track.lra}
                         waveformPeaks={track.waveformPeaks}
                         versions={track.versions.map(v => ({
                           id: v.id,
@@ -852,6 +856,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                           audioFormat: v.audioFormat,
                           truePeak: v.truePeak,
                           lufs: v.lufs,
+                          lra: v.lra,
                           waveformPeaks: v.waveformPeaks,
                         }))}
                         isPublic={track.isPublic}
@@ -899,6 +904,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         audioFormat={track.audioFormat}
                         truePeak={track.truePeak}
                         lufs={track.lufs}
+                        lra={track.lra}
                         waveformPeaks={track.waveformPeaks}
                         isPublic={track.isPublic}
                         isShared={track.isShared}
