@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Globe, Lock, Eye, MessageCircle, X, Send, Users, Trash2, ArrowLeftRight, ChevronDown, Upload, Loader2, Repeat } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { formatTechnicalSpecs } from '@/lib/audio-analyzer';
+import { formatTechnicalSpecs, LOUD_WAVEFORM_THRESHOLD } from '@/lib/audio-analyzer';
 
 interface TrackVersion {
   id: string;
@@ -598,14 +598,19 @@ export default function AudioPlayerWithVersions({
               {waveformBars.map((height, i) => {
                 const barProgress = (i / waveformBars.length) * 100;
                 const isActive = barProgress <= progress;
+                const isLoud = height >= LOUD_WAVEFORM_THRESHOLD;
 
                 return (
                   <div
                     key={i}
                     className={`flex-1 rounded-full transition-all duration-150 ${
-                      isActive
-                        ? 'bg-gradient-to-t from-[#6366f1] to-[#8b5cf6]'
-                        : 'bg-[#2a2a3a]'
+                      isLoud
+                        ? isActive
+                          ? 'bg-gradient-to-t from-red-600 to-red-400'
+                          : 'bg-gradient-to-t from-red-900 to-red-700'
+                        : isActive
+                          ? 'bg-gradient-to-t from-[#6366f1] to-[#8b5cf6]'
+                          : 'bg-[#2a2a3a]'
                     }`}
                     style={{ height: `${height * 56}px`, opacity: isActive ? 1 : 0.45 + height * 0.55 }}
                   />

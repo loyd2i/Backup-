@@ -601,6 +601,11 @@ function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integr
   return { integratedLufs, truePeakDb };
 }
 
+// Seuil (sur l'amplitude normalisée 0-1, après compression) à partir duquel
+// un segment de la forme d'onde est mis en évidence en rouge dans le lecteur
+// comme étant l'un des passages les plus forts du morceau.
+export const LOUD_WAVEFORM_THRESHOLD = 0.85;
+
 /**
  * Calcule une empreinte de forme d'onde réelle (crête d'amplitude par
  * segment, normalisée 0-1) à partir du signal décodé, pour afficher le
