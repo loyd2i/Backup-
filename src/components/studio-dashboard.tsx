@@ -119,6 +119,8 @@ export default function StudioDashboard() {
   const [selectedBlockSlot, setSelectedBlockSlot] = useState<{ date: string; hour: number } | null>(null);
   const [appointmentDetail, setAppointmentDetail] = useState<Appointment | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'invoices' | 'projects' | 'hours' | 'vitrine'>('overview');
+  const [appointmentsView, setAppointmentsView] = useState<'list' | 'byArtist'>('list');
+  const [expandedArtistId, setExpandedArtistId] = useState<string | null>(null);
   const [reviewAppointmentId, setReviewAppointmentId] = useState<string | null>(null);
   const [reportAppointmentId, setReportAppointmentId] = useState<string | null>(null);
   const [hoursPackOffers, setHoursPackOffers] = useState<{ id: string; hours: number; price: number }[]>([]);
@@ -325,6 +327,126 @@ export default function StudioDashboard() {
       default: return status;
     }
   };
+
+  // Une ligne de rendez-vous, partagée entre la vue "Liste" (table à plat)
+  // et la vue "Par artiste" (regroupée), pour ne pas dupliquer la logique
+  // des actions selon le statut.
+  const renderAppointmentRow = (apt: Appointment) => (
+    <tr key={apt.id} className="hover:bg-[#222]">
+      <td className="p-4">
+        <div>
+          <p className="text-white font-medium">{apt.user.name}</p>
+          <p className="text-gray-500 text-sm">{apt.user.email}</p>
+          {apt.type === 'e_studio' && (
+            <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-[#6366f1]/20 text-[#6366f1]">
+              E-Studio
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="p-4 text-white">
+        {new Date(apt.date).toLocaleDateString('fr-FR', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short'
+        })}
+      </td>
+      <td className="p-4 text-white">
+        {formatTime(apt.startTime)} - {formatTime(apt.endTime)}
+      </td>
+      <td className="p-4 text-gray-400">{apt.duration}h</td>
+      <td className="p-4">
+        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(apt.status)}`}>
+          {getStatusLabel(apt.status)}
+        </span>
+      </td>
+      <td className="p-4 text-[#6366f1] font-semibold">
+        {apt.totalPrice || (studio?.pricePerHour || 0) * apt.duration}€
+      </td>
+      <td className="p-4">
+        <div className="flex items-center gap-2">
+          {apt.status === 'pending' && (
+            <>
+              <button
+                onClick={() => handleStatusChange(apt.id, 'confirmed')}
+                className="flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg text-xs font-medium transition-colors"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Confirmer
+              </button>
+              <button
+                onClick={() => handleStatusChange(apt.id, 'cancelled')}
+                className="flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg text-xs font-medium transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                Refuser
+              </button>
+            </>
+          )}
+          {apt.status === 'confirmed' && (
+            <>
+              {apt.type === 'e_studio' && apt.eStudioSession && (
+                <button
+                  onClick={() => handleJoinEStudio(apt.eStudioSession!.id)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-[#6366f1]/20 text-[#6366f1] hover:bg-[#6366f1]/30 rounded-lg text-xs font-medium transition-colors"
+                >
+                  Rejoindre
+                </button>
+              )}
+              <button
+                onClick={() => handleStatusChange(apt.id, 'completed')}
+                className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg text-xs font-medium transition-colors"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Marquer terminée
+              </button>
+              <button
+                onClick={() => handleStatusChange(apt.id, 'cancelled')}
+                className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-red-400 transition-colors"
+                title="Annuler"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </>
+          )}
+          {apt.status === 'completed' && (
+            <>
+              <button
+                onClick={() => setReviewAppointmentId(apt.id)}
+                className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-[#f59e0b] transition-colors"
+                title="Laisser un avis sur l'artiste"
+              >
+                <Star className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setReportAppointmentId(apt.id)}
+                className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-red-400 transition-colors"
+                title="Signaler un problème"
+              >
+                <Flag className="w-4 h-4" />
+              </button>
+            </>
+          )}
+          {apt.status === 'cancelled' && (
+            <span className="text-gray-600 text-sm">—</span>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+
+  // Rendez-vous groupés par artiste, triés par activité la plus récente
+  // (appointments est déjà trié date desc côté API, l'ordre est conservé).
+  const artistGroups = (() => {
+    const map = new Map<string, { user: Appointment['user']; appointments: Appointment[] }>();
+    for (const apt of appointments) {
+      if (!map.has(apt.user.id)) {
+        map.set(apt.user.id, { user: apt.user, appointments: [] });
+      }
+      map.get(apt.user.id)!.appointments.push(apt);
+    }
+    return Array.from(map.values());
+  })();
 
   // ---------- Agenda hebdomadaire ----------
   const prevWeek = () => {
@@ -833,10 +955,30 @@ export default function StudioDashboard() {
 
       {activeTab === 'appointments' && (
         <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
-          <div className="p-5 border-b border-[#2a2a2a]">
-            <h2 className="text-lg font-semibold text-white">Tous les rendez-vous</h2>
+          <div className="p-5 border-b border-[#2a2a2a] flex items-center justify-between flex-wrap gap-3">
+            <h2 className="text-lg font-semibold text-white">
+              {appointmentsView === 'list' ? 'Tous les rendez-vous' : 'Rendez-vous par artiste'}
+            </h2>
+            <div className="flex items-center gap-1 bg-[#121212] rounded-xl p-1">
+              <button
+                onClick={() => setAppointmentsView('list')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  appointmentsView === 'list' ? 'bg-[#6366f1] text-white' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Liste
+              </button>
+              <button
+                onClick={() => setAppointmentsView('byArtist')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  appointmentsView === 'byArtist' ? 'bg-[#6366f1] text-white' : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Par artiste
+              </button>
+            </div>
           </div>
-          
+
           {appointments.length === 0 ? (
             <EmptyState
               icon={Calendar}
@@ -844,7 +986,7 @@ export default function StudioDashboard() {
               description="Les réservations apparaîtront ici"
               size="lg"
             />
-          ) : (
+          ) : appointmentsView === 'list' ? (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-[#121212]">
@@ -859,111 +1001,87 @@ export default function StudioDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#2a2a2a]">
-                  {appointments.map((apt) => (
-                    <tr key={apt.id} className="hover:bg-[#222]">
-                      <td className="p-4">
-                        <div>
-                          <p className="text-white font-medium">{apt.user.name}</p>
-                          <p className="text-gray-500 text-sm">{apt.user.email}</p>
-                          {apt.type === 'e_studio' && (
-                            <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-[#6366f1]/20 text-[#6366f1]">
-                              E-Studio
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-4 text-white">
-                        {new Date(apt.date).toLocaleDateString('fr-FR', { 
-                          weekday: 'short',
-                          day: 'numeric', 
-                          month: 'short' 
-                        })}
-                      </td>
-                      <td className="p-4 text-white">
-                        {formatTime(apt.startTime)} - {formatTime(apt.endTime)}
-                      </td>
-                      <td className="p-4 text-gray-400">{apt.duration}h</td>
-                      <td className="p-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(apt.status)}`}>
-                          {getStatusLabel(apt.status)}
-                        </span>
-                      </td>
-                      <td className="p-4 text-[#6366f1] font-semibold">
-                        {apt.totalPrice || studio?.pricePerHour * apt.duration || 0}€
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          {apt.status === 'pending' && (
-                            <>
-                              <button
-                                onClick={() => handleStatusChange(apt.id, 'confirmed')}
-                                className="flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg text-xs font-medium transition-colors"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                Confirmer
-                              </button>
-                              <button
-                                onClick={() => handleStatusChange(apt.id, 'cancelled')}
-                                className="flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg text-xs font-medium transition-colors"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                                Refuser
-                              </button>
-                            </>
-                          )}
-                          {apt.status === 'confirmed' && (
-                            <>
-                              {apt.type === 'e_studio' && apt.eStudioSession && (
-                                <button
-                                  onClick={() => handleJoinEStudio(apt.eStudioSession!.id)}
-                                  className="flex items-center gap-1 px-3 py-1.5 bg-[#6366f1]/20 text-[#6366f1] hover:bg-[#6366f1]/30 rounded-lg text-xs font-medium transition-colors"
-                                >
-                                  Rejoindre
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleStatusChange(apt.id, 'completed')}
-                                className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg text-xs font-medium transition-colors"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                Marquer terminée
-                              </button>
-                              <button
-                                onClick={() => handleStatusChange(apt.id, 'cancelled')}
-                                className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-red-400 transition-colors"
-                                title="Annuler"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                          {apt.status === 'completed' && (
-                            <>
-                              <button
-                                onClick={() => setReviewAppointmentId(apt.id)}
-                                className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-[#f59e0b] transition-colors"
-                                title="Laisser un avis sur l'artiste"
-                              >
-                                <Star className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => setReportAppointmentId(apt.id)}
-                                className="p-2 hover:bg-[#2a2a2a] rounded-lg text-gray-400 hover:text-red-400 transition-colors"
-                                title="Signaler un problème"
-                              >
-                                <Flag className="w-4 h-4" />
-                              </button>
-                            </>
-                          )}
-                          {apt.status === 'cancelled' && (
-                            <span className="text-gray-600 text-sm">—</span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {appointments.map(renderAppointmentRow)}
                 </tbody>
               </table>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#2a2a2a]">
+              {artistGroups.map(({ user: artist, appointments: artistAppointments }) => {
+                const isExpanded = expandedArtistId === artist.id;
+                const pendingCount = artistAppointments.filter(a => a.status === 'pending').length;
+                const totalRevenue = artistAppointments
+                  .filter(a => a.status === 'completed' || a.status === 'confirmed')
+                  .reduce((sum, a) => sum + (a.totalPrice || (studio?.pricePerHour || 0) * a.duration), 0);
+
+                return (
+                  <div key={artist.id}>
+                    <button
+                      onClick={() => setExpandedArtistId(isExpanded ? null : artist.id)}
+                      className="w-full flex items-center justify-between gap-4 p-5 hover:bg-[#222] transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-[#f59e0b] flex items-center justify-center flex-shrink-0">
+                          <span className="text-white font-semibold">
+                            {artist.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-white font-medium truncate">{artist.name}</p>
+                          <p className="text-gray-500 text-sm truncate">{artist.email}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 flex-shrink-0">
+                        <div className="text-right hidden sm:block">
+                          <p className="text-white text-sm font-medium">
+                            {artistAppointments.length} session{artistAppointments.length > 1 ? 's' : ''}
+                            {pendingCount > 0 && (
+                              <span className="ml-2 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400 text-xs">
+                                {pendingCount} en attente
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-[#6366f1] text-sm font-semibold">{totalRevenue}€</p>
+                        </div>
+                        <a
+                          href={`/artiste/${artist.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2a2a2a] text-gray-300 hover:text-white hover:bg-[#3a3a3a] rounded-lg text-xs font-medium transition-colors"
+                          title="Voir la page publique et les titres de l'artiste"
+                        >
+                          <Globe className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">Page publique</span>
+                        </a>
+                        <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                      </div>
+                    </button>
+
+                    {isExpanded && (
+                      <div className="overflow-x-auto bg-[#121212]/40">
+                        <table className="w-full">
+                          <thead className="bg-[#121212]">
+                            <tr>
+                              <th className="text-left p-4 text-gray-400 text-sm font-medium">Client</th>
+                              <th className="text-left p-4 text-gray-400 text-sm font-medium">Date</th>
+                              <th className="text-left p-4 text-gray-400 text-sm font-medium">Horaires</th>
+                              <th className="text-left p-4 text-gray-400 text-sm font-medium">Durée</th>
+                              <th className="text-left p-4 text-gray-400 text-sm font-medium">Statut</th>
+                              <th className="text-left p-4 text-gray-400 text-sm font-medium">Montant</th>
+                              <th className="text-left p-4 text-gray-400 text-sm font-medium">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#2a2a2a]">
+                            {artistAppointments.map(renderAppointmentRow)}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
