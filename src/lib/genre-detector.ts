@@ -198,8 +198,55 @@ const GENRE_LABEL_INDICES: { index: number; genre: string }[] = Object.entries(G
   .map(([label, genre]) => ({ index: YAMNET_CLASSES.indexOf(label), genre }))
   .filter((e) => e.index !== -1);
 
+// Sous-ensemble des 521 classes correspondant à des instruments audibles
+// dans le mix (détection sur le mix global, pas une séparation de pistes :
+// on détecte "cet instrument s'entend dans le morceau", pas "sur quelle piste").
+const INSTRUMENT_LABELS_FR: Record<string, string> = {
+  'Guitar': 'Guitare',
+  'Electric guitar': 'Guitare électrique',
+  'Bass guitar': 'Basse',
+  'Acoustic guitar': 'Guitare acoustique',
+  'Steel guitar, slide guitar': 'Guitare slide',
+  'Banjo': 'Banjo',
+  'Sitar': 'Sitar',
+  'Mandolin': 'Mandoline',
+  'Ukulele': 'Ukulélé',
+  'Piano': 'Piano',
+  'Electric piano': 'Piano électrique',
+  'Organ': 'Orgue',
+  'Synthesizer': 'Synthétiseur',
+  'Harpsichord': 'Clavecin',
+  'Drum kit': 'Batterie',
+  'Drum machine': 'Boîte à rythmes',
+  'Timpani': 'Timbales',
+  'Tabla': 'Tabla',
+  'Cymbal': 'Cymbale',
+  'Marimba, xylophone': 'Marimba / Xylophone',
+  'Vibraphone': 'Vibraphone',
+  'French horn': 'Cor',
+  'Trumpet': 'Trompette',
+  'Trombone': 'Trombone',
+  'Violin, fiddle': 'Violon',
+  'Cello': 'Violoncelle',
+  'Double bass': 'Contrebasse',
+  'Flute': 'Flûte',
+  'Saxophone': 'Saxophone',
+  'Clarinet': 'Clarinette',
+  'Harp': 'Harpe',
+  'Accordion': 'Accordéon',
+  'Bagpipes': 'Cornemuse',
+  'Harmonica': 'Harmonica',
+  'Theremin': 'Thérémine',
+};
+
+const INSTRUMENT_LABEL_INDICES: { index: number; instrument: string }[] = Object.entries(INSTRUMENT_LABELS_FR)
+  .map(([label, instrument]) => ({ index: YAMNET_CLASSES.indexOf(label), instrument }))
+  .filter((e) => e.index !== -1);
+
 const MODEL_URL = '/models/yamnet-genre/model.json';
 const MIN_CONFIDENCE = 0.02;
+const MIN_INSTRUMENT_CONFIDENCE = 0.05;
+const MAX_INSTRUMENTS = 6;
 
 let modelPromise: Promise<any> | null = null;
 
@@ -231,21 +278,13 @@ async function resampleToMono16k(audioBuffer: AudioBuffer): Promise<Float32Array
   return rendered.getChannelData(0);
 }
 
-export interface GenreDetectionResult {
-  genre: string;
-  confidence: number;
-  alternatives: { genre: string; confidence: number }[];
-}
-
 /**
- * Détecte le style musical dominant d'un morceau à partir de son
- * AudioBuffer déjà décodé, via YAMNet exécuté entièrement dans le
- * navigateur (aucune donnée envoyée à un serveur). Renvoie null si aucun
- * style ne ressort avec une confiance suffisante (morceau non musical,
- * silence, échec de chargement du modèle...) plutôt que de deviner au
- * hasard.
+ * Exécute YAMNet sur un AudioBuffer déjà décodé et renvoie le score moyen
+ * (sur tous les patches de 0.96s du morceau) pour chacune des 521 classes
+ * AudioSet. Tout entièrement dans le navigateur, aucune donnée envoyée à
+ * un serveur. Renvoie null en cas d'échec (modèle indisponible...).
  */
-export async function detectGenre(audioBuffer: AudioBuffer): Promise<GenreDetectionResult | null> {
+async function runYamnetInference(audioBuffer: AudioBuffer): Promise<number[] | null> {
   try {
     const tf = await import('@tensorflow/tfjs');
     const model = await loadModel();
@@ -263,32 +302,91 @@ export async function detectGenre(audioBuffer: AudioBuffer): Promise<GenreDetect
 
       const scores: number[][] = await scoresTensor.array();
       outputs.forEach((t: any) => t.dispose());
-
       if (scores.length === 0) return null;
 
       const avg = new Array(YAMNET_CLASSES.length).fill(0);
       for (const row of scores) {
         for (let i = 0; i < row.length; i++) avg[i] += row[i] / scores.length;
       }
-
-      const ranked = GENRE_LABEL_INDICES
-        .map(({ index, genre }) => ({ genre, score: avg[index] }))
-        .sort((a, b) => b.score - a.score);
-
-      if (ranked.length === 0 || ranked[0].score < MIN_CONFIDENCE) return null;
-
-      return {
-        genre: ranked[0].genre,
-        confidence: ranked[0].score,
-        alternatives: ranked.slice(1, 4)
-          .filter((r) => r.score >= MIN_CONFIDENCE / 2)
-          .map((r) => ({ genre: r.genre, confidence: r.score })),
-      };
+      return avg;
     } finally {
       inputTensor.dispose();
     }
   } catch (error) {
-    console.error('Erreur détection du style musical:', error);
+    console.error('Erreur d\'inférence YAMNet:', error);
     return null;
   }
+}
+
+function rankGenres(avg: number[]) {
+  return GENRE_LABEL_INDICES
+    .map(({ index, genre }) => ({ genre, score: avg[index] }))
+    .sort((a, b) => b.score - a.score);
+}
+
+function rankInstruments(avg: number[]) {
+  return INSTRUMENT_LABEL_INDICES
+    .map(({ index, instrument }) => ({ instrument, score: avg[index] }))
+    .sort((a, b) => b.score - a.score);
+}
+
+export interface GenreDetectionResult {
+  genre: string;
+  confidence: number;
+  alternatives: { genre: string; confidence: number }[];
+}
+
+export interface StyleAnalysisResult {
+  genre: GenreDetectionResult | null;
+  instruments: string[];
+}
+
+/**
+ * Détecte le style musical dominant et les instruments audibles d'un
+ * morceau à partir de son AudioBuffer déjà décodé (une seule passe
+ * d'inférence YAMNet partagée entre les deux détections). Le genre est
+ * la classe unique la plus probable (null si aucune ne ressort avec une
+ * confiance suffisante) ; les instruments sont toutes les classes
+ * instrumentales détectées dans le mix au-delà d'un seuil, jusqu'à 6 -
+ * une détection sur le mix global, pas une séparation de pistes.
+ */
+export async function analyzeAudioStyle(audioBuffer: AudioBuffer): Promise<StyleAnalysisResult> {
+  const avg = await runYamnetInference(audioBuffer);
+  if (!avg) return { genre: null, instruments: [] };
+
+  const rankedGenres = rankGenres(avg);
+  const genre: GenreDetectionResult | null = rankedGenres.length > 0 && rankedGenres[0].score >= MIN_CONFIDENCE
+    ? {
+        genre: rankedGenres[0].genre,
+        confidence: rankedGenres[0].score,
+        alternatives: rankedGenres.slice(1, 4)
+          .filter((r) => r.score >= MIN_CONFIDENCE / 2)
+          .map((r) => ({ genre: r.genre, confidence: r.score })),
+      }
+    : null;
+
+  const instruments = rankInstruments(avg)
+    .filter((r) => r.score >= MIN_INSTRUMENT_CONFIDENCE)
+    .slice(0, MAX_INSTRUMENTS)
+    .map((r) => r.instrument);
+
+  return { genre, instruments };
+}
+
+/**
+ * Détecte uniquement le style musical dominant (cf. analyzeAudioStyle).
+ * Conservé pour les appels qui n'ont besoin que du genre.
+ */
+export async function detectGenre(audioBuffer: AudioBuffer): Promise<GenreDetectionResult | null> {
+  const avg = await runYamnetInference(audioBuffer);
+  if (!avg) return null;
+  const ranked = rankGenres(avg);
+  if (ranked.length === 0 || ranked[0].score < MIN_CONFIDENCE) return null;
+  return {
+    genre: ranked[0].genre,
+    confidence: ranked[0].score,
+    alternatives: ranked.slice(1, 4)
+      .filter((r) => r.score >= MIN_CONFIDENCE / 2)
+      .map((r) => ({ genre: r.genre, confidence: r.score })),
+  };
 }

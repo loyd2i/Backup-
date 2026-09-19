@@ -43,6 +43,9 @@ export interface AudioAnalysisResult {
   // style ne ressort avec une confiance suffisante.
   genre: string | null;
   genreConfidence: number | null;
+  // Instruments détectés comme audibles dans le mix (YAMNet) - détection
+  // sur le mix global, pas une séparation de pistes.
+  instruments: string[];
 }
 
 const FORMAT_LABELS: Record<string, string> = {
@@ -148,18 +151,23 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
         const { integratedLufs, lra, truePeakDb } = analyzeLoudness(channels, sampleRate);
         const waveformPeaks = computeWaveformPeaks(channels);
 
-        // Détection du style musical (YAMNet) - best-effort : ne doit jamais
-        // faire échouer ni bloquer le reste de l'analyse. Sur un appareil sans
-        // accélération GPU (WebGL logiciel), l'inférence peut être lente :
-        // on abandonne au-delà d'un délai raisonnable plutôt que de faire
-        // attendre l'utilisateur indéfiniment pour cette seule enrichissement.
+        // Détection du style musical et des instruments (YAMNet) - best-effort :
+        // ne doit jamais faire échouer ni bloquer le reste de l'analyse. Sur un
+        // appareil sans accélération GPU (WebGL logiciel), l'inférence peut
+        // être lente : on abandonne au-delà d'un délai raisonnable plutôt que
+        // de faire attendre l'utilisateur indéfiniment pour cet enrichissement.
         let genreResult: { genre: string; confidence: number } | null = null;
+        let instruments: string[] = [];
         try {
-          const { detectGenre } = await import('./genre-detector');
+          const { analyzeAudioStyle } = await import('./genre-detector');
           const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 20000));
-          genreResult = await Promise.race([detectGenre(audioBuffer), timeout]);
-        } catch (genreError) {
-          console.error('Détection du style musical indisponible:', genreError);
+          const styleResult = await Promise.race([analyzeAudioStyle(audioBuffer), timeout]);
+          if (styleResult) {
+            genreResult = styleResult.genre;
+            instruments = styleResult.instruments;
+          }
+        } catch (styleError) {
+          console.error('Détection du style musical indisponible:', styleError);
         }
 
         const audioFormat = detectAudioFormat(file);
@@ -189,6 +197,7 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
           waveformPeaks,
           genre: genreResult?.genre ?? null,
           genreConfidence: genreResult ? Math.round(genreResult.confidence * 100) / 100 : null,
+          instruments,
         });
       } catch (error) {
         reject(error);

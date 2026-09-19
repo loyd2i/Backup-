@@ -122,6 +122,7 @@ export async function POST(request: NextRequest) {
     const lufs = formData.get('lufs') as string;
     const lra = formData.get('lra') as string;
     const waveformPeaks = formData.get('waveformPeaks') as string;
+    const instruments = formData.get('instruments') as string;
 
     if (!title || !artist) {
       return NextResponse.json(
@@ -175,6 +176,7 @@ export async function POST(request: NextRequest) {
         lufs: lufs ? parseFloat(lufs) : null,
         lra: lra ? parseFloat(lra) : null,
         waveformPeaks: waveformPeaks || null,
+        instruments: instruments || null,
       },
       include: {
         studio: { select: { id: true, name: true } }

@@ -413,6 +413,7 @@ model Track {
   lufs        Float?   // LUFS intégré (loudness), norme ITU-R BS.1770 / EBU R128
   lra         Float?   // Loudness Range en LU (norme EBU Tech 3342) : variation de volume du morceau
   waveformPeaks String? // Crêtes d'amplitude par segment (JSON, ex: "[0.2,0.8,...]"), pour l'affichage de la forme d'onde réelle
+  instruments   String? // Instruments détectés dans le mix à l'upload (JSON, ex: "[\"Guitare\",\"Batterie\"]")
 
   // Fiche Release
   genre         String?

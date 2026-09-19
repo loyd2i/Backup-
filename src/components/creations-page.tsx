@@ -230,6 +230,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     formData.append('lufs', analysisResult?.lufs?.toString() || '');
     formData.append('lra', analysisResult?.lra?.toString() || '');
     formData.append('waveformPeaks', analysisResult?.waveformPeaks ? JSON.stringify(analysisResult.waveformPeaks) : '');
+    formData.append('instruments', analysisResult?.instruments && analysisResult.instruments.length > 0 ? JSON.stringify(analysisResult.instruments) : '');
 
     if (uploadedFile) {
       formData.append('audioFile', uploadedFile);
@@ -651,6 +652,12 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                           <div className="mt-3 bg-[#1a1a1a] rounded-lg p-3 text-center">
                             <p className="text-sm font-bold text-[#f59e0b]">{analysisResult.genre}</p>
                             <p className="text-gray-500 text-xs">Style musical détecté</p>
+                          </div>
+                        )}
+                        {analysisResult.instruments && analysisResult.instruments.length > 0 && (
+                          <div className="mt-3 bg-[#1a1a1a] rounded-lg p-3 text-center">
+                            <p className="text-sm font-bold text-[#a78bfa]">{analysisResult.instruments.join(' · ')}</p>
+                            <p className="text-gray-500 text-xs">Instruments détectés</p>
                           </div>
                         )}
                       </>
