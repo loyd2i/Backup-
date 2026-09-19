@@ -593,7 +593,7 @@ export default function AudioPlayerWithVersions({
           <div
             ref={progressRef}
             onClick={handleProgressClick}
-            className="h-16 bg-[#12121e] rounded-xl cursor-pointer relative overflow-hidden"
+            className="h-28 bg-[#12121e] rounded-xl cursor-pointer relative overflow-hidden"
           >
             <div className="absolute inset-0 flex items-center justify-center gap-[1px] px-3">
               {waveformBars.map((height, i) => {
@@ -616,7 +616,7 @@ export default function AudioPlayerWithVersions({
                             ? 'bg-gradient-to-t from-[#6366f1] to-[#8b5cf6]'
                             : 'bg-[#2a2a3a]'
                     }`}
-                    style={{ height: `${height * 56}px`, opacity: isActive ? 1 : 0.45 + height * 0.55 }}
+                    style={{ height: `${height * 100}px`, opacity: isActive ? 1 : 0.45 + height * 0.55 }}
                   />
                 );
               })}

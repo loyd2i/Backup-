@@ -63,11 +63,20 @@ function detectAudioFormat(file: File): string {
   return (ext && byExt[ext]) || file.type || 'Inconnu';
 }
 
+interface WavFormatInfo {
+  sampleRate: number;
+  bitDepth: number;
+}
+
 /**
- * Lit l'en-tête RIFF/WAVE pour extraire la profondeur de bits réelle (bitsPerSample).
+ * Lit l'en-tête RIFF/WAVE pour extraire la fréquence d'échantillonnage et la
+ * profondeur de bits réelles (chunk "fmt "). Nécessaire car decodeAudioData()
+ * du navigateur ré-échantillonne le signal vers la fréquence de sortie de
+ * l'AudioContext (souvent 44100 Hz) : audioBuffer.sampleRate ne reflète donc
+ * PAS la fréquence du fichier d'origine, seul l'en-tête le peut.
  * Renvoie null si le fichier n'est pas un WAV PCM valide.
  */
-function parseWavBitDepth(arrayBuffer: ArrayBuffer): number | null {
+function parseWavFormat(arrayBuffer: ArrayBuffer): WavFormatInfo | null {
   const view = new DataView(arrayBuffer);
   if (arrayBuffer.byteLength < 44) return null;
 
@@ -83,7 +92,10 @@ function parseWavBitDepth(arrayBuffer: ArrayBuffer): number | null {
     );
     const chunkSize = view.getUint32(offset + 4, true);
     if (chunkId === 'fmt ' && offset + 8 + 16 <= arrayBuffer.byteLength) {
-      return view.getUint16(offset + 8 + 14, true); // bitsPerSample
+      return {
+        sampleRate: view.getUint32(offset + 8 + 4, true),
+        bitDepth: view.getUint16(offset + 8 + 14, true),
+      };
     }
     offset += 8 + chunkSize + (chunkSize % 2);
   }
@@ -129,7 +141,12 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
 
         const audioFormat = detectAudioFormat(file);
         const isUncompressed = UNCOMPRESSED_MIME_TYPES.has(file.type) || audioFormat === 'WAV';
-        const bitDepth = isUncompressed ? parseWavBitDepth(arrayBuffer) : null;
+        const wavFormat = isUncompressed ? parseWavFormat(arrayBuffer) : null;
+        const bitDepth = wavFormat?.bitDepth ?? null;
+        // Fréquence réelle du fichier (en-tête WAV) plutôt que celle, ré-échantillonnée,
+        // de l'AudioContext - seule utilisée pour l'affichage, pas pour les calculs DSP
+        // ci-dessus qui doivent rester cohérents avec channelData/channels.
+        const reportedSampleRate = wavFormat?.sampleRate ?? sampleRate;
         const bitrate = !isUncompressed && duration > 0
           ? Math.round((file.size * 8) / duration / 1000)
           : null;
@@ -139,7 +156,7 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
           key,
           confidence: Math.round(confidence * 100) / 100,
           duration: Math.round(duration),
-          sampleRate,
+          sampleRate: reportedSampleRate,
           audioFormat,
           bitDepth,
           bitrate,
