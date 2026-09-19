@@ -21,6 +21,7 @@ import PublicVitrinePage from './public-vitrine-page';
 import PublicOnelibPage from './public-onelib-page';
 import PublicOnelibArtistPage from './public-onelib-artist-page';
 import PublicTrackLinkPage from './public-track-link-page';
+import PublicNormalizeTool from './public-normalize-tool';
 
 export default function StudiolibApp() {
   const currentPage = useAppStore((state) => state.currentPage);
@@ -159,6 +160,16 @@ export default function StudiolibApp() {
     }
   }, [isLoggedIn, setCurrentPage]);
 
+  // L'outil public de normalisation (?public=normalize) peut faire créer un
+  // compte sans quitter la page (pour garder le fichier en mémoire), ou déjà
+  // s'utiliser connecté : dans les deux cas, l'outil appelle cette fonction
+  // pour rebasculer explicitement dans l'app authentifiée une fois son
+  // action terminée, sur la page déjà choisie par l'outil (setCurrentPage).
+  const exitPublicMode = () => {
+    setPublicPage(null);
+    window.history.pushState({}, '', '/');
+  };
+
   // ─── Public Pages (no auth required) ───
   if (publicPage) {
     switch (publicPage) {
@@ -170,6 +181,9 @@ export default function StudiolibApp() {
           return <PublicTrackLinkPage token={publicToken} />;
         }
         return <PublicCreationsPage />;
+
+      case 'normalize':
+        return <PublicNormalizeTool onDoneGoToApp={exitPublicMode} />;
 
       case 'vitrine':
         if (publicStudioId) {

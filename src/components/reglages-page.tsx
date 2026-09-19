@@ -54,6 +54,8 @@ export default function ReglagesPage() {
   const user = useAppStore((state) => state.user);
   const setUser = useAppStore((state) => state.setUser);
   const logout = useAppStore((state) => state.logout);
+  const pendingProfileEdit = useAppStore((state) => state.pendingProfileEdit);
+  const setPendingProfileEdit = useAppStore((state) => state.setPendingProfileEdit);
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState('');
   const [editName, setEditName] = useState('');
@@ -236,6 +238,17 @@ export default function ReglagesPage() {
     setEditProfile(profile);
     setIsEditing(true);
   };
+
+  // Ouvre directement le formulaire d'édition (ex: juste après une
+  // inscription depuis l'outil public de normalisation) une fois le profil
+  // chargé, pour ne pas pré-remplir le formulaire avec des valeurs vides.
+  useEffect(() => {
+    if (pendingProfileEdit && user) {
+      handleEdit();
+      setPendingProfileEdit(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingProfileEdit, user, profile]);
 
   const handleSave = async () => {
     try {

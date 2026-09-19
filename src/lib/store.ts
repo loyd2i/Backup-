@@ -101,6 +101,12 @@ interface AppState {
   pendingOnelibReleaseId: string | null;
   setPendingOnelibReleaseId: (releaseId: string | null) => void;
 
+  // Ouvre directement le formulaire d'édition du profil en arrivant sur
+  // Réglages (ex: juste après une inscription depuis l'outil public de
+  // normalisation, pour compléter photo/bio/réseaux sans clic superflu).
+  pendingProfileEdit: boolean;
+  setPendingProfileEdit: (pending: boolean) => void;
+
   // User
   user: User | null;
   setUser: (user: User | null) => void;
@@ -151,6 +157,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   pendingOnelibReleaseId: null,
   setPendingOnelibReleaseId: (releaseId) => set({ pendingOnelibReleaseId: releaseId }),
+
+  pendingProfileEdit: false,
+  setPendingProfileEdit: (pending) => set({ pendingProfileEdit: pending }),
 
   // User
   user: null,
