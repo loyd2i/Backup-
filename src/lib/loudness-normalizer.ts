@@ -43,6 +43,16 @@ export interface StreamingPreviewResult {
   appliedGainDb: number;
 }
 
+export interface MasterResult {
+  channels: Float32Array[];
+  sampleRate: number;
+  // Mesures réelles sur le résultat généré (jamais de valeurs théoriques/inventées).
+  lufs: number;
+  lra: number;
+  truePeak: number;
+  appliedGainDb: number;
+}
+
 function dbToLinear(db: number): number {
   return Math.pow(10, db / 20);
 }
@@ -156,48 +166,51 @@ function applyLookaheadLimiter(channels: Float32Array[], ceilingLinear: number, 
 }
 
 /**
- * Génère l'aperçu "streaming" de 30s : sélectionne le passage le plus
- * représentatif, applique le gain de mise à niveau calculé sur le loudness
- * intégré de TOUT le morceau (comme le ferait une plateforme, qui normalise
- * sur la base du morceau entier, pas de l'extrait), protège les crêtes avec
- * le limiteur, puis mesure honnêtement le résultat réel.
+ * Gain nécessaire pour ramener le morceau entier à la cible streaming, basé
+ * sur le loudness intégré de TOUT le signal fourni (comme le ferait une
+ * plateforme, qui normalise sur la base du morceau entier, jamais d'un
+ * extrait). Un morceau déjà dans la fourchette optimale n'est pas touché.
  */
-export function generateStreamingPreview(fullChannels: Float32Array[], sampleRate: number): StreamingPreviewResult {
+function computeStreamingGainDb(fullChannels: Float32Array[], sampleRate: number): number {
   const fullTrackLoudness = analyzeLoudness(fullChannels, sampleRate);
-
-  // Gain nécessaire pour ramener le morceau entier à la cible streaming.
-  let gainDb = TARGET_STREAMING_LUFS - fullTrackLoudness.integratedLufs;
-  // Un morceau déjà dans la fourchette optimale n'a pas besoin d'être touché.
   if (
     fullTrackLoudness.integratedLufs >= STREAMING_LUFS_TARGET_MIN &&
     fullTrackLoudness.integratedLufs <= STREAMING_LUFS_TARGET_MAX
   ) {
-    gainDb = 0;
+    return 0;
   }
+  return TARGET_STREAMING_LUFS - fullTrackLoudness.integratedLufs;
+}
+
+/**
+ * Applique le gain de mise à niveau puis le limiteur anti-écrêtage à un jeu
+ * de canaux déjà sélectionné (extrait ou morceau entier), avec le garde-fou
+ * final habituel si la vraie crête mesurée dépasse malgré tout le plafond.
+ */
+function applyGainAndLimiter(
+  channels: Float32Array[],
+  gainDb: number,
+  sampleRate: number
+): { channels: Float32Array[]; measured: ReturnType<typeof analyzeLoudness> } {
   const gainLinear = dbToLinear(gainDb);
-
-  const startSample = findMostRepresentativeWindow(fullChannels, sampleRate, PREVIEW_DURATION_SECONDS);
-  const windowSamples = Math.min(fullChannels[0].length, Math.round(PREVIEW_DURATION_SECONDS * sampleRate));
-
-  const segment = fullChannels.map((chan) => {
-    const out = new Float32Array(windowSamples);
-    for (let i = 0; i < windowSamples; i++) out[i] = chan[startSample + i] * gainLinear;
+  const gained = channels.map((chan) => {
+    const out = new Float32Array(chan.length);
+    for (let i = 0; i < chan.length; i++) out[i] = chan[i] * gainLinear;
     return out;
   });
 
-  const limited = applyLookaheadLimiter(segment, dbToLinear(LIMITER_CEILING_DB), sampleRate);
+  const limited = applyLookaheadLimiter(gained, dbToLinear(LIMITER_CEILING_DB), sampleRate);
 
   // Mesure honnête du résultat réellement généré (jamais de valeur théorique).
-  const measured = analyzeLoudness(limited, sampleRate);
+  let finalChannels = limited;
+  let finalMeasured = analyzeLoudness(limited, sampleRate);
 
   // Garde-fou final : si la crête inter-échantillon mesurée (avec
   // sur-échantillonnage) dépasse malgré tout légèrement le plafond officiel
   // (cas rare, la marge de 0.5 dB du limiteur suffit presque toujours), on
   // applique un tout petit gain global de rattrapage plutôt que d'écrêter.
-  let finalChannels = limited;
-  let finalMeasured = measured;
-  if (measured.truePeakDb > SAFE_TRUE_PEAK_MAX) {
-    const correctionDb = SAFE_TRUE_PEAK_MAX - measured.truePeakDb;
+  if (finalMeasured.truePeakDb > SAFE_TRUE_PEAK_MAX) {
+    const correctionDb = SAFE_TRUE_PEAK_MAX - finalMeasured.truePeakDb;
     const correctionLinear = dbToLinear(correctionDb);
     finalChannels = limited.map((chan) => {
       const out = new Float32Array(chan.length);
@@ -207,13 +220,51 @@ export function generateStreamingPreview(fullChannels: Float32Array[], sampleRat
     finalMeasured = analyzeLoudness(finalChannels, sampleRate);
   }
 
+  return { channels: finalChannels, measured: finalMeasured };
+}
+
+/**
+ * Génère l'aperçu "streaming" de 30s : sélectionne le passage le plus
+ * représentatif, applique le gain de mise à niveau calculé sur le loudness
+ * intégré de TOUT le morceau, protège les crêtes avec le limiteur, puis
+ * mesure honnêtement le résultat réel.
+ */
+export function generateStreamingPreview(fullChannels: Float32Array[], sampleRate: number): StreamingPreviewResult {
+  const gainDb = computeStreamingGainDb(fullChannels, sampleRate);
+
+  const startSample = findMostRepresentativeWindow(fullChannels, sampleRate, PREVIEW_DURATION_SECONDS);
+  const windowSamples = Math.min(fullChannels[0].length, Math.round(PREVIEW_DURATION_SECONDS * sampleRate));
+  const segment = fullChannels.map((chan) => chan.slice(startSample, startSample + windowSamples));
+
+  const { channels, measured } = applyGainAndLimiter(segment, gainDb, sampleRate);
+
   return {
-    channels: finalChannels,
+    channels,
     sampleRate,
     startSeconds: startSample / sampleRate,
-    lufs: Math.round(finalMeasured.integratedLufs * 10) / 10,
-    lra: Math.round(finalMeasured.lra * 10) / 10,
-    truePeak: Math.round(finalMeasured.truePeakDb * 10) / 10,
+    lufs: Math.round(measured.integratedLufs * 10) / 10,
+    lra: Math.round(measured.lra * 10) / 10,
+    truePeak: Math.round(measured.truePeakDb * 10) / 10,
+    appliedGainDb: Math.round(gainDb * 10) / 10,
+  };
+}
+
+/**
+ * Même mise à niveau "streaming" que l'aperçu 30s, mais appliquée au signal
+ * entier plutôt qu'à un extrait - utilisé pour le "print" temps réel
+ * (E-Studio) : une fois la prise terminée, on remet l'intégralité du
+ * fichier capté aux normes, honnêtement mesurées.
+ */
+export function generateFullMaster(fullChannels: Float32Array[], sampleRate: number): MasterResult {
+  const gainDb = computeStreamingGainDb(fullChannels, sampleRate);
+  const { channels, measured } = applyGainAndLimiter(fullChannels, gainDb, sampleRate);
+
+  return {
+    channels,
+    sampleRate,
+    lufs: Math.round(measured.integratedLufs * 10) / 10,
+    lra: Math.round(measured.lra * 10) / 10,
+    truePeak: Math.round(measured.truePeakDb * 10) / 10,
     appliedGainDb: Math.round(gainDb * 10) / 10,
   };
 }
