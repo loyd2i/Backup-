@@ -5,11 +5,8 @@ import { useAppStore } from '@/lib/store';
 import {
   Cast, Plus, X, Users, Radio, Clock, CheckCircle2, Video, MonitorUp,
   MessageSquare, PenLine, CircleDot, Mic, ArrowLeft, Link2, Check,
-  Play, Square, UserX, Send, Crown, MicOff, Volume2, Disc, Download,
-  Music, Loader2, Settings2,
+  Play, Square, UserX, Send, Crown, MicOff, Volume2,
 } from 'lucide-react';
-import { analyzeAudio, formatDuration as formatSecondsDuration } from '@/lib/audio-analyzer';
-import { startRealtimePrint, finalizeRealtimePrint, PrintSession } from '@/lib/realtime-print';
 
 // Serveurs ICE par défaut (STUN public) si la session n'en précise pas
 const DEFAULT_ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -115,29 +112,6 @@ export default function EStudioPage() {
   const localAudioStreamRef = useRef<MediaStream | null>(null);
   const audioPeerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const audioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
-
-  // Source audio : micro par défaut, ou un pilote de bouclage virtuel
-  // (BlackHole, VB-Audio Cable...) si l'utilisateur a routé la sortie
-  // master de son logiciel (Logic ou autre) vers ce pilote - c'est la seule
-  // voie possible depuis un navigateur pour "récupérer" cette sortie, aucune
-  // API web ne donnant accès aux drivers internes d'un logiciel tiers.
-  const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedAudioInputId, setSelectedAudioInputId] = useState<string>('');
-
-  // "Print" temps réel : enregistre la source sélectionnée ci-dessus (donc
-  // potentiellement la sortie master d'un logiciel tiers via bouclage
-  // virtuel) protégée d'un limiteur pendant la prise, puis remise aux
-  // normes streaming une fois la prise terminée - jamais de charge CPU
-  // ajoutée au logiciel source, qui ignore tout de cette écoute.
-  const [isPrinting, setIsPrinting] = useState(false);
-  const [isFinalizingPrint, setIsFinalizingPrint] = useState(false);
-  const [printError, setPrintError] = useState<string | null>(null);
-  const [printResult, setPrintResult] = useState<{
-    blob: Blob; url: string; durationSeconds: number; lufs: number; lra: number; truePeak: number;
-  } | null>(null);
-  const [isAddingPrintToCreations, setIsAddingPrintToCreations] = useState(false);
-  const [printAddedToCreations, setPrintAddedToCreations] = useState(false);
-  const printSessionRef = useRef<PrintSession | null>(null);
 
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
   const pendingEStudioSessionId = useAppStore((state) => state.pendingEStudioSessionId);
@@ -545,46 +519,23 @@ export default function EStudioPage() {
     }
   };
 
-  // Liste les entrées audio disponibles (inclut un éventuel pilote de
-  // bouclage virtuel type BlackHole/VB-Cable) - les libellés ne sont
-  // fournis par le navigateur qu'une fois une autorisation micro déjà
-  // accordée, donc on rappelle cette fonction après le premier join.
-  const refreshAudioInputDevices = async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      setAudioInputDevices(devices.filter(d => d.kind === 'audioinput'));
-    } catch (error) {
-      console.error('Error listing audio devices:', error);
-    }
-  };
-
-  useEffect(() => {
-    refreshAudioInputDevices();
-    navigator.mediaDevices?.addEventListener?.('devicechange', refreshAudioInputDevices);
-    return () => navigator.mediaDevices?.removeEventListener?.('devicechange', refreshAudioInputDevices);
-  }, []);
-
   const joinAudio = async () => {
     if (!selectedSessionId) return;
     setAudioError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: selectedAudioInputId ? { deviceId: { exact: selectedAudioInputId } } : true,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       localAudioStreamRef.current = stream;
       setIsAudioJoined(true);
       setIsMuted(false);
       await updateMyParticipant({ connectionState: 'connected', isMuted: false });
       fetchSessionDetail(selectedSessionId);
-      refreshAudioInputDevices();
     } catch (error) {
       console.error('Error joining audio:', error);
-      setAudioError('Source audio indisponible ou autorisation refusée');
+      setAudioError('Micro indisponible ou autorisation refusée');
     }
   };
 
   const leaveAudio = async () => {
-    if (isPrinting) await stopPrint();
     localAudioStreamRef.current?.getTracks().forEach(t => t.stop());
     localAudioStreamRef.current = null;
     audioPeerConnectionsRef.current.forEach(pc => pc.close());
@@ -595,93 +546,6 @@ export default function EStudioPage() {
     if (selectedSessionId) {
       await updateMyParticipant({ connectionState: 'new' });
       fetchSessionDetail(selectedSessionId);
-    }
-  };
-
-  // ─── "Print" temps réel de la source sélectionnée ───
-  const startPrint = () => {
-    if (!localAudioStreamRef.current) return;
-    setPrintError(null);
-    setPrintResult(null);
-    setPrintAddedToCreations(false);
-    try {
-      printSessionRef.current = startRealtimePrint(localAudioStreamRef.current);
-      setIsPrinting(true);
-    } catch (error) {
-      console.error('Error starting print:', error);
-      setPrintError('Impossible de démarrer le print sur cette source.');
-    }
-  };
-
-  const stopPrint = async () => {
-    if (!printSessionRef.current) return;
-    setIsPrinting(false);
-    setIsFinalizingPrint(true);
-    try {
-      const rawBlob = await printSessionRef.current.stop();
-      printSessionRef.current = null;
-      const finalized = await finalizeRealtimePrint(rawBlob);
-      setPrintResult({
-        blob: finalized.wavBlob,
-        url: URL.createObjectURL(finalized.wavBlob),
-        durationSeconds: finalized.durationSeconds,
-        lufs: finalized.lufs,
-        lra: finalized.lra,
-        truePeak: finalized.truePeak,
-      });
-    } catch (error) {
-      console.error('Error finalizing print:', error);
-      setPrintError("Erreur lors de la mise aux normes de la prise enregistrée.");
-    } finally {
-      setIsFinalizingPrint(false);
-    }
-  };
-
-  const downloadPrint = () => {
-    if (!printResult) return;
-    const a = document.createElement('a');
-    a.href = printResult.url;
-    a.download = `print-${detail?.title || 'e-studio'}-${Date.now()}.wav`;
-    a.click();
-  };
-
-  const addPrintToCreations = async () => {
-    if (!printResult || !user) return;
-    setIsAddingPrintToCreations(true);
-    setPrintError(null);
-    try {
-      const file = new File([printResult.blob], `print-${detail?.title || 'e-studio'}.wav`, { type: 'audio/wav' });
-      const analysis = await analyzeAudio(file);
-      const formData = new FormData();
-      formData.append('title', detail?.title ? `Print - ${detail.title}` : 'Print E-Studio');
-      formData.append('artist', user.name);
-      formData.append('bpm', analysis.bpm.toString());
-      formData.append('key', analysis.key);
-      formData.append('genre', analysis.genre || '');
-      formData.append('studioId', '');
-      formData.append('status', 'in_progress');
-      formData.append('isPublic', 'false');
-      formData.append('duration', analysis.duration.toString());
-      formData.append('sampleRate', analysis.sampleRate.toString());
-      formData.append('bitDepth', analysis.bitDepth?.toString() || '');
-      formData.append('bitrate', analysis.bitrate?.toString() || '');
-      formData.append('audioFormat', analysis.audioFormat);
-      formData.append('truePeak', printResult.truePeak.toString());
-      formData.append('lufs', printResult.lufs.toString());
-      formData.append('lra', printResult.lra.toString());
-      formData.append('waveformPeaks', JSON.stringify(analysis.waveformPeaks));
-      formData.append('instruments', analysis.instruments.length > 0 ? JSON.stringify(analysis.instruments) : '');
-      formData.append('audioFile', file);
-
-      const res = await fetch('/api/tracks', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erreur lors de la création de la track');
-      setPrintAddedToCreations(true);
-    } catch (error) {
-      console.error('Error adding print to creations:', error);
-      setPrintError(error instanceof Error ? error.message : "Erreur lors de l'ajout à Créations");
-    } finally {
-      setIsAddingPrintToCreations(false);
     }
   };
 
@@ -1062,33 +926,14 @@ export default function EStudioPage() {
               {detail.status !== 'ended' && (
                 <div className="mt-4 pt-4 border-t border-[#2a2a2a] flex items-center gap-3 flex-wrap">
                   {!isAudioJoined ? (
-                    <>
-                      {audioInputDevices.length > 1 && (
-                        <div className="flex items-center gap-1.5">
-                          <Settings2 className="w-3.5 h-3.5 text-gray-500" />
-                          <select
-                            value={selectedAudioInputId}
-                            onChange={(e) => setSelectedAudioInputId(e.target.value)}
-                            className="bg-[#2a2a2a] text-white text-xs rounded-lg px-2 py-1.5 outline-none max-w-[180px]"
-                          >
-                            <option value="">Micro par défaut</option>
-                            {audioInputDevices.map((d) => (
-                              <option key={d.deviceId} value={d.deviceId}>
-                                {d.label || 'Entrée audio'}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      <button
-                        onClick={joinAudio}
-                        style={{ backgroundColor: accentColor }}
-                        className="flex items-center gap-2 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
-                      >
-                        <Mic className="w-3.5 h-3.5" />
-                        Rejoindre l'audio
-                      </button>
-                    </>
+                    <button
+                      onClick={joinAudio}
+                      style={{ backgroundColor: accentColor }}
+                      className="flex items-center gap-2 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
+                    >
+                      <Mic className="w-3.5 h-3.5" />
+                      Rejoindre l'audio
+                    </button>
                   ) : (
                     <>
                       <button
@@ -1100,25 +945,6 @@ export default function EStudioPage() {
                         {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
                         {isMuted ? 'Micro coupé' : 'Micro actif'}
                       </button>
-                      {!isPrinting ? (
-                        <button
-                          onClick={startPrint}
-                          disabled={isFinalizingPrint}
-                          title="Enregistre en temps réel la source sélectionnée (micro, ou pilote de bouclage recevant la sortie master de ton logiciel), remise aux normes streaming une fois la prise terminée"
-                          className="flex items-center gap-2 bg-[#2a2a2a] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#3a3a3a] transition-colors disabled:opacity-50"
-                        >
-                          {isFinalizingPrint ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Disc className="w-3.5 h-3.5" />}
-                          {isFinalizingPrint ? 'Mise aux normes...' : 'Print'}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={stopPrint}
-                          className="flex items-center gap-2 bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-700 transition-colors"
-                        >
-                          <Disc className="w-3.5 h-3.5 animate-pulse" />
-                          Arrêter le print
-                        </button>
-                      )}
                       <button
                         onClick={leaveAudio}
                         className="text-xs text-gray-400 hover:text-white underline underline-offset-2"
@@ -1131,49 +957,6 @@ export default function EStudioPage() {
                     {detail.participants.filter(p => p.connectionState === 'connected').length} en audio
                   </span>
                   {audioError && <span className="text-red-400 text-xs">{audioError}</span>}
-                  {printError && <span className="text-red-400 text-xs">{printError}</span>}
-                </div>
-              )}
-
-              {/* Résultat du print : lecture, téléchargement, ajout à Créations */}
-              {printResult && (
-                <div className="mt-4 bg-[#121212] rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <p className="text-white text-sm font-medium flex items-center gap-2">
-                      <Disc className="w-4 h-4 text-[#6366f1]" /> Print terminé ({formatSecondsDuration(printResult.durationSeconds)})
-                    </p>
-                    <div className="flex gap-2 text-xs text-gray-400">
-                      <span>{printResult.lufs.toFixed(1)} LUFS</span>
-                      <span>·</span>
-                      <span>LRA {printResult.lra.toFixed(1)}</span>
-                      <span>·</span>
-                      <span>{printResult.truePeak.toFixed(1)} dBTP</span>
-                    </div>
-                  </div>
-                  <audio controls src={printResult.url} className="w-full h-8" />
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={downloadPrint}
-                      className="flex items-center gap-2 bg-[#2a2a2a] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#3a3a3a] transition-colors"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Télécharger
-                    </button>
-                    {printAddedToCreations ? (
-                      <span className="flex items-center gap-1.5 text-green-400 text-xs px-3 py-1.5">
-                        <Check className="w-3.5 h-3.5" /> Ajouté à tes Créations
-                      </span>
-                    ) : (
-                      <button
-                        onClick={addPrintToCreations}
-                        disabled={isAddingPrintToCreations}
-                        style={{ backgroundColor: accentColor }}
-                        className="flex items-center gap-2 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                      >
-                        {isAddingPrintToCreations ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Music className="w-3.5 h-3.5" />}
-                        {isAddingPrintToCreations ? 'Ajout...' : 'Ajouter à mes Créations'}
-                      </button>
-                    )}
-                  </div>
                 </div>
               )}
 

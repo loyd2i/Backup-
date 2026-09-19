@@ -1,10 +1,21 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
 import { analyzeAudio, AudioAnalysisResult, formatDuration } from '@/lib/audio-analyzer';
-import { generateStreamingPreview, encodeWav, StreamingPreviewResult } from '@/lib/loudness-normalizer';
-import { Upload, Play, Pause, Loader2, Download, Music, Zap, Check } from 'lucide-react';
+import { generateStreamingPreview, encodeWav } from '@/lib/loudness-normalizer';
+import { startRealtimePrint, finalizeRealtimePrint, PrintSession } from '@/lib/realtime-print';
+import { Upload, Play, Pause, Loader2, Download, Music, Zap, Check, Disc, Settings2 } from 'lucide-react';
+
+// Mesures affichées du résultat (extrait 30s pour un import, prise entière
+// pour un print) - jamais de valeurs théoriques, toujours mesurées.
+interface NormalizationMetrics {
+  startSeconds: number;
+  lufs: number;
+  lra: number;
+  truePeak: number;
+  appliedGainDb: number;
+}
 
 // Tarif de l'export en usage libre (visiteur anonyme, sans compte) : simulé
 // (pas de vrai Stripe), montant provisoire en attendant l'arbitrage final.
@@ -30,14 +41,33 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
   const setPendingProfileEdit = useAppStore((state) => state.setPendingProfileEdit);
 
   const [step, setStep] = useState<Step>('upload');
+  const [uploadTab, setUploadTab] = useState<'file' | 'print'>('file');
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<AudioAnalysisResult | null>(null);
-  const [preview, setPreview] = useState<StreamingPreviewResult | null>(null);
+  const [preview, setPreview] = useState<NormalizationMetrics | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Provenance du résultat affiché : import de fichier (extrait 30s A/B), ou
+  // print temps réel (prise entière, avant/après le limiteur) - change le
+  // comportement de lecture A/B (pas de découpe à 30s pour un print) et les
+  // libellés de l'écran de résultat.
+  const [source, setSource] = useState<'upload' | 'print'>('upload');
+
+  // Print temps réel : source audio (micro par défaut, ou un pilote de
+  // bouclage virtuel type BlackHole/VB-Audio Cable si l'utilisateur y a
+  // routé la sortie master de son logiciel - Logic ou autre) - aucune API
+  // web ne permettant d'accéder autrement à la sortie d'un logiciel tiers.
+  const [audioInputDevices, setAudioInputDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedAudioInputId, setSelectedAudioInputId] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const printSessionRef = useRef<PrintSession | null>(null);
+  const printStreamRef = useRef<MediaStream | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [abMode, setAbMode] = useState<'original' | 'normalized'>('normalized');
   const [abPlaying, setAbPlaying] = useState(false);
@@ -55,6 +85,8 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
 
   const reset = () => {
     setStep('upload');
+    setUploadTab('file');
+    setSource('upload');
     setFile(null);
     setAnalysis(null);
     setPreview(null);
@@ -71,6 +103,7 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
       setError('Merci de choisir un fichier audio.');
       return;
     }
+    setSource('upload');
     setFile(selectedFile);
     setStep('analyzing');
     setError(null);
@@ -94,7 +127,13 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
       const wavBlob = encodeWav(previewResult.channels, previewResult.sampleRate);
 
       setAnalysis(analysisResult);
-      setPreview(previewResult);
+      setPreview({
+        startSeconds: previewResult.startSeconds,
+        lufs: previewResult.lufs,
+        lra: previewResult.lra,
+        truePeak: previewResult.truePeak,
+        appliedGainDb: previewResult.appliedGainDb,
+      });
       setPreviewBlob(wavBlob);
       setOriginalUrl(URL.createObjectURL(selectedFile));
       setPreviewUrl(URL.createObjectURL(wavBlob));
@@ -102,6 +141,78 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
     } catch (e) {
       console.error('Erreur analyse/normalisation:', e);
       setError("Impossible d'analyser ce fichier. Essaie un autre format (WAV, MP3, FLAC...).");
+      setStep('upload');
+    }
+  };
+
+  // ─── Print temps réel (micro, ou pilote de bouclage virtuel) ───
+  const refreshAudioInputDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      setAudioInputDevices(devices.filter((d) => d.kind === 'audioinput'));
+    } catch (e) {
+      console.error('Error listing audio devices:', e);
+    }
+  };
+
+  useEffect(() => {
+    refreshAudioInputDevices();
+    navigator.mediaDevices?.addEventListener?.('devicechange', refreshAudioInputDevices);
+    return () => navigator.mediaDevices?.removeEventListener?.('devicechange', refreshAudioInputDevices);
+  }, []);
+
+  const startPrint = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: selectedAudioInputId ? { deviceId: { exact: selectedAudioInputId } } : true,
+      });
+      printStreamRef.current = stream;
+      printSessionRef.current = startRealtimePrint(stream);
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+      refreshAudioInputDevices();
+    } catch (e) {
+      console.error('Error starting print:', e);
+      setError('Source audio indisponible ou autorisation refusée.');
+    }
+  };
+
+  const stopPrint = async () => {
+    if (!printSessionRef.current) return;
+    setIsRecording(false);
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    setStep('analyzing');
+    setError(null);
+    try {
+      const rawBlob = await printSessionRef.current.stop();
+      printSessionRef.current = null;
+      printStreamRef.current?.getTracks().forEach((t) => t.stop());
+      printStreamRef.current = null;
+
+      const finalized = await finalizeRealtimePrint(rawBlob);
+      const stamp = new Date().toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const wavFile = new File([finalized.wavBlob], `Print du ${stamp}.wav`, { type: 'audio/wav' });
+      const analysisResult = await analyzeAudio(wavFile);
+
+      setSource('print');
+      setFile(wavFile);
+      setAnalysis(analysisResult);
+      setPreview({
+        startSeconds: 0,
+        lufs: finalized.lufs,
+        lra: finalized.lra,
+        truePeak: finalized.truePeak,
+        appliedGainDb: finalized.appliedGainDb,
+      });
+      setPreviewBlob(finalized.wavBlob);
+      setOriginalUrl(URL.createObjectURL(rawBlob));
+      setPreviewUrl(URL.createObjectURL(finalized.wavBlob));
+      setStep('result');
+    } catch (e) {
+      console.error('Erreur finalisation print:', e);
+      setError('Impossible de mettre cette prise aux normes.');
       setStep('upload');
     }
   };
@@ -143,7 +254,9 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
   };
 
   const handleOriginalTimeUpdate = () => {
-    if (!originalAudioRef.current || !preview) return;
+    // La découpe à 30s ne concerne que l'extrait d'un import de fichier -
+    // un print se joue sur toute sa durée (arrêt naturel via onEnded).
+    if (source !== 'upload' || !originalAudioRef.current || !preview) return;
     if (originalAudioRef.current.currentTime >= preview.startSeconds + 30) {
       originalAudioRef.current.pause();
       setAbPlaying(false);
@@ -270,24 +383,90 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
 
         {step === 'upload' && (
           <>
-            <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileInput} className="hidden" />
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-colors ${
-                isDragging ? 'border-[#6366f1] bg-[#6366f1]/10' : 'border-[#3a3a3a] hover:border-[#6366f1]'
-              }`}
-            >
-              <div className="w-16 h-16 bg-[#6366f1]/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Upload className="w-8 h-8 text-[#6366f1]" />
-              </div>
-              <p className="text-white font-medium mb-1">
-                {isDragging ? 'Dépose le fichier ici' : 'Glisse ton fichier audio, ou clique'}
-              </p>
-              <p className="text-gray-500 text-sm">WAV, MP3, FLAC, AAC... Rien n&apos;est envoyé à un serveur pour l&apos;analyse.</p>
+            <div className="flex items-center gap-1 bg-[#1a1a1a] rounded-lg p-1 mb-4 w-fit mx-auto">
+              <button
+                onClick={() => setUploadTab('file')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${uploadTab === 'file' ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-white'}`}
+              >
+                Importer un fichier
+              </button>
+              <button
+                onClick={() => setUploadTab('print')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${uploadTab === 'print' ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-white'}`}
+              >
+                <Disc className="w-3.5 h-3.5" /> Print (enregistrer en direct)
+              </button>
             </div>
+
+            {uploadTab === 'file' ? (
+              <>
+                <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileInput} className="hidden" />
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-colors ${
+                    isDragging ? 'border-[#6366f1] bg-[#6366f1]/10' : 'border-[#3a3a3a] hover:border-[#6366f1]'
+                  }`}
+                >
+                  <div className="w-16 h-16 bg-[#6366f1]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Upload className="w-8 h-8 text-[#6366f1]" />
+                  </div>
+                  <p className="text-white font-medium mb-1">
+                    {isDragging ? 'Dépose le fichier ici' : 'Glisse ton fichier audio, ou clique'}
+                  </p>
+                  <p className="text-gray-500 text-sm">WAV, MP3, FLAC, AAC... Rien n&apos;est envoyé à un serveur pour l&apos;analyse.</p>
+                </div>
+              </>
+            ) : (
+              <div className="border-2 border-dashed border-[#3a3a3a] rounded-2xl p-12 text-center">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${isRecording ? 'bg-red-600/20' : 'bg-[#6366f1]/20'}`}>
+                  <Disc className={`w-8 h-8 ${isRecording ? 'text-red-500 animate-pulse' : 'text-[#6366f1]'}`} />
+                </div>
+
+                {!isRecording ? (
+                  <>
+                    {audioInputDevices.length > 1 && (
+                      <div className="flex items-center justify-center gap-1.5 mb-4">
+                        <Settings2 className="w-3.5 h-3.5 text-gray-500" />
+                        <select
+                          value={selectedAudioInputId}
+                          onChange={(e) => setSelectedAudioInputId(e.target.value)}
+                          className="bg-[#12121a] text-white text-xs rounded-lg px-2 py-1.5 outline-none max-w-[220px]"
+                        >
+                          <option value="">Micro par défaut</option>
+                          {audioInputDevices.map((d) => (
+                            <option key={d.deviceId} value={d.deviceId}>{d.label || 'Entrée audio'}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <button
+                      onClick={startPrint}
+                      className="bg-[#6366f1] text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-[#5558e3] transition-colors"
+                    >
+                      Démarrer le print
+                    </button>
+                    <p className="text-gray-500 text-sm mt-3 max-w-sm mx-auto">
+                      Micro, ou pilote de bouclage virtuel (BlackHole, VB-Audio Cable...) si tu y as
+                      routé la sortie master de ton logiciel (Logic ou autre) - le résultat sera
+                      remis aux normes streaming automatiquement à l&apos;arrêt.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-white font-medium mb-3">Enregistrement... {formatDuration(recordingSeconds)}</p>
+                    <button
+                      onClick={stopPrint}
+                      className="bg-red-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-red-700 transition-colors"
+                    >
+                      Arrêter le print
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             {error && <p className="text-red-400 text-sm text-center mt-4">{error}</p>}
           </>
         )}
@@ -295,7 +474,7 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
         {step === 'analyzing' && (
           <div className="border border-[#2a2a2a] rounded-2xl p-12 text-center bg-[#1a1a1a]">
             <Loader2 className="w-10 h-10 text-[#6366f1] animate-spin mx-auto mb-4" />
-            <p className="text-white font-medium">Analyse en cours...</p>
+            <p className="text-white font-medium">{source === 'print' ? 'Mise aux normes du print...' : 'Analyse en cours...'}</p>
             <p className="text-gray-500 text-sm mt-1">{file?.name}</p>
           </div>
         )}
@@ -350,13 +529,13 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
                   onClick={() => switchAbMode('original')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${abMode === 'original' ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-white'}`}
                 >
-                  Original
+                  {source === 'print' ? 'Brut (avant print)' : 'Original'}
                 </button>
                 <button
                   onClick={() => switchAbMode('normalized')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${abMode === 'normalized' ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-white'}`}
                 >
-                  Normalisé (streaming)
+                  {source === 'print' ? 'Print (aux normes)' : 'Normalisé (streaming)'}
                 </button>
               </div>
               <div className="flex items-center gap-3">
@@ -367,9 +546,9 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
                   {abPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
                 </button>
                 <p className="text-gray-400 text-sm">
-                  {abMode === 'original'
-                    ? "Le passage tel qu'il sonne aujourd'hui sur ton fichier."
-                    : 'Ce que les plateformes en feront réellement une fois en ligne.'}
+                  {source === 'print'
+                    ? (abMode === 'original' ? 'La prise telle que captée, avant mise aux normes.' : 'La même prise, remise aux normes streaming (gain + anti-écrêtage).')
+                    : (abMode === 'original' ? "Le passage tel qu'il sonne aujourd'hui sur ton fichier." : 'Ce que les plateformes en feront réellement une fois en ligne.')}
                 </p>
               </div>
               {originalUrl && (
@@ -387,7 +566,7 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
                 {isLoggedIn ? 'Télécharger le fichier normalisé' : `Télécharger — ${FREE_TOOL_EXPORT_FEE}€ (ou crée un compte, c'est gratuit)`}
               </button>
               <button onClick={reset} className="text-gray-500 hover:text-white text-sm px-4 py-3">
-                Analyser un autre fichier
+                {source === 'print' ? 'Faire un autre print' : 'Analyser un autre fichier'}
               </button>
             </div>
 
