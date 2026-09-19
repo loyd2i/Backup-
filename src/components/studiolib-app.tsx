@@ -41,9 +41,19 @@ export default function StudiolibApp() {
 
   // Enregistre le service worker (PWA + notifications push), indépendamment
   // de l'état de connexion : l'abonnement effectif se fait depuis Réglages.
+  // Sur contexte non sécurisé (ex: accès par IP locale en http:// plutôt que
+  // localhost/https://), certains navigateurs (Safari iOS notamment) lèvent
+  // une exception SYNCHRONE plutôt qu'une promesse rejetée : sans try/catch,
+  // ça casse l'hydratation React et rend toute l'appli (y compris la page de
+  // connexion) totalement figée, sans aucun message d'erreur visible.
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    try {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
+    } catch {
+      // Contexte non sécurisé ou API indisponible : la PWA/push est un bonus,
+      // pas un pré-requis pour utiliser le site.
     }
   }, []);
 
