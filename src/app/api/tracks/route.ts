@@ -271,6 +271,20 @@ export async function PUT(request: NextRequest) {
     if (data.appleMusicUrl !== undefined) updateData.appleMusicUrl = data.appleMusicUrl;
     if (data.deezerUrl !== undefined) updateData.deezerUrl = data.deezerUrl;
 
+    // Caractéristiques techniques calculées par l'analyse audio en arrière-plan
+    // (tempo, tonalité, loudness, waveform, style) une fois la track déjà
+    // créée et visible - cf. getQuickAudioMetadata / analyzeAudio.
+    if (data.duration !== undefined) updateData.duration = data.duration ? parseInt(data.duration) : null;
+    if (data.sampleRate !== undefined) updateData.sampleRate = data.sampleRate ? parseInt(data.sampleRate) : null;
+    if (data.bitDepth !== undefined) updateData.bitDepth = data.bitDepth ? parseInt(data.bitDepth) : null;
+    if (data.bitrate !== undefined) updateData.bitrate = data.bitrate ? parseInt(data.bitrate) : null;
+    if (data.audioFormat !== undefined) updateData.audioFormat = data.audioFormat || null;
+    if (data.truePeak !== undefined) updateData.truePeak = data.truePeak !== null ? parseFloat(data.truePeak) : null;
+    if (data.lufs !== undefined) updateData.lufs = data.lufs !== null ? parseFloat(data.lufs) : null;
+    if (data.lra !== undefined) updateData.lra = data.lra !== null ? parseFloat(data.lra) : null;
+    if (data.waveformPeaks !== undefined) updateData.waveformPeaks = data.waveformPeaks || null;
+    if (data.instruments !== undefined) updateData.instruments = data.instruments || null;
+
     const track = await prisma.track.update({
       where: { id, userId: user.id },
       data: updateData,

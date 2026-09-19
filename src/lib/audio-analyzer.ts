@@ -209,6 +209,73 @@ export async function analyzeAudio(file: File): Promise<AudioAnalysisResult> {
   });
 }
 
+export interface QuickAudioMetadata {
+  duration: number;
+  audioFormat: string;
+  sampleRate: number | null;
+  bitDepth: number | null;
+  bitrate: number | null;
+}
+
+/**
+ * Métadonnées quasi instantanées (durée + format), sans décoder le signal ni
+ * lancer la moindre analyse DSP - contrairement à analyzeAudio() qui décode
+ * tout le fichier et peut prendre plusieurs secondes (voire jusqu'à 20s avec
+ * la détection de style). Permet de créer la track tout de suite avec ses
+ * caractéristiques de base ; le reste (tempo, tonalité, loudness, waveform,
+ * style) est calculé en arrière-plan une fois la track déjà visible dans
+ * Créations, via analyzeAudio() suivi d'une mise à jour de la track.
+ */
+export function getQuickAudioMetadata(file: File): Promise<QuickAudioMetadata> {
+  return new Promise((resolve) => {
+    const audioFormat = detectAudioFormat(file);
+    const isUncompressed = UNCOMPRESSED_MIME_TYPES.has(file.type) || audioFormat === 'WAV';
+
+    const finish = (duration: number) => {
+      (async () => {
+        let sampleRate: number | null = null;
+        let bitDepth: number | null = null;
+        if (isUncompressed) {
+          try {
+            // L'en-tête "fmt " d'un WAV apparaît toujours très tôt : quelques Ko
+            // suffisent, pas besoin de lire le fichier entier.
+            const headerBuffer = await file.slice(0, 4096).arrayBuffer();
+            const wavFormat = parseWavFormat(headerBuffer);
+            sampleRate = wavFormat?.sampleRate ?? null;
+            bitDepth = wavFormat?.bitDepth ?? null;
+          } catch {
+            // Pas grave : ces champs seront de toute façon complétés par
+            // l'analyse complète en arrière-plan.
+          }
+        }
+        const bitrate = !isUncompressed && duration > 0
+          ? Math.round((file.size * 8) / duration / 1000)
+          : null;
+        resolve({ duration: Math.round(duration), audioFormat, sampleRate, bitDepth, bitrate });
+      })();
+    };
+
+    // Lecture des métadonnées seules (durée) : le navigateur n'a besoin de
+    // lire que l'en-tête du conteneur, pas de décoder l'audio.
+    const audioEl = document.createElement('audio');
+    audioEl.preload = 'metadata';
+    const objectUrl = URL.createObjectURL(file);
+    audioEl.src = objectUrl;
+
+    const cleanup = () => URL.revokeObjectURL(objectUrl);
+
+    audioEl.onloadedmetadata = () => {
+      const duration = Number.isFinite(audioEl.duration) ? audioEl.duration : 0;
+      cleanup();
+      finish(duration);
+    };
+    audioEl.onerror = () => {
+      cleanup();
+      finish(0);
+    };
+  });
+}
+
 /**
  * Détecte le BPM en utilisant la détection de pics énergétiques
  */

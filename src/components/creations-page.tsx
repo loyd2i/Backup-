@@ -9,7 +9,7 @@ import TrackShareButton from './track-share-button';
 import TrackDownloadButton from './track-download-button';
 import TrackQrCodeButton from './track-qrcode-button';
 import TrackOnelibButton from './track-onelib-button';
-import { analyzeAudio, AudioAnalysisResult } from '@/lib/audio-analyzer';
+import { analyzeAudio, getQuickAudioMetadata, AudioAnalysisResult, QuickAudioMetadata } from '@/lib/audio-analyzer';
 import EmptyState from './ui/empty-state';
 
 interface Studio {
@@ -100,8 +100,14 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AudioAnalysisResult | null>(null);
+  const [quickMetadata, setQuickMetadata] = useState<QuickAudioMetadata | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Analyse complète (tempo, tonalité, loudness, waveform, style) en cours
+  // pour le fichier sélectionné : ne bloque jamais la création de la track,
+  // dont on complète les caractéristiques dès que la promesse se résout,
+  // même si la fenêtre "Nouvelle track" est déjà refermée.
+  const pendingAnalysisRef = useRef<Promise<AudioAnalysisResult> | null>(null);
   
   const [newTrack, setNewTrack] = useState({
     title: '',
@@ -155,33 +161,36 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     }
 
     setUploadedFile(file);
+    setAnalysisResult(null);
+    setQuickMetadata(null);
+    setNewTrack(prev => ({ ...prev, title: prev.title || file.name.replace(/\.[^/.]+$/, '') }));
+
+    // Métadonnées quasi instantanées (durée, format...) : pas besoin d'attendre
+    // l'analyse complète pour les afficher ou pour pouvoir créer la track.
+    getQuickAudioMetadata(file).then(setQuickMetadata).catch(() => {});
+
+    // Analyse complète (tempo, tonalité, loudness, waveform, style) : lancée
+    // en parallèle, sans bloquer le formulaire. Si l'utilisateur crée la
+    // track avant qu'elle se termine, elle continue en arrière-plan et met
+    // à jour la track une fois le résultat disponible (cf. handleSubmitTrack).
     setAnalyzing(true);
-    setAnalysisProgress('Lecture du fichier...');
-
-    try {
-      setTimeout(() => setAnalysisProgress('Analyse des fréquences...'), 500);
-      setTimeout(() => setAnalysisProgress('Détection du tempo...'), 1500);
-      setTimeout(() => setAnalysisProgress('Analyse de la tonalité...'), 2500);
-      setTimeout(() => setAnalysisProgress('Détection du style musical...'), 3500);
-
-      const result = await analyzeAudio(file);
-      setAnalysisResult(result);
-
-      setNewTrack(prev => ({
-        ...prev,
-        bpm: result.bpm.toString(),
-        key: result.key,
-        genre: result.genre || prev.genre,
-        title: prev.title || file.name.replace(/\.[^/.]+$/, '')
-      }));
-
-      setAnalysisProgress('Analyse terminée !');
-    } catch (error) {
-      console.error('Analysis error:', error);
-      setAnalysisProgress('Erreur lors de l\'analyse');
-    } finally {
-      setAnalyzing(false);
-    }
+    setAnalysisProgress('Analyse en arrière-plan (tempo, tonalité, style...)');
+    const analysisPromise = analyzeAudio(file);
+    pendingAnalysisRef.current = analysisPromise;
+    analysisPromise
+      .then((result) => {
+        setAnalysisResult(result);
+        setNewTrack(prev => ({
+          ...prev,
+          bpm: prev.bpm || result.bpm.toString(),
+          key: prev.key || result.key,
+          genre: prev.genre || result.genre || '',
+        }));
+      })
+      .catch((error) => {
+        console.error('Analysis error:', error);
+      })
+      .finally(() => setAnalyzing(false));
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -213,7 +222,14 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
 
   const handleSubmitTrack = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // Si l'artiste a déjà saisi le bpm/tonalité/genre à la main avant la fin
+    // de l'analyse, on ne veut pas que le résultat auto-détecté vienne les
+    // écraser plus tard une fois la track déjà créée.
+    const hadManualBpm = !!newTrack.bpm;
+    const hadManualKey = !!newTrack.key;
+    const hadManualGenre = !!newTrack.genre;
+
     const formData = new FormData();
     formData.append('title', newTrack.title);
     formData.append('artist', newTrack.artist);
@@ -224,11 +240,14 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     formData.append('status', newTrack.status);
     // Studio tracks are always private
     formData.append('isPublic', isStudioMode ? 'false' : newTrack.isPublic.toString());
-    formData.append('duration', analysisResult?.duration?.toString() || '');
-    formData.append('sampleRate', analysisResult?.sampleRate?.toString() || '');
-    formData.append('bitDepth', analysisResult?.bitDepth?.toString() || '');
-    formData.append('bitrate', analysisResult?.bitrate?.toString() || '');
-    formData.append('audioFormat', analysisResult?.audioFormat || '');
+    // L'analyse complète n'a peut-être pas encore fini : on envoie ce qu'on a
+    // (les métadonnées rapides suffisent à créer la track sans attendre),
+    // le reste sera complété en arrière-plan une fois l'analyse terminée.
+    formData.append('duration', (analysisResult?.duration ?? quickMetadata?.duration)?.toString() || '');
+    formData.append('sampleRate', (analysisResult?.sampleRate ?? quickMetadata?.sampleRate)?.toString() || '');
+    formData.append('bitDepth', (analysisResult?.bitDepth ?? quickMetadata?.bitDepth)?.toString() || '');
+    formData.append('bitrate', (analysisResult?.bitrate ?? quickMetadata?.bitrate)?.toString() || '');
+    formData.append('audioFormat', analysisResult?.audioFormat || quickMetadata?.audioFormat || '');
     formData.append('truePeak', analysisResult?.truePeak?.toString() || '');
     formData.append('lufs', analysisResult?.lufs?.toString() || '');
     formData.append('lra', analysisResult?.lra?.toString() || '');
@@ -239,6 +258,10 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
       formData.append('audioFile', uploadedFile);
     }
 
+    // Si l'analyse complète est toujours en cours, on la récupère maintenant :
+    // sa promesse continuera de vivre même après la fermeture de la fenêtre.
+    const stillPendingAnalysis = !analysisResult ? pendingAnalysisRef.current : null;
+
     try {
       const res = await fetch('/api/tracks', {
         method: 'POST',
@@ -246,10 +269,11 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
       });
       if (res.ok) {
         const data = await res.json();
-        if (coverFile && data.track?.id) {
+        const newTrackId = data.track?.id;
+        if (coverFile && newTrackId) {
           const coverFormData = new FormData();
           coverFormData.append('file', coverFile);
-          await fetch(`/api/tracks/${data.track.id}/cover`, { method: 'POST', body: coverFormData });
+          await fetch(`/api/tracks/${newTrackId}/cover`, { method: 'POST', body: coverFormData });
         }
         setShowNewTrack(false);
         setNewTrack({
@@ -265,10 +289,51 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
         setUploadedFile(null);
         setCoverFile(null);
         setAnalysisResult(null);
+        setQuickMetadata(null);
         fetchData();
+
+        if (newTrackId && stillPendingAnalysis) {
+          stillPendingAnalysis
+            .then((result) => applyBackgroundAnalysis(newTrackId, result, { hadManualBpm, hadManualKey, hadManualGenre }))
+            .catch((error) => console.error('Analyse en arrière-plan échouée:', error));
+        }
       }
     } catch (error) {
       console.error('Error creating track:', error);
+    }
+  };
+
+  // Complète une track déjà créée avec le résultat de l'analyse complète
+  // (tempo, tonalité, loudness, waveform, style), une fois celle-ci terminée.
+  const applyBackgroundAnalysis = async (
+    trackId: string,
+    result: AudioAnalysisResult,
+    manual: { hadManualBpm: boolean; hadManualKey: boolean; hadManualGenre: boolean } = { hadManualBpm: false, hadManualKey: false, hadManualGenre: false }
+  ) => {
+    try {
+      await fetch('/api/tracks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: trackId,
+          bpm: manual.hadManualBpm ? undefined : result.bpm,
+          key: manual.hadManualKey ? undefined : result.key,
+          genre: manual.hadManualGenre ? undefined : (result.genre || undefined),
+          duration: result.duration,
+          sampleRate: result.sampleRate,
+          bitDepth: result.bitDepth,
+          bitrate: result.bitrate,
+          audioFormat: result.audioFormat,
+          truePeak: result.truePeak,
+          lufs: result.lufs,
+          lra: result.lra,
+          waveformPeaks: JSON.stringify(result.waveformPeaks),
+          instruments: result.instruments.length > 0 ? JSON.stringify(result.instruments) : undefined,
+        })
+      });
+      fetchData();
+    } catch (error) {
+      console.error('Error applying background analysis:', error);
     }
   };
 
@@ -371,19 +436,18 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     formData.append('audioFile', file);
     formData.append('label', label);
 
+    // Métadonnées rapides seulement (durée, format...) : la version est
+    // uploadée tout de suite, sans attendre l'analyse complète (tempo,
+    // tonalité, loudness, waveform), qui continue ensuite en arrière-plan.
     try {
-      const analysis = await analyzeAudio(file);
-      formData.append('duration', analysis.duration.toString());
-      formData.append('sampleRate', analysis.sampleRate.toString());
-      formData.append('bitDepth', analysis.bitDepth?.toString() || '');
-      formData.append('bitrate', analysis.bitrate?.toString() || '');
-      formData.append('audioFormat', analysis.audioFormat);
-      formData.append('truePeak', analysis.truePeak.toString());
-      formData.append('lufs', analysis.lufs.toString());
-      formData.append('lra', analysis.lra.toString());
-      formData.append('waveformPeaks', JSON.stringify(analysis.waveformPeaks));
+      const quick = await getQuickAudioMetadata(file);
+      formData.append('duration', quick.duration.toString());
+      formData.append('sampleRate', quick.sampleRate?.toString() || '');
+      formData.append('bitDepth', quick.bitDepth?.toString() || '');
+      formData.append('bitrate', quick.bitrate?.toString() || '');
+      formData.append('audioFormat', quick.audioFormat);
     } catch (e) {
-      console.error('Analyse audio de la version échouée:', e);
+      console.error('Lecture des métadonnées de la version échouée:', e);
     }
 
     const res = await fetch(`/api/tracks/${trackId}/versions`, {
@@ -393,7 +457,31 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     if (!res.ok) {
       throw new Error('Échec de l\'upload de la version');
     }
+    const data = await res.json();
+    const versionId = data.version?.id;
     fetchData();
+
+    if (versionId) {
+      analyzeAudio(file)
+        .then((analysis) => fetch(`/api/tracks/${trackId}/versions`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            versionId,
+            duration: analysis.duration,
+            sampleRate: analysis.sampleRate,
+            bitDepth: analysis.bitDepth,
+            bitrate: analysis.bitrate,
+            audioFormat: analysis.audioFormat,
+            truePeak: analysis.truePeak,
+            lufs: analysis.lufs,
+            lra: analysis.lra,
+            waveformPeaks: JSON.stringify(analysis.waveformPeaks),
+          })
+        }))
+        .then(() => fetchData())
+        .catch((e) => console.error('Analyse en arrière-plan de la version échouée:', e));
+    }
   };
 
   const handleProposeMaster = async (trackId: string) => {
@@ -617,6 +705,8 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         onClick={() => {
                           setUploadedFile(null);
                           setAnalysisResult(null);
+                          setQuickMetadata(null);
+                          pendingAnalysisRef.current = null;
                           setNewTrack(prev => ({ ...prev, bpm: '', key: '' }));
                         }}
                         className="p-2 hover:bg-[#3a3a3a] rounded-lg text-gray-400"

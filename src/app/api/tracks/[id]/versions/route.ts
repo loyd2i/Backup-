@@ -136,6 +136,64 @@ export async function POST(
   }
 }
 
+// PATCH /api/tracks/:id/versions - Renseigne les caractéristiques techniques
+// d'une version (tempo, tonalité, loudness, waveform...) une fois l'analyse
+// complète terminée en arrière-plan, après que la version a déjà été créée
+// et uploadée avec ses seules métadonnées rapides.
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const body = await request.json();
+    const { versionId, ...data } = body;
+
+    const track = await prisma.track.findFirst({ where: { id, userId: user.id } });
+    if (!track) {
+      return NextResponse.json({ error: 'Track non trouvée' }, { status: 404 });
+    }
+
+    const version = await prisma.trackVersion.findFirst({ where: { id: versionId, trackId: id } });
+    if (!version) {
+      return NextResponse.json({ error: 'Version non trouvée' }, { status: 404 });
+    }
+
+    const specs = {
+      duration: data.duration !== undefined && data.duration !== null ? parseInt(data.duration) : version.duration,
+      sampleRate: data.sampleRate !== undefined && data.sampleRate !== null ? parseInt(data.sampleRate) : version.sampleRate,
+      bitDepth: data.bitDepth !== undefined && data.bitDepth !== null ? parseInt(data.bitDepth) : version.bitDepth,
+      bitrate: data.bitrate !== undefined && data.bitrate !== null ? parseInt(data.bitrate) : version.bitrate,
+      audioFormat: data.audioFormat ?? version.audioFormat,
+      truePeak: data.truePeak !== undefined && data.truePeak !== null ? parseFloat(data.truePeak) : version.truePeak,
+      lufs: data.lufs !== undefined && data.lufs !== null ? parseFloat(data.lufs) : version.lufs,
+      lra: data.lra !== undefined && data.lra !== null ? parseFloat(data.lra) : version.lra,
+      waveformPeaks: data.waveformPeaks ?? version.waveformPeaks,
+    };
+
+    const updatedVersion = await prisma.trackVersion.update({
+      where: { id: versionId },
+      data: specs,
+    });
+
+    // Si cette version est celle actuellement reflétée sur la track (même
+    // fichier audio), on met aussi à jour ses specs pour rester cohérent.
+    if (track.audioUrl && track.audioUrl === version.audioUrl) {
+      await prisma.track.update({ where: { id }, data: specs });
+    }
+
+    return NextResponse.json({ version: updatedVersion });
+  } catch (error) {
+    console.error('Error updating version specs:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 // DELETE /api/tracks/:id/versions - Delete a version
 export async function DELETE(
   request: NextRequest,
