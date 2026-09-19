@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { ONELIB_DISTRIBUTION_FEE } from '@/lib/onelib-config';
+import { ONELIB_DISTRIBUTION_FEE, ONELIB_NORMALIZATION_FEE } from '@/lib/onelib-config';
+import { generateStreamingPreview, encodeWav } from '@/lib/loudness-normalizer';
 import OnelibCollectionDetail from './onelib-collection-detail';
 import CoverDropzone from './cover-dropzone';
 import EmptyState from './ui/empty-state';
 import {
   Share2, Music2, ArrowLeft, Eye, CheckCircle2, PenLine, Trash2,
   Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users, ExternalLink, Clock,
-  Disc, ListMusic, Radio,
+  Disc, ListMusic, Radio, Play, Pause, SlidersHorizontal, Loader2,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -46,6 +47,16 @@ interface Release {
   distributionRequestedAt: string | null;
   distributionFeeAmount: number | null;
   distributionFeePaidAt: string | null;
+  // Aperçu streaming normalisé (30s, A/B) : mise à niveau de loudness +
+  // anti-écrêtage, calculée côté client, sans mastering IA.
+  normalizationStatus: string; // none, done
+  normalizationRequestedAt: string | null;
+  normalizationFeeAmount: number | null;
+  normalizedLufs: number | null;
+  normalizedLra: number | null;
+  normalizedTruePeak: number | null;
+  previewAudioUrl: string | null;
+  previewStartSeconds: number | null;
   collaborators: Collaborator[];
   track: {
     id: string;
@@ -57,6 +68,8 @@ interface Release {
     youtubeUrl?: string | null;
     appleMusicUrl?: string | null;
     deezerUrl?: string | null;
+    audioUrl?: string | null;
+    duration?: number | null;
   };
 }
 
@@ -121,6 +134,12 @@ export default function OnelibPage() {
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [isRequestingDistribution, setIsRequestingDistribution] = useState(false);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [abMode, setAbMode] = useState<'original' | 'normalized'>('normalized');
+  const [abPlaying, setAbPlaying] = useState(false);
+  const originalAudioRef = useRef<HTMLAudioElement>(null);
+  const previewAudioRef = useRef<HTMLAudioElement>(null);
 
   const accentColor = user?.role === 'studio_owner' ? '#f59e0b' : '#6366f1';
 
@@ -313,6 +332,95 @@ export default function OnelibPage() {
       console.error('Error cancelling distribution request:', error);
     } finally {
       setIsRequestingDistribution(false);
+    }
+  };
+
+  // Génère l'aperçu streaming (30s, A/B) : débite le forfait, télécharge et
+  // décode le master, calcule la mise à niveau + le limiteur côté client
+  // (aucun envoi du master à un serveur de traitement), puis n'upload que
+  // l'extrait de 30s généré - jamais le fichier original.
+  const handleGenerateNormalizedPreview = async () => {
+    if (!detail || !detail.track.audioUrl) return;
+    if (!confirm(`Cette génération débite un forfait de ${ONELIB_NORMALIZATION_FEE}€, non remboursable. Continuer ?`)) return;
+
+    setIsGeneratingPreview(true);
+    setPreviewError(null);
+    try {
+      const chargeRes = await fetch(`/api/onelib/releases/${detail.id}/normalize`, { method: 'POST' });
+      const chargeData = await chargeRes.json();
+      if (!chargeRes.ok) throw new Error(chargeData.error || 'Erreur lors du paiement');
+
+      const audioRes = await fetch(detail.track.audioUrl);
+      const arrayBuffer = await audioRes.arrayBuffer();
+      const AudioContextCtor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const audioContext = new AudioContextCtor();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      const channels: Float32Array[] = [];
+      for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) channels.push(audioBuffer.getChannelData(ch));
+
+      const result = generateStreamingPreview(channels, audioBuffer.sampleRate);
+      const wavBlob = encodeWav(result.channels, result.sampleRate);
+
+      const formData = new FormData();
+      formData.append('audioFile', wavBlob, 'preview.wav');
+      formData.append('lufs', result.lufs.toString());
+      formData.append('lra', result.lra.toString());
+      formData.append('truePeak', result.truePeak.toString());
+      formData.append('startSeconds', result.startSeconds.toString());
+
+      const saveRes = await fetch(`/api/onelib/releases/${detail.id}/normalize`, { method: 'PUT', body: formData });
+      const saveData = await saveRes.json();
+      if (!saveRes.ok) throw new Error(saveData.error || "Erreur lors de l'enregistrement");
+
+      setDetail(saveData.release);
+      setReleases(prev => prev.map(r => (r.id === saveData.release.id ? saveData.release : r)));
+      setAbMode('normalized');
+    } catch (error) {
+      console.error('Error generating normalized preview:', error);
+      setPreviewError(error instanceof Error ? error.message : 'Erreur lors de la génération de l\'aperçu');
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
+
+  const switchAbMode = (mode: 'original' | 'normalized') => {
+    if (mode === abMode) return;
+    const wasPlaying = abPlaying;
+    originalAudioRef.current?.pause();
+    previewAudioRef.current?.pause();
+    if (mode === 'original' && originalAudioRef.current && detail?.previewStartSeconds != null) {
+      originalAudioRef.current.currentTime = detail.previewStartSeconds;
+    } else if (mode === 'normalized' && previewAudioRef.current) {
+      previewAudioRef.current.currentTime = 0;
+    }
+    setAbMode(mode);
+    if (wasPlaying) {
+      (mode === 'normalized' ? previewAudioRef : originalAudioRef).current?.play();
+    }
+  };
+
+  const toggleAbPlay = () => {
+    const ref = abMode === 'normalized' ? previewAudioRef : originalAudioRef;
+    if (!ref.current) return;
+    if (abPlaying) {
+      ref.current.pause();
+      setAbPlaying(false);
+      return;
+    }
+    if (abMode === 'original' && detail?.previewStartSeconds != null) {
+      ref.current.currentTime = detail.previewStartSeconds;
+    }
+    ref.current.play();
+    setAbPlaying(true);
+  };
+
+  // En mode "original", on s'arrête après 30s (même durée que l'extrait
+  // normalisé) pour garder une comparaison A/B équitable.
+  const handleOriginalTimeUpdate = () => {
+    if (!originalAudioRef.current || detail?.previewStartSeconds == null) return;
+    if (originalAudioRef.current.currentTime >= detail.previewStartSeconds + 30) {
+      originalAudioRef.current.pause();
+      setAbPlaying(false);
     }
   };
 
@@ -974,6 +1082,113 @@ export default function OnelibPage() {
             <Download className="w-4 h-4" />
             {isDownloadingKit ? 'Préparation...' : 'Télécharger le kit de distribution'}
           </button>
+        </div>
+
+        <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 mt-6">
+          <h2 className="text-white font-semibold flex items-center gap-2 mb-1">
+            <SlidersHorizontal className="w-4 h-4" /> Aperçu streaming (avant/après)
+          </h2>
+          <p className="text-gray-500 text-xs mb-4">
+            Génère un extrait public de 30 secondes qui simule ce que les auditeurs entendront
+            réellement une fois le morceau en ligne : mise à niveau du loudness aux normes des
+            plateformes (~-14 LUFS) et protection anti-écrêtage des crêtes par un vrai limiteur,
+            sans mastering IA ni retouche créative. Forfait de{' '}
+            <span className="text-gray-300 font-medium">{ONELIB_NORMALIZATION_FEE}€</span> par génération.
+          </p>
+
+          {detail.normalizationStatus !== 'done' ? (
+            <>
+              <button
+                onClick={handleGenerateNormalizedPreview}
+                disabled={isGeneratingPreview || !detail.track.audioUrl}
+                style={{ backgroundColor: accentColor }}
+                className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {isGeneratingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <SlidersHorizontal className="w-4 h-4" />}
+                {isGeneratingPreview ? 'Génération en cours...' : `Générer l'aperçu — ${ONELIB_NORMALIZATION_FEE}€`}
+              </button>
+              {previewError && <p className="text-red-400 text-xs mt-2">{previewError}</p>}
+            </>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-[#12121a] rounded-lg py-2 px-1">
+                  <p className="text-white text-sm font-semibold">{detail.normalizedLufs?.toFixed(1) ?? '—'} LUFS</p>
+                  <p className="text-gray-500 text-[10px] mt-0.5">Loudness intégré</p>
+                </div>
+                <div className="bg-[#12121a] rounded-lg py-2 px-1">
+                  <p className="text-white text-sm font-semibold">{detail.normalizedLra?.toFixed(1) ?? '—'} LU</p>
+                  <p className="text-gray-500 text-[10px] mt-0.5">LRA (dynamique)</p>
+                </div>
+                <div className="bg-[#12121a] rounded-lg py-2 px-1">
+                  <p className="text-white text-sm font-semibold">{detail.normalizedTruePeak?.toFixed(1) ?? '—'} dBTP</p>
+                  <p className="text-gray-500 text-[10px] mt-0.5">Crête (True Peak)</p>
+                </div>
+              </div>
+
+              <div className="bg-[#12121a] rounded-xl p-4">
+                <div className="flex items-center gap-1 bg-[#1a1a1a] rounded-lg p-1 mb-3 w-fit">
+                  <button
+                    onClick={() => switchAbMode('original')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      abMode === 'original' ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-white'
+                    }`}
+                  >
+                    Original
+                  </button>
+                  <button
+                    onClick={() => switchAbMode('normalized')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      abMode === 'normalized' ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-white'
+                    }`}
+                  >
+                    Normalisé (streaming)
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={toggleAbPlay}
+                    style={{ backgroundColor: accentColor }}
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                  >
+                    {abPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                  </button>
+                  <p className="text-gray-400 text-xs">
+                    {abMode === 'original'
+                      ? "Le même passage de 30s, tel qu'il sonne aujourd'hui sur ton master."
+                      : "Ce que les plateformes en feront réellement une fois normalisé."}
+                  </p>
+                </div>
+
+                <audio
+                  ref={originalAudioRef}
+                  src={detail.track.audioUrl || undefined}
+                  onTimeUpdate={handleOriginalTimeUpdate}
+                  onEnded={() => setAbPlaying(false)}
+                />
+                <audio
+                  ref={previewAudioRef}
+                  src={detail.previewAudioUrl || undefined}
+                  onEnded={() => setAbPlaying(false)}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-gray-500 text-xs flex items-center gap-1.5">
+                  <Eye className="w-3.5 h-3.5" /> Aperçu public, visible sans compte sur la page de diffusion
+                </p>
+                <button
+                  onClick={handleGenerateNormalizedPreview}
+                  disabled={isGeneratingPreview}
+                  className="text-xs text-gray-400 hover:text-white underline hover:no-underline disabled:opacity-50"
+                >
+                  Régénérer — {ONELIB_NORMALIZATION_FEE}€
+                </button>
+              </div>
+              {previewError && <p className="text-red-400 text-xs">{previewError}</p>}
+            </div>
+          )}
         </div>
 
         <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-6 mt-6">

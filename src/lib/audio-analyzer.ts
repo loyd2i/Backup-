@@ -750,7 +750,7 @@ function computeLoudnessRange(weightedChannels: Float64Array[], sampleRate: numb
  * réelle (True Peak, dBTP) sur l'ensemble du morceau, selon la norme
  * ITU-R BS.1770 / EBU R128.
  */
-function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integratedLufs: number; lra: number; truePeakDb: number } {
+export function analyzeLoudness(channels: Float32Array[], sampleRate: number): { integratedLufs: number; lra: number; truePeakDb: number } {
   const [stage1, stage2] = kWeightingFilters(sampleRate);
   const weightedChannels = channels.map((chan) => applyBiquad(applyBiquad(chan, stage1), stage2));
 
@@ -811,13 +811,13 @@ export interface TechnicalSpecs {
 // autour de -14) : une master dans cette fourchette, avec assez de marge de
 // crête, ne sera pas fortement écrêtée/compressée par leur normalisation.
 // Ce ne sont que des repères généraux ("à peu près"), pas une norme unique.
-const STREAMING_LUFS_TARGET_MIN = -16;
-const STREAMING_LUFS_TARGET_MAX = -13;
+export const STREAMING_LUFS_TARGET_MIN = -16;
+export const STREAMING_LUFS_TARGET_MAX = -13;
 // Au-delà, master "guerre du volume" (loudness war) : sera fortement
 // écrêtée par les plateformes et perd en dynamique.
 const STREAMING_LUFS_HOT = -9;
 // Marge usuelle contre l'écrêtage inter-échantillon après transcodage.
-const SAFE_TRUE_PEAK_MAX = -1;
+export const SAFE_TRUE_PEAK_MAX = -1;
 
 export type StreamingLoudnessStatus = 'optimal' | 'hot' | 'neutral';
 

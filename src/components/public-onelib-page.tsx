@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { ArrowLeft, Music2, ExternalLink, Music, Youtube, Apple, Disc3, Disc, ListMusic } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Music2, ExternalLink, Music, Youtube, Apple, Disc3, Disc, ListMusic, Play, Pause } from 'lucide-react';
 
 interface PublicCollaborator {
   name: string;
@@ -74,6 +74,11 @@ interface PublicRelease {
   publishedAt: string | null;
   track: PublicTrackLinks;
   collaborators: PublicCollaborator[];
+  normalizationStatus?: string;
+  normalizedLufs?: number | null;
+  normalizedLra?: number | null;
+  normalizedTruePeak?: number | null;
+  previewAudioUrl?: string | null;
 }
 
 interface PublicCollectionTrackEntry {
@@ -132,6 +137,8 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [scheduledAt, setScheduledAt] = useState<string | null>(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const previewAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -286,6 +293,37 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
 
         {release!.description && (
           <p className="text-gray-300 text-sm mt-4 leading-relaxed">{release!.description}</p>
+        )}
+
+        {release!.normalizationStatus === 'done' && release!.previewAudioUrl && (
+          <div className="w-full mt-6 bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  if (!previewAudioRef.current) return;
+                  if (isPreviewPlaying) {
+                    previewAudioRef.current.pause();
+                    setIsPreviewPlaying(false);
+                  } else {
+                    previewAudioRef.current.play();
+                    setIsPreviewPlaying(true);
+                  }
+                }}
+                className="w-11 h-11 rounded-full bg-[#6366f1] flex items-center justify-center text-white flex-shrink-0"
+              >
+                {isPreviewPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+              </button>
+              <div className="text-left">
+                <p className="text-white text-sm font-medium">Aperçu 30s (streaming)</p>
+                <p className="text-gray-500 text-xs">Ce que tu entendras réellement une fois en ligne</p>
+              </div>
+            </div>
+            <audio
+              ref={previewAudioRef}
+              src={release!.previewAudioUrl}
+              onEnded={() => setIsPreviewPlaying(false)}
+            />
+          </div>
         )}
 
         <div className="w-full mt-8 space-y-3">

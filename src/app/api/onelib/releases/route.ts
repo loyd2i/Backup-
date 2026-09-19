@@ -18,6 +18,7 @@ export async function GET() {
           select: {
             id: true, title: true, artist: true, coverUrl: true, genre: true, status: true,
             spotifyUrl: true, youtubeUrl: true, appleMusicUrl: true, deezerUrl: true,
+            audioUrl: true, duration: true,
           }
         },
         collaborators: { orderBy: { createdAt: 'asc' } }
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
           select: {
             id: true, title: true, artist: true, coverUrl: true, genre: true, status: true,
             spotifyUrl: true, youtubeUrl: true, appleMusicUrl: true, deezerUrl: true,
+            audioUrl: true, duration: true,
           }
         },
         collaborators: true

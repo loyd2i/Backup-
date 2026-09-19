@@ -896,6 +896,20 @@ model OnelibRelease {
   distributionFeePaidAt   DateTime?
   distributionFeeStripeId String?
 
+  // Aperçu normalisé "streaming" (30s) : simule ce que les plateformes
+  // feront réellement subir au master à la lecture (mise à niveau LUFS +
+  // limiteur anti-écrêtage), sans aller jusqu'à un mastering IA. Traitement
+  // exécuté côté client (DSP existant), payant, simulé comme la distribution.
+  normalizationStatus      String    @default("none") // none, done
+  normalizationRequestedAt DateTime?
+  normalizationFeeAmount   Float?
+  // Caractéristiques mesurées (jamais inventées) sur l'extrait réellement généré.
+  normalizedLufs           Float?
+  normalizedLra            Float?
+  normalizedTruePeak       Float?
+  previewAudioUrl          String?   // extrait de 30s normalisé, public, distinct du master
+  previewStartSeconds      Float?    // position de l'extrait dans le morceau original
+
   collaborators   OnelibCollaborator[]
 }
 
