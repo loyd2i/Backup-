@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Music, Play, Pause, Eye, Headphones, Music2, Youtube, Disc3, Apple as AppleIcon } from 'lucide-react';
+import { Music, Play, Pause, Eye, Music2, Youtube, Disc3, Apple as AppleIcon } from 'lucide-react';
 
 interface LinkTrack {
   id: string;
@@ -96,10 +96,8 @@ export default function PublicTrackLinkPage({ token }: Props) {
 
       <div className="relative z-10 w-full max-w-md">
         <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-9 h-9 bg-gradient-to-br from-[#6366f1] to-[#8b5cf6] rounded-lg flex items-center justify-center">
-            <Headphones className="w-4.5 h-4.5 text-white" />
-          </div>
-          <span className="text-white font-semibold">Studiolib</span>
+          <img src="/logo-icon.png" alt="" width={22} height={22} />
+          <img src="/logo-text.png" alt="Studiolib" width={90} height={31} />
         </div>
 
         {isLoading ? (

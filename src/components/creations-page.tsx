@@ -338,6 +338,19 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     }
   };
 
+  const handleRegenerateLink = async (id: string) => {
+    try {
+      await fetch('/api/tracks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, visibility: 'link', regenerateLink: true })
+      });
+      fetchData();
+    } catch (error) {
+      console.error('Error regenerating track link:', error);
+    }
+  };
+
   const handleDeleteTrack = async (id: string) => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette track ?')) return;
     
@@ -894,6 +907,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         linkToken={track.linkToken}
                         isShared={track.isShared}
                         onSetVisibility={!isStudioMode ? (mode) => handleSetVisibility(track.id, mode) : undefined}
+                        onRegenerateLink={!isStudioMode ? () => handleRegenerateLink(track.id) : undefined}
                         views={track.views}
                         studio={track.studio}
                         commentCount={track._count?.comments || 0}
@@ -945,6 +959,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         linkToken={track.linkToken}
                         isShared={track.isShared}
                         onSetVisibility={!isStudioMode ? (mode) => handleSetVisibility(track.id, mode) : undefined}
+                        onRegenerateLink={!isStudioMode ? () => handleRegenerateLink(track.id) : undefined}
                         views={track.views}
                         studio={track.studio}
                         commentCount={track._count?.comments || 0}

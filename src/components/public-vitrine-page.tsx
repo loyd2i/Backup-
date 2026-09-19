@@ -237,7 +237,8 @@ export default function PublicVitrinePage({ studioId, onBack }: PublicVitrinePag
             href="/"
             className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-sm text-white px-4 py-2 rounded-xl hover:bg-black/70 transition-colors font-semibold"
           >
-            Studiolib
+            <img src="/logo-icon.png" alt="" width={16} height={16} />
+            <img src="/logo-text.png" alt="Studiolib" width={78} height={27} />
           </a>
         )}
 

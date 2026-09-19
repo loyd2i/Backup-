@@ -37,6 +37,7 @@ interface AudioPlayerProps {
   linkToken?: string | null;
   isShared?: boolean;
   onSetVisibility?: (mode: 'public' | 'link' | 'private') => void;
+  onRegenerateLink?: () => void;
   bpm?: number | null;
   keySignature?: string | null;
   views?: number;
@@ -74,6 +75,7 @@ export default function AudioPlayer({
   linkToken,
   isShared = false,
   onSetVisibility,
+  onRegenerateLink,
   bpm,
   keySignature,
   views = 0,
@@ -383,7 +385,7 @@ export default function AudioPlayer({
 
             {/* Visibility menu (public / lien uniquement / privé) */}
             {onSetVisibility && (
-              <VisibilityMenu isPublic={isPublic} linkToken={linkToken} onChange={onSetVisibility} />
+              <VisibilityMenu isPublic={isPublic} linkToken={linkToken} onChange={onSetVisibility} onRegenerate={onRegenerateLink} />
             )}
 
             {/* Share button for private tracks */}

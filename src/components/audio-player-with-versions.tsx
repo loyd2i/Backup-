@@ -46,6 +46,7 @@ interface AudioPlayerWithVersionsProps {
   linkToken?: string | null;
   isShared?: boolean;
   onSetVisibility?: (mode: 'public' | 'link' | 'private') => void;
+  onRegenerateLink?: () => void;
   bpm?: number | null;
   keySignature?: string | null;
   views?: number;
@@ -75,6 +76,7 @@ export default function AudioPlayerWithVersions({
   linkToken,
   isShared = false,
   onSetVisibility,
+  onRegenerateLink,
   bpm,
   keySignature,
   views = 0,
@@ -439,7 +441,7 @@ export default function AudioPlayerWithVersions({
               <MessageCircle className="w-4 h-4" /> {commentCount}
             </button>
             {onSetVisibility && (
-              <VisibilityMenu isPublic={isPublic} linkToken={linkToken} onChange={onSetVisibility} />
+              <VisibilityMenu isPublic={isPublic} linkToken={linkToken} onChange={onSetVisibility} onRegenerate={onRegenerateLink} />
             )}
             <button
               onClick={() => setIsLiked(!isLiked)}

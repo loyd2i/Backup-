@@ -62,7 +62,10 @@ export async function GET(
     const html = renderDocumentHtml(`Reçu - ${appointment.studio.name}`, `
       <div class="header">
         <div>
-          <div class="brand">Studiolib</div>
+          <div class="brand-logo">
+            <img class="brand-icon" src="/logo-icon.png" alt="" />
+            <img class="brand-wordmark" src="/logo-text.png" alt="Studiolib" />
+          </div>
           <div class="brand-tagline">Vivez la musique comme vous l'entendez, on s'occupe du reste</div>
         </div>
         <div class="doc-title">

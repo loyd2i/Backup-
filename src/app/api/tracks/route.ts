@@ -238,7 +238,11 @@ export async function PUT(request: NextRequest) {
         updateData.isPublic = true;
       } else if (data.visibility === 'link') {
         updateData.isPublic = false;
-        updateData.linkToken = existing.linkToken || randomBytes(24).toString('base64url');
+        // regenerateLink force un nouveau jeton même s'il en existe déjà un,
+        // ce qui invalide immédiatement tout lien déjà distribué.
+        updateData.linkToken = (data.regenerateLink || !existing.linkToken)
+          ? randomBytes(24).toString('base64url')
+          : existing.linkToken;
       } else if (data.visibility === 'private') {
         updateData.isPublic = false;
         updateData.linkToken = null;

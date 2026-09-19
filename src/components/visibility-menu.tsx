@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Globe, Lock, Link2, Check, ChevronDown } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Globe, Lock, Link2, Check, ChevronDown, RefreshCw } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 type VisibilityMode = 'public' | 'link' | 'private';
 
@@ -9,41 +10,52 @@ interface VisibilityMenuProps {
   isPublic: boolean;
   linkToken?: string | null;
   onChange: (mode: VisibilityMode) => void;
+  // Régénère le jeton de lien (invalide l'ancien lien déjà distribué) sans
+  // avoir à repasser par "Privée". Le bouton dédié n'apparaît que si fourni.
+  onRegenerate?: () => void;
 }
 
-const OPTIONS: { value: VisibilityMode; label: string; icon: typeof Globe; hint: string }[] = [
-  { value: 'public', label: 'Publique', icon: Globe, hint: 'Visible par tous dans le flux Créations' },
-  { value: 'link', label: 'Lien uniquement', icon: Link2, hint: 'Visible sans compte par quiconque a le lien' },
-  { value: 'private', label: 'Privée', icon: Lock, hint: 'Visible par vous et les personnes invitées' },
+const OPTIONS: { value: VisibilityMode; label: string; shortLabel: string; icon: typeof Globe; hint: string }[] = [
+  { value: 'public', label: 'Publique', shortLabel: 'Publique', icon: Globe, hint: 'Visible par tous dans le flux Créations' },
+  { value: 'link', label: 'Lien uniquement', shortLabel: 'Lien', icon: Link2, hint: 'Visible sans compte par quiconque a le lien' },
+  { value: 'private', label: 'Privée', shortLabel: 'Privée', icon: Lock, hint: 'Visible par vous et les personnes invitées' },
 ];
 
 // Menu de visibilité à 3 états pour une track terminée. Le mode "Lien
 // uniquement" génère un jeton d'accès côté serveur (linkToken) : dès qu'il
-// arrive via les props, le lien est automatiquement copié dans le
-// presse-papier pour permettre un partage en un clic.
-export default function VisibilityMenu({ isPublic, linkToken, onChange }: VisibilityMenuProps) {
+// arrive (ou change, après une régénération) via les props, le lien est
+// automatiquement copié dans le presse-papier et confirmé par un toast.
+export default function VisibilityMenu({ isPublic, linkToken, onChange, onRegenerate }: VisibilityMenuProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [pendingCopy, setPendingCopy] = useState(false);
+  const pendingActionRef = useRef<'generate' | 'regenerate' | null>(null);
+  const previousTokenRef = useRef<string | null | undefined>(linkToken);
 
   const mode: VisibilityMode = isPublic ? 'public' : linkToken ? 'link' : 'private';
   const current = OPTIONS.find((o) => o.value === mode) || OPTIONS[2];
 
-  const copyLink = (token: string) => {
+  const copyLink = (token: string, message = 'Lien copié dans le presse-papier') => {
     const url = `${window.location.origin}/?public=track&token=${token}`;
     navigator.clipboard?.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {});
+      toast({ description: message });
+    }).catch(() => {
+      toast({ description: "Impossible de copier le lien automatiquement, copie-le manuellement.", variant: 'destructive' });
+    });
   };
 
+  // Se déclenche quand le jeton apparaît (première génération) ou change
+  // (régénération) suite à une action en attente initiée par ce composant.
   useEffect(() => {
-    if (pendingCopy && linkToken) {
-      copyLink(linkToken);
-      setPendingCopy(false);
-    }
+    const tokenChanged = linkToken !== previousTokenRef.current;
+    previousTokenRef.current = linkToken;
+    if (!tokenChanged || !linkToken || !pendingActionRef.current) return;
+    const action = pendingActionRef.current;
+    pendingActionRef.current = null;
+    copyLink(linkToken, action === 'regenerate' ? 'Nouveau lien généré et copié (l\'ancien ne fonctionne plus)' : 'Lien créé et copié dans le presse-papier');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [linkToken, pendingCopy]);
+  }, [linkToken]);
 
   const handleSelect = (value: VisibilityMode) => {
     setOpen(false);
@@ -53,16 +65,22 @@ export default function VisibilityMenu({ isPublic, linkToken, onChange }: Visibi
         if (mode !== 'link') onChange(value);
         return;
       }
-      setPendingCopy(true);
+      pendingActionRef.current = 'generate';
     }
     if (value !== mode) onChange(value);
+  };
+
+  const handleRegenerate = () => {
+    if (!onRegenerate) return;
+    pendingActionRef.current = 'regenerate';
+    onRegenerate();
   };
 
   return (
     <div className="relative flex items-center gap-1">
       <button
         onClick={() => setOpen(!open)}
-        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
           mode === 'public'
             ? 'bg-[#6366f1] text-white'
             : mode === 'link'
@@ -72,17 +90,29 @@ export default function VisibilityMenu({ isPublic, linkToken, onChange }: Visibi
         title={current.hint}
       >
         <current.icon className="w-3 h-3" />
+        <span>{current.shortLabel}</span>
         <ChevronDown className="w-2.5 h-2.5" />
       </button>
 
       {mode === 'link' && linkToken && (
-        <button
-          onClick={() => copyLink(linkToken)}
-          className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a3a] rounded-lg transition-all"
-          title="Copier le lien de partage"
-        >
-          {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Link2 className="w-3.5 h-3.5" />}
-        </button>
+        <>
+          <button
+            onClick={() => copyLink(linkToken)}
+            className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a3a] rounded-lg transition-all"
+            title="Copier le lien de partage"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Link2 className="w-3.5 h-3.5" />}
+          </button>
+          {onRegenerate && (
+            <button
+              onClick={handleRegenerate}
+              className="p-1.5 text-gray-500 hover:text-white hover:bg-[#2a2a3a] rounded-lg transition-all"
+              title="Régénérer le lien (l'ancien cessera de fonctionner)"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </>
       )}
 
       {open && (

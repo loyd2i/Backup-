@@ -33,7 +33,12 @@ export function renderDocumentHtml(title: string, bodyHtml: string): string {
     padding-bottom: 24px;
     margin-bottom: 32px;
   }
-  .brand { font-size: 24px; font-weight: 800; color: #6366f1; }
+  .brand-logo { display: flex; align-items: center; gap: 8px; }
+  /* Le logo est un artwork blanc (pensé pour un fond sombre) : on l'inverse
+     en noir pour qu'il reste visible sur le fond blanc du document imprimé. */
+  .brand-logo img { filter: invert(1); display: block; }
+  .brand-logo .brand-icon { height: 26px; width: 26px; }
+  .brand-logo .brand-wordmark { height: 20px; width: auto; }
   .brand-tagline { font-size: 12px; color: #888; margin-top: 4px; }
   .doc-title { text-align: right; }
   .doc-title h1 { font-size: 20px; margin: 0; }
