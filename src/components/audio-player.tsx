@@ -3,12 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Share2, Download, Globe, Lock, Repeat, Shuffle, Eye, MessageCircle, X, Send, Users, MoreHorizontal, Trash2, Disc3, Music, Youtube, Headphones, Calendar, Info, ChevronUp } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
-import { formatTechnicalSpecs, getStreamingLoudnessStatus, getMasteringAdvice } from '@/lib/audio-analyzer';
-
-// Amplitude (0-1, normalisée par rapport au pic du morceau) à partir de
-// laquelle un segment de la waveform est considéré comme un pic et reçoit
-// un accent de couleur à sa pointe (rouge/vert selon l'état de loudness).
-const PEAK_BAR_THRESHOLD = 0.85;
+import { formatTechnicalSpecs, getStreamingLoudnessStatus, getMasteringAdvice, getWaveformBarBackground } from '@/lib/audio-analyzer';
 
 interface Comment {
   id: string;
@@ -547,16 +542,7 @@ export default function AudioPlayer({
               {waveformBars.map((height, i) => {
                 const barProgress = (i / waveformBars.length) * 100;
                 const isActive = barProgress <= progress;
-                // Le corps de la barre reste bleu/indigo - seule la pointe des pics
-                // (les segments les plus forts du morceau) prend une couleur d'alerte :
-                // rouge si le master écrête, vert si le pic reste dans une marge saine.
-                const isPeak = height >= PEAK_BAR_THRESHOLD;
-                const tipColor = loudnessStatus === 'hot' ? '#ef4444' : '#22c55e';
-                const bodyFrom = isActive ? '#6366f1' : '#2a2a3a';
-                const bodyTo = isActive ? '#8b5cf6' : '#2a2a3a';
-                const background = isPeak
-                  ? `linear-gradient(to top, ${bodyFrom} 0%, ${bodyFrom} 72%, ${tipColor} 72%, ${tipColor} 100%)`
-                  : `linear-gradient(to top, ${bodyFrom}, ${bodyTo})`;
+                const background = getWaveformBarBackground(height, isActive, loudnessStatus === 'hot');
 
                 return (
                   <div

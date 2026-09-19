@@ -823,6 +823,40 @@ export function getMasteringAdvice(lufs?: number | null, truePeak?: number | nul
   };
 }
 
+// Amplitude (0-1, normalisée par rapport au pic du morceau) à partir de
+// laquelle un segment de la waveform est considéré comme un pic et reçoit
+// un dégradé de couleur d'alerte à sa pointe.
+export const PEAK_BAR_THRESHOLD = 0.85;
+
+/**
+ * Couleur de fond d'une barre de la waveform : le corps reste bleu/indigo,
+ * et seule la pointe des pics (amplitude >= PEAK_BAR_THRESHOLD) se fond
+ * progressivement vers une couleur d'alerte (rouge si le master écrête,
+ * vert sinon). Le dégradé n'est pas figé : plus le pic est fort, plus la
+ * transition remonte bas dans la barre ET plus elle devient abrupte -
+ * un pic tout juste au-dessus du seuil reste presque entièrement bleu
+ * avec un fondu large et discret, tandis qu'un pic proche de l'écrêtage
+ * devient franchement rouge avec une transition serrée et agressive.
+ */
+export function getWaveformBarBackground(height: number, isActive: boolean, isHot: boolean): string {
+  const bodyFrom = isActive ? '#6366f1' : '#2a2a3a';
+  const bodyTo = isActive ? '#8b5cf6' : '#2a2a3a';
+
+  if (height < PEAK_BAR_THRESHOLD) {
+    return `linear-gradient(to top, ${bodyFrom}, ${bodyTo})`;
+  }
+
+  const tipColor = isHot ? '#ef4444' : '#22c55e';
+  // r=0 tout juste au seuil, r=1 à l'amplitude maximale du morceau.
+  const r = Math.min(1, Math.max(0, (height - PEAK_BAR_THRESHOLD) / (1 - PEAK_BAR_THRESHOLD)));
+  const fadeCenter = 90 - 40 * r; // le point de bascule descend vers le milieu de la barre
+  const fadeWidth = 25 - 20 * r; // la zone de fondu se resserre (transition plus agressive)
+  const fadeStart = Math.max(0, fadeCenter - fadeWidth / 2);
+  const fadeEnd = Math.min(100, fadeCenter + fadeWidth / 2);
+
+  return `linear-gradient(to top, ${bodyFrom} 0%, ${bodyFrom} ${fadeStart}%, ${tipColor} ${fadeEnd}%, ${tipColor} 100%)`;
+}
+
 /**
  * Formate les caractéristiques techniques d'un fichier audio en une ligne
  * discrète, ex: "WAV · 44.1 kHz · 24 bits · Crête -1.2 dBTP · -14.0 LUFS",

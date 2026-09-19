@@ -853,7 +853,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
               </h2>
               <div className="space-y-4">
                 {filteredTracks.map((track) => (
-                  track.versions && track.versions.length > 0 ? (
+                  track.versions && track.versions.length > 0 && track.masterValidation?.status !== 'validated' ? (
                     <div key={track.id} className="relative">
                       <AudioPlayerWithVersions
                         trackId={track.id}
@@ -994,6 +994,82 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         )}
                       </div>
                     </div>
+
+                    {/* Lecteur dès l'upload - pas besoin d'attendre "Terminé" pour écouter/travailler le morceau */}
+                    <div className="mt-4">
+                      {track.versions && track.versions.length > 0 ? (
+                        <AudioPlayerWithVersions
+                          trackId={track.id}
+                          title={track.title}
+                          artist={track.artist}
+                          bpm={track.bpm}
+                          keySignature={track.key}
+                          duration={track.duration || 180}
+                          audioUrl={track.audioUrl || undefined}
+                          sampleRate={track.sampleRate}
+                          bitDepth={track.bitDepth}
+                          bitrate={track.bitrate}
+                          audioFormat={track.audioFormat}
+                          truePeak={track.truePeak}
+                          lufs={track.lufs}
+                          lra={track.lra}
+                          waveformPeaks={track.waveformPeaks}
+                          versions={track.versions.map(v => ({
+                            id: v.id,
+                            label: v.label || 'Version',
+                            audioUrl: v.audioUrl,
+                            duration: v.duration,
+                            uploadedAt: v.createdAt,
+                            notes: null,
+                            sampleRate: v.sampleRate,
+                            bitDepth: v.bitDepth,
+                            bitrate: v.bitrate,
+                            audioFormat: v.audioFormat,
+                            truePeak: v.truePeak,
+                            lufs: v.lufs,
+                            lra: v.lra,
+                            waveformPeaks: v.waveformPeaks,
+                          }))}
+                          isPublic={track.isPublic}
+                          isShared={track.isShared}
+                          views={track.views}
+                          studio={track.studio}
+                          commentCount={track._count?.comments || 0}
+                          hideStudio={isStudioMode}
+                          onUploadVersion={
+                            !isStudioMode && !track.isShared
+                              ? (file, label) => handleUploadVersion(track.id, file, label)
+                              : undefined
+                          }
+                        />
+                      ) : (
+                        <AudioPlayer
+                          trackId={track.id}
+                          title={track.title}
+                          artist={track.artist}
+                          bpm={track.bpm}
+                          keySignature={track.key}
+                          duration={track.duration || 180}
+                          audioUrl={track.audioUrl || undefined}
+                          sampleRate={track.sampleRate}
+                          bitDepth={track.bitDepth}
+                          bitrate={track.bitrate}
+                          audioFormat={track.audioFormat}
+                          truePeak={track.truePeak}
+                          lufs={track.lufs}
+                          lra={track.lra}
+                          waveformPeaks={track.waveformPeaks}
+                          isPublic={track.isPublic}
+                          isShared={track.isShared}
+                          views={track.views}
+                          studio={track.studio}
+                          commentCount={track._count?.comments || 0}
+                          hideStudio={isStudioMode}
+                          status={track.status}
+                        />
+                      )}
+                    </div>
+
                     <div className="mt-3 flex items-center justify-between">
                       <div className="flex items-center gap-3 text-xs text-gray-500">
                         {track.bpm && <span>{track.bpm} bpm</span>}
