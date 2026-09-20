@@ -154,14 +154,18 @@ async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: strin
   ctx.textAlign = 'center';
   ctx.fillText('by Studiolib', boxX + boxSize / 2, boxY + boxSize + 26);
 
-  // Logo rond Studiolib centré avec le mot "onelib", en ligne (bas gauche)
+  // Logo rond Studiolib centré avec le mot "onelib" (bas gauche), aligné
+  // sur le centre vertical du QR code (bas droite) pour que les deux
+  // coins du bas se lisent comme une seule ligne, pas deux hauteurs
+  // différentes.
   ctx.textAlign = 'left';
   const iconSize = 32;
-  const textBaselineY = CANVAS_SIZE - 60;
+  const rowCenterY = boxY + boxSize / 2;
+  const textBaselineY = rowCenterY + 11;
   let textX = 40;
   try {
     const icon = await loadImage('/logo-icon.png');
-    ctx.drawImage(icon, 40, textBaselineY - iconSize + 6, iconSize, iconSize);
+    ctx.drawImage(icon, 40, rowCenterY - iconSize / 2, iconSize, iconSize);
     textX = 40 + iconSize + 12;
   } catch {
     // Ignore si le logo ne charge pas : le texte "onelib" suffit.
@@ -270,7 +274,7 @@ async function renderShareImage(opts: {
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 42px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(availabilityText, CANVAS_SIZE / 2, titleY + 130, CANVAS_SIZE - 120);
+    ctx.fillText(availabilityText, CANVAS_SIZE / 2, titleY + 145, CANVAS_SIZE - 120);
     await drawQrAndWordmark(ctx, opts.qrDataUrl);
   } else if (opts.variant === 'team') {
     // QR plus petit et rangées bornées, pour ne jamais empiéter dessus même
