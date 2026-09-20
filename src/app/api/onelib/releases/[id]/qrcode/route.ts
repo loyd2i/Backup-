@@ -23,10 +23,16 @@ export async function GET(
     const origin = request.nextUrl.origin;
     const smartLinkUrl = `${origin}/?public=onelib&slug=${release.slug}`;
 
+    // Couleurs personnalisables (utilisé par le générateur d'image de
+    // partage pour un QR code plus sombre/original) - défaut inchangé pour
+    // l'affichage QR classique de la page Onelib.
+    const dark = request.nextUrl.searchParams.get('dark') || '#121212ff';
+    const light = request.nextUrl.searchParams.get('light') || '#ffffffff';
+
     const dataUrl = await QRCode.toDataURL(smartLinkUrl, {
       width: 512,
       margin: 2,
-      color: { dark: '#121212ff', light: '#ffffffff' },
+      color: { dark, light },
     });
 
     return NextResponse.json({ dataUrl, url: smartLinkUrl });

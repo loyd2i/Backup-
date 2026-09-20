@@ -109,33 +109,58 @@ async function drawCover(
   ctx.restore();
 }
 
-async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: string, qrSize = 150) {
-  const qrPadding = 16;
-  const qrX = CANVAS_SIZE - qrSize - qrPadding - 40;
-  const qrY = CANVAS_SIZE - qrSize - qrPadding - 40;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(qrX - qrPadding, qrY - qrPadding, qrSize + qrPadding * 2, qrSize + qrPadding * 2);
+const QR_MARGIN = 40;
+const QR_PADDING = 14;
+const QR_CONTAINER_COLOR = '#0d1424';
+
+function qrBoxTop(qrSize: number) {
+  return CANVAS_SIZE - qrSize - QR_PADDING - QR_MARGIN - QR_PADDING;
+}
+
+async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: string, qrSize = 100) {
+  const qrX = CANVAS_SIZE - qrSize - QR_PADDING - QR_MARGIN;
+  const qrY = CANVAS_SIZE - qrSize - QR_PADDING - QR_MARGIN;
+  const boxSize = qrSize + QR_PADDING * 2;
+  const boxX = qrX - QR_PADDING;
+  const boxY = qrY - QR_PADDING;
+
+  // Fond sombre et arrondi (plutôt qu'un carré blanc générique) pour un
+  // QR code plus discret et plus proche de l'identité Studiolib/Onelib.
+  ctx.fillStyle = QR_CONTAINER_COLOR;
+  ctx.beginPath();
+  const r = 18;
+  ctx.moveTo(boxX + r, boxY);
+  ctx.arcTo(boxX + boxSize, boxY, boxX + boxSize, boxY + boxSize, r);
+  ctx.arcTo(boxX + boxSize, boxY + boxSize, boxX, boxY + boxSize, r);
+  ctx.arcTo(boxX, boxY + boxSize, boxX, boxY, r);
+  ctx.arcTo(boxX, boxY, boxX + boxSize, boxY, r);
+  ctx.closePath();
+  ctx.fill();
+
   const qrImg = await loadImage(qrDataUrl);
   ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
 
-  ctx.textAlign = 'left';
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = '400 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('by Studiolib', boxX + boxSize / 2, boxY + boxSize + 26);
 
-  // Logo rond Studiolib au-dessus du mot "onelib"
+  // Logo rond Studiolib centré avec le mot "onelib", en ligne (bas gauche)
+  ctx.textAlign = 'left';
+  const iconSize = 32;
+  const textBaselineY = CANVAS_SIZE - 60;
+  let textX = 40;
   try {
-    const iconSize = 40;
     const icon = await loadImage('/logo-icon.png');
-    ctx.drawImage(icon, 40, CANVAS_SIZE - 128, iconSize, iconSize);
+    ctx.drawImage(icon, 40, textBaselineY - iconSize + 6, iconSize, iconSize);
+    textX = 40 + iconSize + 12;
   } catch {
     // Ignore si le logo ne charge pas : le texte "onelib" suffit.
   }
 
   ctx.fillStyle = '#e5e7eb';
   ctx.font = '600 32px sans-serif';
-  ctx.fillText('onelib', 40, CANVAS_SIZE - 60);
-
-  ctx.fillStyle = '#9ca3af';
-  ctx.font = '400 20px sans-serif';
-  ctx.fillText('by Studiolib', 40, CANVAS_SIZE - 24);
+  ctx.fillText('onelib', textX, textBaselineY);
 }
 
 function drawWaveform(ctx: CanvasRenderingContext2D, waveformPeaks: string | null | undefined, accentColor: string, x: number, y: number, width: number, height: number) {
@@ -264,9 +289,9 @@ async function renderShareImage(opts: {
     // QR plus petit et rangées bornées, pour ne jamais empiéter dessus même
     // avec plusieurs collaborateurs crédités (voir le retour "le QR code
     // masque les écrits sur certaines images").
-    const qrSize = 110;
+    const qrSize = 70;
     await drawQrAndWordmark(ctx, opts.qrDataUrl, qrSize);
-    const qrTop = CANVAS_SIZE - qrSize - 16 - 40 - 16;
+    const qrTop = qrBoxTop(qrSize);
 
     drawPill(ctx, 'L’ÉQUIPE', opts.accentColor, CANVAS_SIZE / 2, titleY + 60);
 
@@ -357,7 +382,12 @@ export default function OnelibShareImageButton({
     setIsLoading(true);
     setError(false);
     try {
-      const res = await fetch(`/api/onelib/releases/${releaseId}/qrcode`);
+      // QR plus sombre et à la couleur de l'accent plutôt que le noir/blanc
+      // par défaut, pour un rendu plus original une fois posé sur son fond
+      // sombre arrondi (voir drawQrAndWordmark) - n'affecte pas le QR code
+      // classique affiché ailleurs dans Onelib, qui garde ses couleurs par défaut.
+      const qrParams = new URLSearchParams({ dark: accentColor, light: QR_CONTAINER_COLOR });
+      const res = await fetch(`/api/onelib/releases/${releaseId}/qrcode?${qrParams}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur QR code');
       setQrDataUrl(data.dataUrl);
