@@ -7,11 +7,15 @@
  * la prise avec un limiteur natif du navigateur (coût CPU quasi nul, et
  * aucune charge ajoutée au logiciel source qui ignore tout de cette
  * écoute), puis on applique après coup la même mise à niveau de loudness
- * "streaming" honnête que le reste de l'app (mesure réelle, jamais
- * théorique) sur l'intégralité de la prise.
+ * réelle) sur l'intégralité de la prise, mais SANS appliquer de mise à
+ * niveau de loudness ni de limiteur : le print sert à faire entrer la prise
+ * dans Créations telle quelle. La normalisation (gain de mise à niveau +
+ * limiteur anti-écrêtage) reste une étape distincte et volontaire, effectuée
+ * ensuite via OneLib - jamais automatique au moment du print.
  */
 
-import { generateFullMaster, encodeWav } from './loudness-normalizer';
+import { encodeWav } from './loudness-normalizer';
+import { analyzeLoudness } from './audio-analyzer';
 
 type AudioContextCtor = typeof AudioContext;
 
@@ -71,17 +75,18 @@ export interface FinalizedPrint {
   wavBlob: Blob;
   sampleRate: number;
   durationSeconds: number;
+  // Mesures réelles de la prise brute (protégée par le limiteur de sécurité
+  // pendant la capture, mais jamais mise à niveau de loudness).
   lufs: number;
   lra: number;
   truePeak: number;
-  appliedGainDb: number;
 }
 
 /**
- * Décode l'enregistrement brut puis applique la mise à niveau de loudness
- * "streaming" (honnête, mesurée) à l'intégralité de la prise - pas de
- * traitement créatif, juste la remise à niveau et la protection
- * anti-écrêtage, exportées en WAV.
+ * Décode l'enregistrement brut, mesure honnêtement son loudness réel et
+ * l'exporte en WAV - sans aucune mise à niveau ni limiteur supplémentaire.
+ * Le print doit produire exactement ce qui a été capté, prêt à rejoindre
+ * Créations ; la normalisation est une décision distincte, prise ensuite.
  */
 export async function finalizeRealtimePrint(rawBlob: Blob): Promise<FinalizedPrint> {
   const Ctor = getAudioContextCtor();
@@ -91,16 +96,15 @@ export async function finalizeRealtimePrint(rawBlob: Blob): Promise<FinalizedPri
   const channels: Float32Array[] = [];
   for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) channels.push(audioBuffer.getChannelData(ch));
 
-  const master = generateFullMaster(channels, audioBuffer.sampleRate);
-  const wavBlob = encodeWav(master.channels, master.sampleRate);
+  const measured = analyzeLoudness(channels, audioBuffer.sampleRate);
+  const wavBlob = encodeWav(channels, audioBuffer.sampleRate);
 
   return {
     wavBlob,
-    sampleRate: master.sampleRate,
+    sampleRate: audioBuffer.sampleRate,
     durationSeconds: audioBuffer.duration,
-    lufs: master.lufs,
-    lra: master.lra,
-    truePeak: master.truePeak,
-    appliedGainDb: master.appliedGainDb,
+    lufs: Math.round(measured.integratedLufs * 10) / 10,
+    lra: Math.round(measured.lra * 10) / 10,
+    truePeak: Math.round(measured.truePeakDb * 10) / 10,
   };
 }

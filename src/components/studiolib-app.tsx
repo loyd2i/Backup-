@@ -38,6 +38,7 @@ export default function StudiolibApp() {
   const [publicArtistId, setPublicArtistId] = useState<string | null>(null);
   const [publicTrackId, setPublicTrackId] = useState<string | null>(null);
   const [publicToken, setPublicToken] = useState<string | null>(null);
+  const [publicEStudioSessionId, setPublicEStudioSessionId] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
 
   // Enregistre le service worker (PWA + notifications push), indépendamment
@@ -67,6 +68,7 @@ export default function StudiolibApp() {
     const artistParam = params.get('artist');
     const trackParam = params.get('track');
     const tokenParam = params.get('token');
+    const estudioParam = params.get('estudio');
 
     if (publicParam) {
       setPublicPage(publicParam);
@@ -75,6 +77,7 @@ export default function StudiolibApp() {
       if (artistParam) setPublicArtistId(artistParam);
       if (trackParam) setPublicTrackId(trackParam);
       if (tokenParam) setPublicToken(tokenParam);
+      if (estudioParam) setPublicEStudioSessionId(estudioParam);
     }
 
     const refParam = params.get('ref');
@@ -91,6 +94,7 @@ export default function StudiolibApp() {
       const artistParam = params.get('artist');
       const trackParam = params.get('track');
       const tokenParam = params.get('token');
+      const estudioParam = params.get('estudio');
 
       if (publicParam) {
         setPublicPage(publicParam);
@@ -99,6 +103,7 @@ export default function StudiolibApp() {
         if (artistParam) setPublicArtistId(artistParam);
         if (trackParam) setPublicTrackId(trackParam);
         if (tokenParam) setPublicToken(tokenParam);
+        if (estudioParam) setPublicEStudioSessionId(estudioParam);
       } else {
         setPublicPage(null);
         setPublicStudioId(null);
@@ -106,6 +111,7 @@ export default function StudiolibApp() {
         setPublicArtistId(null);
         setPublicTrackId(null);
         setPublicToken(null);
+        setPublicEStudioSessionId(null);
       }
     };
 
@@ -183,7 +189,7 @@ export default function StudiolibApp() {
         return <PublicCreationsPage />;
 
       case 'normalize':
-        return <PublicNormalizeTool onDoneGoToApp={exitPublicMode} />;
+        return <PublicNormalizeTool onDoneGoToApp={exitPublicMode} estudioSessionId={publicEStudioSessionId} />;
 
       case 'vitrine':
         if (publicStudioId) {

@@ -43,15 +43,6 @@ export interface StreamingPreviewResult {
   appliedGainDb: number;
 }
 
-export interface MasterResult {
-  channels: Float32Array[];
-  sampleRate: number;
-  // Mesures réelles sur le résultat généré (jamais de valeurs théoriques/inventées).
-  lufs: number;
-  lra: number;
-  truePeak: number;
-  appliedGainDb: number;
-}
 
 function dbToLinear(db: number): number {
   return Math.pow(10, db / 20);
@@ -242,26 +233,6 @@ export function generateStreamingPreview(fullChannels: Float32Array[], sampleRat
     channels,
     sampleRate,
     startSeconds: startSample / sampleRate,
-    lufs: Math.round(measured.integratedLufs * 10) / 10,
-    lra: Math.round(measured.lra * 10) / 10,
-    truePeak: Math.round(measured.truePeakDb * 10) / 10,
-    appliedGainDb: Math.round(gainDb * 10) / 10,
-  };
-}
-
-/**
- * Même mise à niveau "streaming" que l'aperçu 30s, mais appliquée au signal
- * entier plutôt qu'à un extrait - utilisé pour le "print" temps réel
- * (E-Studio) : une fois la prise terminée, on remet l'intégralité du
- * fichier capté aux normes, honnêtement mesurées.
- */
-export function generateFullMaster(fullChannels: Float32Array[], sampleRate: number): MasterResult {
-  const gainDb = computeStreamingGainDb(fullChannels, sampleRate);
-  const { channels, measured } = applyGainAndLimiter(fullChannels, gainDb, sampleRate);
-
-  return {
-    channels,
-    sampleRate,
     lufs: Math.round(measured.integratedLufs * 10) / 10,
     lra: Math.round(measured.lra * 10) / 10,
     truePeak: Math.round(measured.truePeakDb * 10) / 10,

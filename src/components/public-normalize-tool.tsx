@@ -5,7 +5,17 @@ import { useAppStore } from '@/lib/store';
 import { analyzeAudio, AudioAnalysisResult, formatDuration } from '@/lib/audio-analyzer';
 import { generateStreamingPreview, encodeWav } from '@/lib/loudness-normalizer';
 import { startRealtimePrint, finalizeRealtimePrint, PrintSession } from '@/lib/realtime-print';
-import { Upload, Play, Pause, Loader2, Download, Music, Zap, Check, Disc, Settings2 } from 'lucide-react';
+import { useEStudioAudioMesh } from '@/hooks/useEStudioAudioMesh';
+import { Upload, Play, Pause, Loader2, Download, Music, Zap, Check, Disc, Settings2, Radio, MicOff, Mic } from 'lucide-react';
+
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+interface LiveEStudioSession {
+  id: string;
+  title: string;
+  iceServers: string | null;
+  participants: { id: string; userId: string; connectionState: string; isMuted: boolean }[];
+}
 
 // Mesures affichées du résultat (extrait 30s pour un import, prise entière
 // pour un print) - jamais de valeurs théoriques, toujours mesurées.
@@ -31,9 +41,13 @@ interface PublicNormalizeToolProps {
   // fois la track ajoutée à Créations - que ce soit après une inscription
   // faite depuis l'outil, ou pour un visiteur déjà connecté.
   onDoneGoToApp?: () => void;
+  // Mode "Live" : le plugin sert de moniteur/activateur audio pour une
+  // session E-Studio précise (ouvert depuis un lien sur la page de cette
+  // session), plutôt que l'outil normalisation/print habituel.
+  estudioSessionId?: string | null;
 }
 
-export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeToolProps) {
+export default function PublicNormalizeTool({ onDoneGoToApp, estudioSessionId }: PublicNormalizeToolProps) {
   const isLoggedIn = useAppStore((state) => state.isLoggedIn);
   const user = useAppStore((state) => state.user);
   const login = useAppStore((state) => state.login);
@@ -82,6 +96,90 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
   const [signupError, setSignupError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Mode "Live" : activer le son d'une session E-Studio depuis le
+  // plugin (moniteur externe, comme un Blackmagic pour DaVinci) ───
+  const [liveSession, setLiveSession] = useState<LiveEStudioSession | null>(null);
+  const [liveAudioInputDevices, setLiveAudioInputDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedLiveAudioInputId, setSelectedLiveAudioInputId] = useState('');
+  const [liveJoinError, setLiveJoinError] = useState<string | null>(null);
+  const [liveSessionError, setLiveSessionError] = useState<string | null>(null);
+  const liveAudioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+
+  useEffect(() => {
+    if (!estudioSessionId || !isLoggedIn) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/e-studio/sessions/${estudioSessionId}`);
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          setLiveSession(data.session);
+        } else if (!liveSession) {
+          const data = await res.json().catch(() => ({}));
+          setLiveSessionError(data.error || 'Impossible d\'accéder à cette session.');
+        }
+      } catch (e) {
+        console.error('Error fetching E-Studio session:', e);
+      }
+    };
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => { cancelled = true; clearInterval(interval); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estudioSessionId, isLoggedIn]);
+
+  useEffect(() => {
+    if (!estudioSessionId) return;
+    navigator.mediaDevices?.enumerateDevices()
+      .then((devices) => setLiveAudioInputDevices(devices.filter((d) => d.kind === 'audioinput')))
+      .catch(() => {});
+  }, [estudioSessionId]);
+
+  const liveMyParticipant = liveSession?.participants.find((p) => p.userId === user?.id) || null;
+  const liveIceServers: RTCIceServer[] = (() => {
+    if (liveSession?.iceServers) {
+      try {
+        const parsed = JSON.parse(liveSession.iceServers);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // ignore, fallback ci-dessous
+      }
+    }
+    return DEFAULT_ICE_SERVERS;
+  })();
+
+  const liveMesh = useEStudioAudioMesh({
+    sessionId: estudioSessionId || null,
+    myUserId: user?.id || null,
+    myParticipantId: liveMyParticipant?.id || null,
+    iceServers: liveIceServers,
+    participants: liveSession?.participants.map((p) => ({ userId: p.userId, connectionState: p.connectionState, isMuted: p.isMuted })) || [],
+  });
+
+  useEffect(() => {
+    liveMesh.remoteStreams.forEach((stream, peerId) => {
+      const el = liveAudioElsRef.current.get(peerId);
+      if (el && el.srcObject !== stream) el.srcObject = stream;
+    });
+  }, [liveMesh.remoteStreams]);
+
+  const activateLiveSound = async () => {
+    setLiveJoinError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: selectedLiveAudioInputId ? { deviceId: { exact: selectedLiveAudioInputId } } : true,
+      });
+      await liveMesh.join(stream);
+      navigator.mediaDevices.enumerateDevices()
+        .then((devices) => setLiveAudioInputDevices(devices.filter((d) => d.kind === 'audioinput')))
+        .catch(() => {});
+    } catch (e) {
+      console.error('Error activating live sound:', e);
+      setLiveJoinError('Source audio indisponible ou autorisation refusée.');
+    }
+  };
 
   const reset = () => {
     setStep('upload');
@@ -196,6 +294,8 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
       const wavFile = new File([finalized.wavBlob], `Print du ${stamp}.wav`, { type: 'audio/wav' });
       const analysisResult = await analyzeAudio(wavFile);
 
+      // Le print entre tel quel dans Créations, sans mise à niveau : la
+      // normalisation reste une décision distincte, prise ensuite (OneLib).
       setSource('print');
       setFile(wavFile);
       setAnalysis(analysisResult);
@@ -204,15 +304,15 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
         lufs: finalized.lufs,
         lra: finalized.lra,
         truePeak: finalized.truePeak,
-        appliedGainDb: finalized.appliedGainDb,
+        appliedGainDb: 0,
       });
       setPreviewBlob(finalized.wavBlob);
-      setOriginalUrl(URL.createObjectURL(rawBlob));
+      setOriginalUrl(null);
       setPreviewUrl(URL.createObjectURL(finalized.wavBlob));
       setStep('result');
     } catch (e) {
       console.error('Erreur finalisation print:', e);
-      setError('Impossible de mettre cette prise aux normes.');
+      setError('Impossible de finaliser ce print.');
       setStep('upload');
     }
   };
@@ -267,7 +367,7 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
     if (!previewBlob) return;
     if (!isLoggedIn) {
       const ok = confirm(
-        `Télécharger ce fichier normalisé sans compte coûte ${FREE_TOOL_EXPORT_FEE}€ (usage libre). ` +
+        `Télécharger ce fichier sans compte coûte ${FREE_TOOL_EXPORT_FEE}€ (usage libre). ` +
         `Crée un compte Studiolib gratuit pour l'exporter sans frais. Continuer le téléchargement payant ?`
       );
       if (!ok) return;
@@ -275,7 +375,8 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
     const url = URL.createObjectURL(previewBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${(file?.name || 'apercu').replace(/\.[^/.]+$/, '')}-normalise.wav`;
+    const baseName = (file?.name || 'apercu').replace(/\.[^/.]+$/, '');
+    a.download = source === 'print' ? `${baseName}.wav` : `${baseName}-normalise.wav`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -353,6 +454,108 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
       setIsSubmittingSignup(false);
     }
   };
+
+  // ─── Mode "Live" : écran dédié, distinct de l'outil normalisation/print ───
+  if (estudioSessionId) {
+    const connectedCount = liveSession?.participants.filter((p) => p.connectionState === 'connected').length || 0;
+    return (
+      <div className="min-h-screen bg-[#121212] flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <div className="flex items-center justify-center gap-2 mb-8">
+            <img src="/logo-icon.png" alt="" width={28} height={28} />
+            <img src="/logo-text.png" alt="Studiolib" width={110} height={38} />
+          </div>
+
+          {!isLoggedIn ? (
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-6 text-center">
+              <Radio className="w-8 h-8 text-gray-500 mx-auto mb-3" />
+              <p className="text-white font-medium mb-1">Connexion requise</p>
+              <p className="text-gray-500 text-sm">
+                Connecte-toi (le même compte que sur la session E-Studio) pour activer le son.
+              </p>
+            </div>
+          ) : liveSessionError && !liveSession ? (
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-6 text-center">
+              <Radio className="w-8 h-8 text-red-400 mx-auto mb-3" />
+              <p className="text-red-400 text-sm">{liveSessionError}</p>
+            </div>
+          ) : !liveSession ? (
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-6 text-center">
+              <Loader2 className="w-8 h-8 text-[#6366f1] animate-spin mx-auto mb-3" />
+              <p className="text-gray-400 text-sm">Connexion à la session...</p>
+            </div>
+          ) : (
+            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-[#6366f1]/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Radio className="w-5 h-5 text-[#6366f1]" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-white font-medium truncate">{liveSession.title}</p>
+                  <p className="text-gray-500 text-xs">Moniteur audio pour cette session E-Studio</p>
+                </div>
+              </div>
+
+              {!liveMesh.isJoined && liveAudioInputDevices.length > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <Settings2 className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                  <select
+                    value={selectedLiveAudioInputId}
+                    onChange={(e) => setSelectedLiveAudioInputId(e.target.value)}
+                    className="flex-1 bg-[#12121a] text-white text-xs rounded-lg px-2 py-1.5 outline-none"
+                  >
+                    <option value="">Micro par défaut</option>
+                    {liveAudioInputDevices.map((d) => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || 'Entrée audio'}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {!liveMesh.isJoined ? (
+                <button
+                  onClick={activateLiveSound}
+                  className="w-full bg-[#6366f1] text-white px-4 py-3 rounded-xl text-sm font-medium hover:bg-[#5558e3] transition-colors"
+                >
+                  Activer le son
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={liveMesh.toggleMute}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                      liveMesh.isMuted ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-[#2a2a2a] text-white hover:bg-[#3a3a3a]'
+                    }`}
+                  >
+                    {liveMesh.isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    {liveMesh.isMuted ? 'Micro coupé' : 'Micro actif'}
+                  </button>
+                  <button
+                    onClick={liveMesh.leave}
+                    className="px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:text-white bg-[#2a2a2a] hover:bg-[#3a3a3a] transition-colors"
+                  >
+                    Couper le son
+                  </button>
+                </div>
+              )}
+
+              <p className="text-gray-500 text-xs">{connectedCount} en audio sur la session</p>
+              {liveJoinError && <p className="text-red-400 text-xs">{liveJoinError}</p>}
+
+              {Array.from(liveMesh.remoteStreams.keys()).map((peerId) => (
+                <audio
+                  key={peerId}
+                  autoPlay
+                  ref={(el) => { if (el) liveAudioElsRef.current.set(peerId, el); }}
+                  className="hidden"
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#121212]">
@@ -450,8 +653,9 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
                     </button>
                     <p className="text-gray-500 text-sm mt-3 max-w-sm mx-auto">
                       Micro, ou pilote de bouclage virtuel (BlackHole, VB-Audio Cable...) si tu y as
-                      routé la sortie master de ton logiciel (Logic ou autre) - le résultat sera
-                      remis aux normes streaming automatiquement à l&apos;arrêt.
+                      routé la sortie master de ton logiciel (Logic ou autre). Le print entre tel
+                      quel dans Créations ; la mise aux normes streaming reste une étape séparée
+                      (via Onelib), à faire quand tu veux.
                     </p>
                   </>
                 ) : (
@@ -474,7 +678,7 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
         {step === 'analyzing' && (
           <div className="border border-[#2a2a2a] rounded-2xl p-12 text-center bg-[#1a1a1a]">
             <Loader2 className="w-10 h-10 text-[#6366f1] animate-spin mx-auto mb-4" />
-            <p className="text-white font-medium">{source === 'print' ? 'Mise aux normes du print...' : 'Analyse en cours...'}</p>
+            <p className="text-white font-medium">{source === 'print' ? 'Finalisation du print...' : 'Analyse en cours...'}</p>
             <p className="text-gray-500 text-sm mt-1">{file?.name}</p>
           </div>
         )}
@@ -507,7 +711,7 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
                 </div>
                 <div className="bg-[#12121a] rounded-lg py-2 px-1">
                   <p className="text-white text-sm font-semibold">{preview.lufs.toFixed(1)}</p>
-                  <p className="text-gray-500 text-[10px] mt-0.5">LUFS (normalisé)</p>
+                  <p className="text-gray-500 text-[10px] mt-0.5">{source === 'print' ? 'LUFS' : 'LUFS (normalisé)'}</p>
                 </div>
                 <div className="bg-[#12121a] rounded-lg py-2 px-1">
                   <p className="text-white text-sm font-semibold">{preview.lra.toFixed(1)}</p>
@@ -523,39 +727,54 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
               )}
             </div>
 
-            <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-5">
-              <div className="flex items-center gap-1 bg-[#12121a] rounded-lg p-1 mb-4 w-fit">
-                <button
-                  onClick={() => switchAbMode('original')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${abMode === 'original' ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-white'}`}
-                >
-                  {source === 'print' ? 'Brut (avant print)' : 'Original'}
-                </button>
-                <button
-                  onClick={() => switchAbMode('normalized')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${abMode === 'normalized' ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-white'}`}
-                >
-                  {source === 'print' ? 'Print (aux normes)' : 'Normalisé (streaming)'}
-                </button>
+            {source === 'print' ? (
+              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-5">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={toggleAbPlay}
+                    className="w-12 h-12 rounded-full bg-[#6366f1] flex items-center justify-center text-white flex-shrink-0"
+                  >
+                    {abPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                  </button>
+                  <p className="text-gray-400 text-sm">Écoute ta prise, telle que captée.</p>
+                </div>
+                {previewUrl && <audio ref={previewAudioRef} src={previewUrl} onEnded={() => setAbPlaying(false)} />}
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={toggleAbPlay}
-                  className="w-12 h-12 rounded-full bg-[#6366f1] flex items-center justify-center text-white flex-shrink-0"
-                >
-                  {abPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
-                </button>
-                <p className="text-gray-400 text-sm">
-                  {source === 'print'
-                    ? (abMode === 'original' ? 'La prise telle que captée, avant mise aux normes.' : 'La même prise, remise aux normes streaming (gain + anti-écrêtage).')
-                    : (abMode === 'original' ? "Le passage tel qu'il sonne aujourd'hui sur ton fichier." : 'Ce que les plateformes en feront réellement une fois en ligne.')}
-                </p>
+            ) : (
+              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-5">
+                <div className="flex items-center gap-1 bg-[#12121a] rounded-lg p-1 mb-4 w-fit">
+                  <button
+                    onClick={() => switchAbMode('original')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${abMode === 'original' ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-white'}`}
+                  >
+                    Original
+                  </button>
+                  <button
+                    onClick={() => switchAbMode('normalized')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${abMode === 'normalized' ? 'bg-[#2a2a2a] text-white' : 'text-gray-500 hover:text-white'}`}
+                  >
+                    Normalisé (streaming)
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={toggleAbPlay}
+                    className="w-12 h-12 rounded-full bg-[#6366f1] flex items-center justify-center text-white flex-shrink-0"
+                  >
+                    {abPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                  </button>
+                  <p className="text-gray-400 text-sm">
+                    {abMode === 'original'
+                      ? "Le passage tel qu'il sonne aujourd'hui sur ton fichier."
+                      : 'Ce que les plateformes en feront réellement une fois en ligne.'}
+                  </p>
+                </div>
+                {originalUrl && (
+                  <audio ref={originalAudioRef} src={originalUrl} onTimeUpdate={handleOriginalTimeUpdate} onEnded={() => setAbPlaying(false)} />
+                )}
+                {previewUrl && <audio ref={previewAudioRef} src={previewUrl} onEnded={() => setAbPlaying(false)} />}
               </div>
-              {originalUrl && (
-                <audio ref={originalAudioRef} src={originalUrl} onTimeUpdate={handleOriginalTimeUpdate} onEnded={() => setAbPlaying(false)} />
-              )}
-              {previewUrl && <audio ref={previewAudioRef} src={previewUrl} onEnded={() => setAbPlaying(false)} />}
-            </div>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-3">
               <button
@@ -563,7 +782,9 @@ export default function PublicNormalizeTool({ onDoneGoToApp }: PublicNormalizeTo
                 className="flex-1 flex items-center justify-center gap-2 bg-[#2a2a2a] text-white px-4 py-3 rounded-xl text-sm font-medium hover:bg-[#3a3a3a] transition-colors"
               >
                 <Download className="w-4 h-4" />
-                {isLoggedIn ? 'Télécharger le fichier normalisé' : `Télécharger — ${FREE_TOOL_EXPORT_FEE}€ (ou crée un compte, c'est gratuit)`}
+                {isLoggedIn
+                  ? (source === 'print' ? 'Télécharger le print' : 'Télécharger le fichier normalisé')
+                  : `Télécharger — ${FREE_TOOL_EXPORT_FEE}€ (ou crée un compte, c'est gratuit)`}
               </button>
               <button onClick={reset} className="text-gray-500 hover:text-white text-sm px-4 py-3">
                 {source === 'print' ? 'Faire un autre print' : 'Analyser un autre fichier'}
