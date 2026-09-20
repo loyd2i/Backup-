@@ -109,7 +109,7 @@ async function drawCover(
 }
 
 const QR_MARGIN = 40;
-const QR_PADDING = 14;
+const QR_PADDING = 6;
 const QR_CONTAINER_COLOR = '#ffffff';
 
 function qrBoxTop(qrSize: number) {
@@ -133,7 +133,7 @@ async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: strin
 
   ctx.fillStyle = QR_CONTAINER_COLOR;
   ctx.beginPath();
-  const r = 18;
+  const r = 12;
   ctx.moveTo(boxX + r, boxY);
   ctx.arcTo(boxX + boxSize, boxY, boxX + boxSize, boxY + boxSize, r);
   ctx.arcTo(boxX + boxSize, boxY + boxSize, boxX, boxY + boxSize, r);
