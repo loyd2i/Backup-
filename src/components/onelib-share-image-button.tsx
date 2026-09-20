@@ -261,9 +261,12 @@ async function renderShareImage(opts: {
   // Ombre légère sur tout le texte dessiné après la pochette : le fond est
   // désormais une photo (console de mixage), pas un aplat sombre uni, donc
   // le texte a besoin de contraste garanti quel que soit ce qu'il y a derrière.
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-  ctx.shadowBlur = 20;
-  ctx.shadowOffsetY = 2;
+  // Flou volontairement faible : un flou large bave largement au-delà de la
+  // lettre et donne une impression de chevauchement entre lignes voisines,
+  // même quand l'écart entre elles est correct.
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 1;
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
