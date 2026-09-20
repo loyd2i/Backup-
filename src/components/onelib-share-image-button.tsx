@@ -126,6 +126,13 @@ async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: strin
 
   // Fond sombre et arrondi (plutôt qu'un carré blanc générique) pour un
   // QR code plus discret et plus proche de l'identité Studiolib/Onelib.
+  // Pas d'ombre ici : sur un bloc plat, elle ne fait que dessiner un
+  // contour disgracieux autour du QR code plutôt qu'aider la lisibilité.
+  const shadow = { color: ctx.shadowColor, blur: ctx.shadowBlur, offsetY: ctx.shadowOffsetY };
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
   ctx.fillStyle = QR_CONTAINER_COLOR;
   ctx.beginPath();
   const r = 18;
@@ -139,6 +146,10 @@ async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: strin
 
   const qrImg = await loadImage(qrDataUrl);
   ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+  ctx.shadowColor = shadow.color;
+  ctx.shadowBlur = shadow.blur;
+  ctx.shadowOffsetY = shadow.offsetY;
 
   ctx.fillStyle = '#9ca3af';
   ctx.font = '400 18px sans-serif';
