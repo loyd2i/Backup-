@@ -149,23 +149,22 @@ async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: strin
   ctx.shadowBlur = shadow.blur;
   ctx.shadowOffsetY = shadow.offsetY;
 
+  const byStudiolibY = boxY + boxSize + 26;
   ctx.fillStyle = '#9ca3af';
   ctx.font = '400 18px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('by Studiolib', boxX + boxSize / 2, boxY + boxSize + 26);
+  ctx.fillText('by Studiolib', boxX + boxSize / 2, byStudiolibY);
 
-  // Logo rond Studiolib centré avec le mot "onelib" (bas gauche), aligné
-  // sur le centre vertical du QR code (bas droite) pour que les deux
-  // coins du bas se lisent comme une seule ligne, pas deux hauteurs
-  // différentes.
+  // Logo rond Studiolib centré avec le mot "onelib" (bas gauche), à la
+  // même hauteur que "by Studiolib" (bas droite) plutôt qu'au centre du
+  // QR code, pour que les deux coins du bas se lisent sur une seule ligne.
   ctx.textAlign = 'left';
   const iconSize = 32;
-  const rowCenterY = boxY + boxSize / 2;
-  const textBaselineY = rowCenterY + 11;
+  const textBaselineY = byStudiolibY;
   let textX = 40;
   try {
     const icon = await loadImage('/logo-icon.png');
-    ctx.drawImage(icon, 40, rowCenterY - iconSize / 2, iconSize, iconSize);
+    ctx.drawImage(icon, 40, textBaselineY - 11 - iconSize / 2, iconSize, iconSize);
     textX = 40 + iconSize + 12;
   } catch {
     // Ignore si le logo ne charge pas : le texte "onelib" suffit.
@@ -183,8 +182,11 @@ async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: strin
 // que de risquer ce chevauchement (voir le retour "le QR code masque les
 // écrits sur certaines images").
 const PILL_MAX_WIDTH = 600;
+// Bleu foncé du fond (console de mixage), légèrement transparent plutôt
+// qu'un aplat uni à la couleur de l'accent.
+const PILL_BACKGROUND = 'rgba(13, 20, 36, 0.55)';
 
-function drawPill(ctx: CanvasRenderingContext2D, text: string, accentColor: string, centerX: number, y: number) {
+function drawPill(ctx: CanvasRenderingContext2D, text: string, centerX: number, y: number) {
   const paddingX = 36;
   let fontSize = 40;
   while (fontSize > 22) {
@@ -196,7 +198,7 @@ function drawPill(ctx: CanvasRenderingContext2D, text: string, accentColor: stri
   const pillWidth = Math.min(textWidth + paddingX * 2, PILL_MAX_WIDTH);
   const pillHeight = 72;
   const pillX = centerX - pillWidth / 2;
-  ctx.fillStyle = accentColor;
+  ctx.fillStyle = PILL_BACKGROUND;
   ctx.beginPath();
   const r = pillHeight / 2;
   ctx.moveTo(pillX + r, y);
@@ -264,7 +266,7 @@ async function renderShareImage(opts: {
     const dateLabel = opts.scheduledAt
       ? new Date(opts.scheduledAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
       : '';
-    drawPill(ctx, 'BIENTÔT DISPONIBLE', opts.accentColor, CANVAS_SIZE / 2, titleY + 100);
+    drawPill(ctx, 'BIENTÔT DISPONIBLE', CANVAS_SIZE / 2, titleY + 100);
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 46px sans-serif';
     ctx.fillText(`Sortie le ${dateLabel}`, CANVAS_SIZE / 2, titleY + 240);
@@ -284,7 +286,7 @@ async function renderShareImage(opts: {
     await drawQrAndWordmark(ctx, opts.qrDataUrl, qrSize);
     const qrTop = qrBoxTop(qrSize);
 
-    drawPill(ctx, 'L’ÉQUIPE', opts.accentColor, CANVAS_SIZE / 2, titleY + 60);
+    drawPill(ctx, 'L’ÉQUIPE', CANVAS_SIZE / 2, titleY + 60);
 
     const rows = [{ name: opts.artistName, role: 'Artiste' }, ...(opts.collaborators || []).map(c => ({ name: c.name, role: roleLabel(c.role) }))];
     const maxRows = 4;
