@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Music, FileText, Pencil, Plus, X, Save, Globe, Lock, Upload, Loader2, Zap, Disc, Building2, Eye, MessageCircle, Trash2, User } from 'lucide-react';
+import { Music, FileText, Pencil, Plus, X, Save, Globe, Lock, Upload, Loader2, Zap, Disc, Building2, Eye, MessageCircle, Trash2, User, BarChart3, Coins } from 'lucide-react';
 import CoverDropzone from './cover-dropzone';
 import AudioPlayer from './audio-player';
 import AudioPlayerWithVersions from './audio-player-with-versions';
@@ -10,6 +10,7 @@ import TrackDownloadButton from './track-download-button';
 import TrackQrCodeButton from './track-qrcode-button';
 import TrackOnelibButton from './track-onelib-button';
 import TrackNormalizeButton from './track-normalize-button';
+import OnelibShareImageButton from './onelib-share-image-button';
 import { analyzeAudio, getQuickAudioMetadata, AudioAnalysisResult, QuickAudioMetadata } from '@/lib/audio-analyzer';
 import EmptyState from './ui/empty-state';
 
@@ -62,8 +63,9 @@ interface Track {
     truePeak?: number | null; lufs?: number | null; lra?: number | null; waveformPeaks?: string | null;
   }[];
   masterValidation?: MasterValidation | null;
-  onelibRelease?: { id: string; slug: string } | null;
+  onelibRelease?: { id: string; slug: string; status?: string } | null;
   normalizationStatus?: string;
+  coverUrl?: string | null;
 }
 
 interface MasterValidation {
@@ -96,7 +98,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
   const [isLoading, setIsLoading] = useState(true);
   const [showNewTrack, setShowNewTrack] = useState(false);
   const [showNewText, setShowNewText] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'public' | 'private'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'public' | 'private' | 'stats'>('all');
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -138,6 +140,14 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
   const [normalizationTokens, setNormalizationTokens] = useState(0);
   const [hasUnlimitedNormalization, setHasUnlimitedNormalization] = useState(false);
 
+  // Part de l'artiste dans la cagnotte de dons Onelib (voir BUSINESS-PLAN.md
+  // "Onelib streaming") : chargée une seule fois pour l'onglet Statistiques.
+  const [onelibEarnings, setOnelibEarnings] = useState<{
+    totalPool: number;
+    totalEarnings: number;
+    perTrack: { trackId: string; title: string; role: string; sharePercent: number; amount: number }[];
+  }>({ totalPool: 0, totalEarnings: 0, perTrack: [] });
+
   useEffect(() => {
     fetchData();
     fetch('/api/onelib/subscription')
@@ -147,6 +157,17 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
         setHasUnlimitedNormalization(!!data.unlimited);
       })
       .catch(() => {});
+
+    if (!isStudioMode) {
+      fetch('/api/onelib/earnings')
+        .then((res) => res.json())
+        .then((data) => setOnelibEarnings({
+          totalPool: data.totalPool || 0,
+          totalEarnings: data.totalEarnings || 0,
+          perTrack: data.perTrack || [],
+        }))
+        .catch(() => {});
+    }
 
     if (isStudioMode) {
       fetch('/api/appointments')
@@ -647,6 +668,19 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
           <Lock className="w-4 h-4" />
           Privées ({finishedTracks.filter(t => !t.isPublic).length})
         </button>
+        {!isStudioMode && (
+          <button
+            onClick={() => setActiveTab('stats')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+              activeTab === 'stats'
+                ? 'bg-[#6366f1] text-white'
+                : 'bg-[#1a1a1a] text-gray-400 hover:text-white'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            Statistiques
+          </button>
+        )}
       </div>
 
       {/* Mobile Buttons */}
@@ -1008,7 +1042,77 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
         </div>
       )}
 
-      {isLoading ? (
+      {activeTab === 'stats' && !isStudioMode && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-5">
+              <p className="text-gray-500 text-sm flex items-center gap-1.5 mb-2"><Eye className="w-3.5 h-3.5" /> Écoutes totales</p>
+              <p className="text-white text-2xl font-bold">
+                {finishedTracks.reduce((sum, t) => sum + (t.views || 0), 0).toLocaleString('fr-FR')}
+              </p>
+            </div>
+            <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-5">
+              <p className="text-gray-500 text-sm flex items-center gap-1.5 mb-2"><Coins className="w-3.5 h-3.5" /> Cagnotte Onelib (tous artistes)</p>
+              <p className="text-white text-2xl font-bold">{onelibEarnings.totalPool.toFixed(2)} €</p>
+            </div>
+            <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] p-5">
+              <p className="text-gray-500 text-sm flex items-center gap-1.5 mb-2"><Coins className="w-3.5 h-3.5 text-[#6366f1]" /> Mes gains estimés</p>
+              <p className="text-white text-2xl font-bold">{onelibEarnings.totalEarnings.toFixed(2)} €</p>
+            </div>
+          </div>
+
+          {onelibEarnings.totalPool === 0 && (
+            <p className="text-gray-500 text-sm bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl p-4">
+              La cagnotte Onelib n&apos;a pas encore reçu de dons réels : les montants affichés reflètent honnêtement 0€ tant que la collecte n&apos;est pas active. La répartition se fera au prorata des écoutes puis selon les parts déjà formalisées sur chaque titre.
+            </p>
+          )}
+
+          <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
+            <div className="p-5 border-b border-[#2a2a2a]">
+              <h2 className="text-white font-semibold">Détail par morceau</h2>
+            </div>
+            {finishedTracks.filter(t => t.onelibRelease?.status === 'published').length === 0 ? (
+              <div className="p-5">
+                <EmptyState icon={BarChart3} title="Aucun morceau publié sur Onelib pour l'instant" size="sm" />
+              </div>
+            ) : (
+              <div className="divide-y divide-[#2a2a2a]">
+                {finishedTracks.filter(t => t.onelibRelease?.status === 'published').map((track) => {
+                  const lines = onelibEarnings.perTrack.filter(l => l.trackId === track.id);
+                  const trackTotal = lines.reduce((sum, l) => sum + l.amount, 0);
+                  return (
+                    <div key={track.id} className="p-5 flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <p className="text-white font-medium">{track.title}</p>
+                        <p className="text-gray-500 text-sm flex items-center gap-3 mt-1">
+                          <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {(track.views || 0).toLocaleString('fr-FR')}</span>
+                          {lines.length > 0
+                            ? lines.map((l, i) => <span key={i}>{l.role} ({l.sharePercent.toFixed(0)}%)</span>)
+                            : <span>Aucun gain pour l&apos;instant</span>}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="text-white font-semibold">{trackTotal.toFixed(2)} €</p>
+                        {track.onelibRelease && (
+                          <OnelibShareImageButton
+                            releaseId={track.onelibRelease.id}
+                            title={track.title}
+                            artistName={track.artist}
+                            coverUrl={track.coverUrl}
+                            waveformPeaks={track.waveformPeaks}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab !== 'stats' && (isLoading ? (
         <div className="space-y-8">
           {[1, 2].map(i => <div key={i} className="h-48 bg-[#1a1a1a] rounded-xl animate-pulse"></div>)}
         </div>
@@ -1459,7 +1563,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
             )}
           </div>
         </>
-      )}
+      ))}
     </div>
   );
 }

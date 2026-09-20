@@ -55,8 +55,13 @@ rien n'empêche ici un forfait illimité : le coût marginal réel est quasi nul
 - Vision long terme : évolution vers une plateforme de streaming, par étapes :
   1. Court terme : lecteur public sur la page artiste existante (`/artiste/[id]`), tracks écoutables publiquement façon "SoundCloud personnel" — infra déjà en partie présente, faible risque
   2. Moyen terme (une fois une vraie audience d'auditeurs) : pages de découverte publiques, compteurs d'écoute, playlists
-  3. Long terme (avec financement réel) : streaming compétitif avec licences et catalogue tiers — nécessite des accords de licence, hors de portée sans financement dédié
-- Ne jamais communiquer "plateforme de streaming" avant l'étape 2-3, pour ne pas créer d'attentes/responsabilités légales que l'infra actuelle ne peut pas tenir
+  3. Long terme : Onelib devient une plateforme de streaming **indépendante et gratuite**, financée par les dons plutôt que par un abonnement auditeur ou de la pub programmatique — pas de catalogue tiers à licencier puisqu'il s'agit du catalogue propre des artistes de la plateforme, contrairement à un Spotify/Deezer classique. Coexiste avec le forfait de distribution ci-dessus (qui reste payant, traitement manuel) : le streaming natif est un service séparé et gratuit.
+     - **Répartition** : cagnotte commune (pas de don ciblé à un artiste précis), reversée au prorata des écoutes de chaque morceau, puis au sein d'un morceau selon les parts déjà formalisées via les split sheets (voir section suivante) — un beatmaker ou un ingé son crédité touche donc une part réelle, cohérente avec la vision de parité déjà actée sur les split sheets.
+     - Étapes :
+       1. **Implémenté (partie produit, sans argent réel)** : table `OnelibDonation` (cagnotte, vide tant qu'aucune collecte réelle n'existe), calcul de répartition (`src/lib/onelib-earnings.ts`) au prorata des écoutes + des parts de split sheet déjà verrouillées, page Statistiques dans Créations (écoutes totales, cagnotte, gains estimés par morceau — honnêtement 0€ tant que la cagnotte est vide), générateur d'image carrée de partage (pochette/waveform réelle + QR code vers la fiche Onelib) pour que l'artiste communique lui-même sur son morceau.
+       2. Long terme : collecte réelle des dons via Stripe Connect (seul moyen de reverser légalement de l'argent de tiers sans devenir soi-même un établissement de paiement) + reversement effectif aux comptes des artistes/collaborateurs crédités.
+  - Éviter toute formulation façon loterie/tirage au sort pour la répartition (potentiellement un jeu d'argent réglementé, agrément ANJ en France) — la répartition proportionnelle aux écoutes n'a rien d'un jeu de hasard, à garder ainsi.
+- Ne jamais communiquer "plateforme de streaming" avant l'étape 2, ni "reversement réel aux artistes" avant que la cagnotte Stripe Connect existe réellement, pour ne pas créer d'attentes/responsabilités légales que l'infra actuelle ne peut pas tenir
 
 ## Répartition des royalties (split sheets) et réputation
 
