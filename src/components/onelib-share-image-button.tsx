@@ -198,6 +198,15 @@ function drawPill(ctx: CanvasRenderingContext2D, text: string, centerX: number, 
   const pillWidth = Math.min(textWidth + paddingX * 2, PILL_MAX_WIDTH);
   const pillHeight = 72;
   const pillX = centerX - pillWidth / 2;
+
+  // Pas d'ombre portée ici : sur un bloc plat translucide, le flou de 20px
+  // appliqué au reste du texte déborde largement de la pastille et donne
+  // une impression de chevauchement avec ce qui est juste au-dessus.
+  const shadow = { color: ctx.shadowColor, blur: ctx.shadowBlur, offsetY: ctx.shadowOffsetY };
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
   ctx.fillStyle = PILL_BACKGROUND;
   ctx.beginPath();
   const r = pillHeight / 2;
@@ -211,6 +220,10 @@ function drawPill(ctx: CanvasRenderingContext2D, text: string, centerX: number, 
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.fillText(text, centerX, y + pillHeight / 2 + 14);
+
+  ctx.shadowColor = shadow.color;
+  ctx.shadowBlur = shadow.blur;
+  ctx.shadowOffsetY = shadow.offsetY;
 }
 
 // Génère une image carrée de partage (1080x1080), en trois variantes — voir
@@ -288,7 +301,7 @@ async function renderShareImage(opts: {
     const qrTop = qrBoxTop(qrSize);
     const rowLimit = qrTop - 20;
 
-    const pillY = titleY + 64;
+    const pillY = titleY + 90;
     drawPill(ctx, 'L’ÉQUIPE', CANVAS_SIZE / 2, pillY);
 
     const rows = [{ name: opts.artistName, role: 'Artiste' }, ...(opts.collaborators || []).map(c => ({ name: c.name, role: roleLabel(c.role) }))];
