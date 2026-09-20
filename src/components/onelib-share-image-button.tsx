@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { Image as ImageIcon, X, Download, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Image as ImageIcon, X, Download, Loader2, Calendar, Users } from 'lucide-react';
+
+export type ShareImageVariant = 'teaser' | 'live' | 'team';
 
 interface OnelibShareImageButtonProps {
   releaseId: string;
@@ -10,9 +12,29 @@ interface OnelibShareImageButtonProps {
   coverUrl?: string | null;
   waveformPeaks?: string | null;
   accentColor?: string;
+  variant: ShareImageVariant;
+  // teaser
+  scheduledAt?: string | null;
+  // live
+  distributionLive?: boolean;
+  // team
+  collaborators?: { name: string; role: string }[];
+  label?: string;
 }
 
 const CANVAS_SIZE = 1080;
+
+const ROLE_LABELS: Record<string, string> = {
+  compositeur: 'Compositeur',
+  auteur: 'Auteur',
+  featuring: 'Featuring',
+  producteur: 'Producteur',
+  ingenieur_son: 'Ingénieur son',
+};
+
+function roleLabel(role: string) {
+  return ROLE_LABELS[role] || role.charAt(0).toUpperCase() + role.slice(1);
+}
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -23,19 +45,128 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-// Génère une image carrée de partage (1080x1080) : pochette, nom d'artiste,
-// titre, extrait visuel du morceau (sa waveform réelle, pas une décoration
-// inventée) et un QR code vers la fiche Onelib du titre — voir
-// BUSINESS-PLAN.md "Onelib streaming". Tout se fait côté client (canvas),
-// même logique que le reste du DSP/rendu déjà calculé sur le poste de
-// l'utilisateur dans ce projet.
+function drawBackground(ctx: CanvasRenderingContext2D) {
+  const gradient = ctx.createLinearGradient(0, 0, 0, CANVAS_SIZE);
+  gradient.addColorStop(0, '#1a1a1a');
+  gradient.addColorStop(1, '#0a0a0a');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+}
+
+async function drawCover(
+  ctx: CanvasRenderingContext2D,
+  coverUrl: string | null | undefined,
+  accentColor: string,
+  x: number,
+  y: number,
+  size: number
+) {
+  ctx.save();
+  ctx.beginPath();
+  const radius = 24;
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + size, y, x + size, y + size, radius);
+  ctx.arcTo(x + size, y + size, x, y + size, radius);
+  ctx.arcTo(x, y + size, x, y, radius);
+  ctx.arcTo(x, y, x + size, y, radius);
+  ctx.closePath();
+  ctx.clip();
+
+  if (coverUrl) {
+    try {
+      const img = await loadImage(coverUrl);
+      ctx.drawImage(img, x, y, size, size);
+    } catch {
+      ctx.fillStyle = accentColor;
+      ctx.fillRect(x, y, size, size);
+    }
+  } else {
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(x, y, size, size);
+  }
+  ctx.restore();
+}
+
+async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: string) {
+  const qrSize = 150;
+  const qrPadding = 16;
+  const qrX = CANVAS_SIZE - qrSize - qrPadding - 40;
+  const qrY = CANVAS_SIZE - qrSize - qrPadding - 40;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(qrX - qrPadding, qrY - qrPadding, qrSize + qrPadding * 2, qrSize + qrPadding * 2);
+  const qrImg = await loadImage(qrDataUrl);
+  ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '600 32px sans-serif';
+  ctx.fillText('onelib', 40, CANVAS_SIZE - 60);
+}
+
+function drawWaveform(ctx: CanvasRenderingContext2D, waveformPeaks: string | null | undefined, accentColor: string, x: number, y: number, width: number, height: number) {
+  const bars: number[] = (() => {
+    if (!waveformPeaks) return [];
+    try {
+      const parsed = JSON.parse(waveformPeaks);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
+  if (bars.length === 0) return;
+  const barCount = Math.min(bars.length, 60);
+  const step = width / barCount;
+  ctx.fillStyle = accentColor;
+  for (let i = 0; i < barCount; i++) {
+    const value = bars[Math.floor((i / barCount) * bars.length)];
+    const barHeight = Math.max(4, value * height);
+    const barX = x + i * step;
+    const barY = y + (height - barHeight) / 2;
+    ctx.fillRect(barX, barY, step * 0.6, barHeight);
+  }
+}
+
+function drawPill(ctx: CanvasRenderingContext2D, text: string, accentColor: string, centerX: number, y: number) {
+  ctx.font = '600 30px sans-serif';
+  const paddingX = 28;
+  const textWidth = ctx.measureText(text).width;
+  const pillWidth = textWidth + paddingX * 2;
+  const pillHeight = 56;
+  const pillX = centerX - pillWidth / 2;
+  ctx.fillStyle = accentColor;
+  ctx.beginPath();
+  const r = pillHeight / 2;
+  ctx.moveTo(pillX + r, y);
+  ctx.arcTo(pillX + pillWidth, y, pillX + pillWidth, y + pillHeight, r);
+  ctx.arcTo(pillX + pillWidth, y + pillHeight, pillX, y + pillHeight, r);
+  ctx.arcTo(pillX, y + pillHeight, pillX, y, r);
+  ctx.arcTo(pillX, y, pillX + pillWidth, y, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, centerX, y + pillHeight / 2 + 10);
+}
+
+// Génère une image carrée de partage (1080x1080), en trois variantes — voir
+// BUSINESS-PLAN.md "Onelib streaming" :
+// - teaser : avant la sortie programmée, avec la date de sortie
+// - live : une fois sorti, avec la disponibilité réelle (Onelib seul ou
+//   toutes plateformes une fois la distribution effective)
+// - team : met en avant tous les protagonistes crédités (split sheet)
+// Tout se fait côté client (canvas), même logique que le reste du
+// DSP/rendu déjà calculé sur le poste de l'utilisateur dans ce projet.
 async function renderShareImage(opts: {
+  variant: ShareImageVariant;
   title: string;
   artistName: string;
   coverUrl?: string | null;
   waveformPeaks?: string | null;
   qrDataUrl: string;
   accentColor: string;
+  scheduledAt?: string | null;
+  onAllPlatforms?: boolean;
+  collaborators?: { name: string; role: string }[];
 }): Promise<string> {
   const canvas = document.createElement('canvas');
   canvas.width = CANVAS_SIZE;
@@ -43,40 +174,12 @@ async function renderShareImage(opts: {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas non supporté');
 
-  const gradient = ctx.createLinearGradient(0, 0, 0, CANVAS_SIZE);
-  gradient.addColorStop(0, '#1a1a1a');
-  gradient.addColorStop(1, '#0a0a0a');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+  drawBackground(ctx);
 
-  const coverSize = 640;
+  const coverSize = opts.variant === 'team' ? 360 : 640;
   const coverX = (CANVAS_SIZE - coverSize) / 2;
   const coverY = 80;
-
-  ctx.save();
-  ctx.beginPath();
-  const radius = 24;
-  ctx.moveTo(coverX + radius, coverY);
-  ctx.arcTo(coverX + coverSize, coverY, coverX + coverSize, coverY + coverSize, radius);
-  ctx.arcTo(coverX + coverSize, coverY + coverSize, coverX, coverY + coverSize, radius);
-  ctx.arcTo(coverX, coverY + coverSize, coverX, coverY, radius);
-  ctx.arcTo(coverX, coverY, coverX + coverSize, coverY, radius);
-  ctx.closePath();
-  ctx.clip();
-
-  if (opts.coverUrl) {
-    try {
-      const img = await loadImage(opts.coverUrl);
-      ctx.drawImage(img, coverX, coverY, coverSize, coverSize);
-    } catch {
-      ctx.fillStyle = opts.accentColor;
-      ctx.fillRect(coverX, coverY, coverSize, coverSize);
-    }
-  } else {
-    ctx.fillStyle = opts.accentColor;
-    ctx.fillRect(coverX, coverY, coverSize, coverSize);
-  }
-  ctx.restore();
+  await drawCover(ctx, opts.coverUrl, opts.accentColor, coverX, coverY, coverSize);
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
@@ -88,49 +191,49 @@ async function renderShareImage(opts: {
   ctx.font = '36px sans-serif';
   ctx.fillText(opts.artistName, CANVAS_SIZE / 2, titleY + 54, CANVAS_SIZE - 120);
 
-  const bars: number[] = (() => {
-    if (!opts.waveformPeaks) return [];
-    try {
-      const parsed = JSON.parse(opts.waveformPeaks);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  })();
+  if (opts.variant === 'teaser') {
+    const dateLabel = opts.scheduledAt
+      ? new Date(opts.scheduledAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '';
+    drawPill(ctx, 'BIENTÔT DISPONIBLE', opts.accentColor, CANVAS_SIZE / 2, titleY + 110);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '600 38px sans-serif';
+    ctx.fillText(`Sortie le ${dateLabel}`, CANVAS_SIZE / 2, titleY + 230);
+  } else if (opts.variant === 'live') {
+    const availabilityText = opts.onAllPlatforms ? 'SUR TOUTES LES PLATEFORMES' : 'DISPONIBLE SUR ONELIB';
+    drawPill(ctx, availabilityText, opts.accentColor, CANVAS_SIZE / 2, titleY + 100);
+    drawWaveform(ctx, opts.waveformPeaks, opts.accentColor, coverX, titleY + 190, coverSize, 90);
+  } else if (opts.variant === 'team') {
+    ctx.fillStyle = '#6366f1';
+    ctx.font = '600 32px sans-serif';
+    ctx.fillText('L’ÉQUIPE', CANVAS_SIZE / 2, titleY + 100);
 
-  const waveY = titleY + 110;
-  const waveHeight = 90;
-  const waveWidth = coverSize;
-  const waveX = coverX;
-  if (bars.length > 0) {
-    const barCount = Math.min(bars.length, 60);
-    const step = waveWidth / barCount;
-    ctx.fillStyle = opts.accentColor;
-    for (let i = 0; i < barCount; i++) {
-      const value = bars[Math.floor((i / barCount) * bars.length)];
-      const barHeight = Math.max(4, value * waveHeight);
-      const x = waveX + i * step;
-      const y = waveY + (waveHeight - barHeight) / 2;
-      ctx.fillRect(x, y, step * 0.6, barHeight);
+    const rows = [{ name: opts.artistName, role: 'Artiste' }, ...(opts.collaborators || []).map(c => ({ name: c.name, role: roleLabel(c.role) }))];
+    const rowHeight = 64;
+    let rowY = titleY + 170;
+    ctx.font = '500 36px sans-serif';
+    for (const row of rows.slice(0, 8)) {
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(row.name, CANVAS_SIZE / 2, rowY);
+      ctx.fillStyle = '#9ca3af';
+      ctx.font = '400 26px sans-serif';
+      ctx.fillText(row.role, CANVAS_SIZE / 2, rowY + 32);
+      ctx.font = '500 36px sans-serif';
+      rowY += rowHeight + 18;
     }
   }
 
-  const qrSize = 150;
-  const qrPadding = 16;
-  const qrX = CANVAS_SIZE - qrSize - qrPadding - 40;
-  const qrY = CANVAS_SIZE - qrSize - qrPadding - 40;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(qrX - qrPadding, qrY - qrPadding, qrSize + qrPadding * 2, qrSize + qrPadding * 2);
-  const qrImg = await loadImage(opts.qrDataUrl);
-  ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = '#6b7280';
-  ctx.font = '600 32px sans-serif';
-  ctx.fillText('onelib', 40, CANVAS_SIZE - 60);
+  await drawQrAndWordmark(ctx, opts.qrDataUrl);
 
   return canvas.toDataURL('image/png');
 }
+
+const VARIANT_LABELS: Record<ShareImageVariant, { button: string; modalTitle: string; icon: typeof ImageIcon }> = {
+  teaser: { button: 'Image "Bientôt disponible"', modalTitle: 'Image de sortie à venir', icon: Calendar },
+  live: { button: 'Image de partage', modalTitle: 'Image de partage', icon: ImageIcon },
+  team: { button: 'Image équipe', modalTitle: 'Image de l’équipe', icon: Users },
+};
 
 export default function OnelibShareImageButton({
   releaseId,
@@ -139,27 +242,37 @@ export default function OnelibShareImageButton({
   coverUrl,
   waveformPeaks,
   accentColor = '#6366f1',
+  variant,
+  scheduledAt,
+  distributionLive = false,
+  collaborators = [],
+  label,
 }: OnelibShareImageButtonProps) {
   const [showModal, setShowModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
+  const [onAllPlatforms, setOnAllPlatforms] = useState(distributionLive);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
-  const openModal = async () => {
-    setShowModal(true);
+  const meta = VARIANT_LABELS[variant];
+  const Icon = meta.icon;
+
+  const generate = async (qr: string, platforms: boolean) => {
     setIsLoading(true);
     setError(false);
     try {
-      const res = await fetch(`/api/onelib/releases/${releaseId}/qrcode`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erreur QR code');
       const dataUrl = await renderShareImage({
+        variant,
         title,
         artistName,
         coverUrl,
         waveformPeaks,
-        qrDataUrl: data.dataUrl,
+        qrDataUrl: qr,
         accentColor,
+        scheduledAt,
+        onAllPlatforms: platforms,
+        collaborators,
       });
       setImageUrl(dataUrl);
     } catch (e) {
@@ -170,22 +283,47 @@ export default function OnelibShareImageButton({
     }
   };
 
+  const openModal = async () => {
+    setShowModal(true);
+    setIsLoading(true);
+    setError(false);
+    try {
+      const res = await fetch(`/api/onelib/releases/${releaseId}/qrcode`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur QR code');
+      setQrDataUrl(data.dataUrl);
+      await generate(data.dataUrl, onAllPlatforms);
+    } catch (e) {
+      console.error('Erreur génération image de partage:', e);
+      setError(true);
+      setIsLoading(false);
+    }
+  };
+
+  // Régénère l'image quand l'artiste change la disponibilité (variant "live").
+  useEffect(() => {
+    if (showModal && qrDataUrl && variant === 'live') {
+      generate(qrDataUrl, onAllPlatforms);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onAllPlatforms]);
+
   return (
     <>
       <button
         onClick={openModal}
         className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors"
-        title="Générer une image carrée à partager"
+        title={meta.button}
       >
-        <ImageIcon className="w-4 h-4" />
-        Image de partage
+        <Icon className="w-4 h-4" />
+        {label || meta.button}
       </button>
 
       {showModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-sm">
             <div className="p-4 border-b border-[#2a2a2a] flex items-center justify-between">
-              <h3 className="text-white font-semibold">Image de partage</h3>
+              <h3 className="text-white font-semibold">{meta.modalTitle}</h3>
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
@@ -201,10 +339,23 @@ export default function OnelibShareImageButton({
               ) : (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imageUrl} alt="Image de partage" className="w-[280px] h-[280px] rounded-xl object-cover mb-4" />
+                  <img src={imageUrl} alt={meta.modalTitle} className="w-[280px] h-[280px] rounded-xl object-cover mb-4" />
+
+                  {variant === 'live' && (
+                    <label className="flex items-center gap-2 w-full mb-4 text-sm text-gray-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={onAllPlatforms}
+                        onChange={(e) => setOnAllPlatforms(e.target.checked)}
+                        className="rounded"
+                      />
+                      Disponible sur toutes les plateformes (Spotify, Apple Music, Deezer...)
+                    </label>
+                  )}
+
                   <a
                     href={imageUrl}
-                    download={`onelib-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`}
+                    download={`onelib-${variant}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`}
                     className="flex items-center gap-2 w-full justify-center text-sm px-3 py-2.5 rounded-lg text-white hover:opacity-90 transition-colors"
                     style={{ backgroundColor: accentColor }}
                   >

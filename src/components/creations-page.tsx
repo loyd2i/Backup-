@@ -63,7 +63,10 @@ interface Track {
     truePeak?: number | null; lufs?: number | null; lra?: number | null; waveformPeaks?: string | null;
   }[];
   masterValidation?: MasterValidation | null;
-  onelibRelease?: { id: string; slug: string; status?: string } | null;
+  onelibRelease?: {
+    id: string; slug: string; status?: string; scheduledAt?: string | null; distributionStatus?: string;
+    collaborators?: { name: string; role: string }[];
+  } | null;
   normalizationStatus?: string;
   coverUrl?: string | null;
 }
@@ -1067,6 +1070,39 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
             </p>
           )}
 
+          {finishedTracks.filter(t => t.onelibRelease?.status === 'scheduled').length > 0 && (
+            <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
+              <div className="p-5 border-b border-[#2a2a2a]">
+                <h2 className="text-white font-semibold">Sorties à venir</h2>
+              </div>
+              <div className="divide-y divide-[#2a2a2a]">
+                {finishedTracks.filter(t => t.onelibRelease?.status === 'scheduled').map((track) => (
+                  <div key={track.id} className="p-5 flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <p className="text-white font-medium">{track.title}</p>
+                      <p className="text-gray-500 text-sm mt-1">
+                        {track.onelibRelease?.scheduledAt
+                          ? `Sortie prévue le ${new Date(track.onelibRelease.scheduledAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                          : 'Date de sortie non programmée'}
+                      </p>
+                    </div>
+                    {track.onelibRelease && (
+                      <OnelibShareImageButton
+                        variant="teaser"
+                        releaseId={track.onelibRelease.id}
+                        title={track.title}
+                        artistName={track.artist}
+                        coverUrl={track.coverUrl}
+                        waveformPeaks={track.waveformPeaks}
+                        scheduledAt={track.onelibRelease.scheduledAt}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="bg-[#1a1a1a] rounded-2xl border border-[#2a2a2a] overflow-hidden">
             <div className="p-5 border-b border-[#2a2a2a]">
               <h2 className="text-white font-semibold">Détail par morceau</h2>
@@ -1094,13 +1130,25 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                       <div className="flex items-center gap-3">
                         <p className="text-white font-semibold">{trackTotal.toFixed(2)} €</p>
                         {track.onelibRelease && (
-                          <OnelibShareImageButton
-                            releaseId={track.onelibRelease.id}
-                            title={track.title}
-                            artistName={track.artist}
-                            coverUrl={track.coverUrl}
-                            waveformPeaks={track.waveformPeaks}
-                          />
+                          <>
+                            <OnelibShareImageButton
+                              variant="live"
+                              releaseId={track.onelibRelease.id}
+                              title={track.title}
+                              artistName={track.artist}
+                              coverUrl={track.coverUrl}
+                              waveformPeaks={track.waveformPeaks}
+                              distributionLive={track.onelibRelease.distributionStatus === 'live'}
+                            />
+                            <OnelibShareImageButton
+                              variant="team"
+                              releaseId={track.onelibRelease.id}
+                              title={track.title}
+                              artistName={track.artist}
+                              coverUrl={track.coverUrl}
+                              collaborators={track.onelibRelease.collaborators}
+                            />
+                          </>
                         )}
                       </div>
                     </div>

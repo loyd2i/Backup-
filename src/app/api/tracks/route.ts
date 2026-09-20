@@ -33,7 +33,10 @@ export async function GET(request: NextRequest) {
         },
         versions: { orderBy: { version: 'asc' } },
         masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
-        onelibRelease: { select: { id: true, slug: true, status: true } },
+        onelibRelease: { select: {
+          id: true, slug: true, status: true, scheduledAt: true, distributionStatus: true,
+          collaborators: { select: { name: true, role: true } },
+        } },
         _count: { select: { comments: true, sharedWith: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -57,7 +60,10 @@ export async function GET(request: NextRequest) {
           },
           versions: { orderBy: { version: 'asc' } },
           masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
-          onelibRelease: { select: { id: true, slug: true, status: true } },
+          onelibRelease: { select: {
+          id: true, slug: true, status: true, scheduledAt: true, distributionStatus: true,
+          collaborators: { select: { name: true, role: true } },
+        } },
           _count: { select: { comments: true, sharedWith: true } }
         },
         orderBy: { createdAt: 'desc' }
@@ -79,7 +85,10 @@ export async function GET(request: NextRequest) {
             },
             versions: { orderBy: { version: 'asc' } },
             masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
-            onelibRelease: { select: { id: true, slug: true, status: true } },
+            onelibRelease: { select: {
+          id: true, slug: true, status: true, scheduledAt: true, distributionStatus: true,
+          collaborators: { select: { name: true, role: true } },
+        } },
             _count: { select: { comments: true } }
           }
         }
