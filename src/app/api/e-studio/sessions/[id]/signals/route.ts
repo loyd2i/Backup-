@@ -30,8 +30,18 @@ export async function GET(
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
     }
 
+    // Filtre optionnel par kind : la livraison étant "unique" (supprimée dès
+    // qu'elle est renvoyée), deux pollers indépendants sur des kind
+    // différents (écran depuis E-Studio, audio depuis le plugin ou
+    // E-Studio) doivent pouvoir lire chacun leur canal sans se voler
+    // mutuellement les signaux de l'autre kind.
+    const kind = request.nextUrl.searchParams.get('kind');
+    if (kind && !['screen', 'audio'].includes(kind)) {
+      return NextResponse.json({ error: 'Kind invalide' }, { status: 400 });
+    }
+
     const signals = await prisma.eStudioSignal.findMany({
-      where: { sessionId: id, toUserId: user.id },
+      where: { sessionId: id, toUserId: user.id, ...(kind ? { kind } : {}) },
       orderBy: { createdAt: 'asc' }
     });
 
