@@ -1093,7 +1093,6 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         title={track.title}
                         artistName={track.artist}
                         coverUrl={track.coverUrl}
-                        waveformPeaks={track.waveformPeaks}
                         scheduledAt={track.onelibRelease.scheduledAt}
                       />
                     )}
@@ -1137,7 +1136,6 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                               title={track.title}
                               artistName={track.artist}
                               coverUrl={track.coverUrl}
-                              waveformPeaks={track.waveformPeaks}
                               distributionLive={track.onelibRelease.distributionStatus === 'live'}
                             />
                             <OnelibShareImageButton

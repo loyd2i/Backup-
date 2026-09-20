@@ -10,7 +10,6 @@ interface OnelibShareImageButtonProps {
   title: string;
   artistName: string;
   coverUrl?: string | null;
-  waveformPeaks?: string | null;
   accentColor?: string;
   variant: ShareImageVariant;
   // teaser
@@ -174,29 +173,6 @@ async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: strin
   ctx.fillText('onelib', textX, textBaselineY);
 }
 
-function drawWaveform(ctx: CanvasRenderingContext2D, waveformPeaks: string | null | undefined, accentColor: string, x: number, y: number, width: number, height: number) {
-  const bars: number[] = (() => {
-    if (!waveformPeaks) return [];
-    try {
-      const parsed = JSON.parse(waveformPeaks);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  })();
-  if (bars.length === 0) return;
-  const barCount = Math.min(bars.length, 60);
-  const step = width / barCount;
-  ctx.fillStyle = accentColor;
-  for (let i = 0; i < barCount; i++) {
-    const value = bars[Math.floor((i / barCount) * bars.length)];
-    const barHeight = Math.max(4, value * height);
-    const barX = x + i * step;
-    const barY = y + (height - barHeight) / 2;
-    ctx.fillRect(barX, barY, step * 0.6, barHeight);
-  }
-}
-
 // Le texte de la pastille est centré sur le canvas, mais le QR code est
 // posé en bas à droite : une pastille trop large (ex. "SUR TOUTES LES
 // PLATEFORMES") peut donc physiquement recouvrir le QR. On réduit la
@@ -245,7 +221,6 @@ async function renderShareImage(opts: {
   title: string;
   artistName: string;
   coverUrl?: string | null;
-  waveformPeaks?: string | null;
   qrDataUrl: string;
   accentColor: string;
   scheduledAt?: string | null;
@@ -293,8 +268,10 @@ async function renderShareImage(opts: {
     await drawQrAndWordmark(ctx, opts.qrDataUrl);
   } else if (opts.variant === 'live') {
     const availabilityText = opts.onAllPlatforms ? 'SUR TOUTES LES PLATEFORMES' : 'DISPONIBLE SUR ONELIB';
-    drawPill(ctx, availabilityText, opts.accentColor, CANVAS_SIZE / 2, titleY + 100);
-    drawWaveform(ctx, opts.waveformPeaks, opts.accentColor, coverX, titleY + 200, coverSize, 70);
+    ctx.fillStyle = opts.accentColor;
+    ctx.font = '700 42px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(availabilityText, CANVAS_SIZE / 2, titleY + 130, CANVAS_SIZE - 120);
     await drawQrAndWordmark(ctx, opts.qrDataUrl);
   } else if (opts.variant === 'team') {
     // QR plus petit et rangées bornées, pour ne jamais empiéter dessus même
@@ -345,7 +322,6 @@ export default function OnelibShareImageButton({
   title,
   artistName,
   coverUrl,
-  waveformPeaks,
   accentColor = '#6366f1',
   variant,
   scheduledAt,
@@ -372,7 +348,6 @@ export default function OnelibShareImageButton({
         title,
         artistName,
         coverUrl,
-        waveformPeaks,
         qrDataUrl: qr,
         accentColor,
         scheduledAt,
