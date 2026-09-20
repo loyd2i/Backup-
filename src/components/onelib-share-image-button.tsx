@@ -109,8 +109,7 @@ async function drawCover(
   ctx.restore();
 }
 
-async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: string) {
-  const qrSize = 150;
+async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: string, qrSize = 150) {
   const qrPadding = 16;
   const qrX = CANVAS_SIZE - qrSize - qrPadding - 40;
   const qrY = CANVAS_SIZE - qrSize - qrPadding - 40;
@@ -120,9 +119,23 @@ async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: strin
   ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
 
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#6b7280';
+
+  // Logo rond Studiolib au-dessus du mot "onelib"
+  try {
+    const iconSize = 40;
+    const icon = await loadImage('/logo-icon.png');
+    ctx.drawImage(icon, 40, CANVAS_SIZE - 128, iconSize, iconSize);
+  } catch {
+    // Ignore si le logo ne charge pas : le texte "onelib" suffit.
+  }
+
+  ctx.fillStyle = '#e5e7eb';
   ctx.font = '600 32px sans-serif';
   ctx.fillText('onelib', 40, CANVAS_SIZE - 60);
+
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = '400 20px sans-serif';
+  ctx.fillText('by Studiolib', 40, CANVAS_SIZE - 24);
 }
 
 function drawWaveform(ctx: CanvasRenderingContext2D, waveformPeaks: string | null | undefined, accentColor: string, x: number, y: number, width: number, height: number) {
@@ -148,11 +161,24 @@ function drawWaveform(ctx: CanvasRenderingContext2D, waveformPeaks: string | nul
   }
 }
 
+// Le texte de la pastille est centré sur le canvas, mais le QR code est
+// posé en bas à droite : une pastille trop large (ex. "SUR TOUTES LES
+// PLATEFORMES") peut donc physiquement recouvrir le QR. On réduit la
+// police jusqu'à ce que la pastille tienne dans une largeur sûre plutôt
+// que de risquer ce chevauchement (voir le retour "le QR code masque les
+// écrits sur certaines images").
+const PILL_MAX_WIDTH = 600;
+
 function drawPill(ctx: CanvasRenderingContext2D, text: string, accentColor: string, centerX: number, y: number) {
-  ctx.font = '700 40px sans-serif';
   const paddingX = 36;
+  let fontSize = 40;
+  while (fontSize > 22) {
+    ctx.font = `700 ${fontSize}px sans-serif`;
+    if (ctx.measureText(text).width + paddingX * 2 <= PILL_MAX_WIDTH) break;
+    fontSize -= 2;
+  }
   const textWidth = ctx.measureText(text).width;
-  const pillWidth = textWidth + paddingX * 2;
+  const pillWidth = Math.min(textWidth + paddingX * 2, PILL_MAX_WIDTH);
   const pillHeight = 72;
   const pillX = centerX - pillWidth / 2;
   ctx.fillStyle = accentColor;
@@ -198,9 +224,9 @@ async function renderShareImage(opts: {
 
   await drawBackground(ctx);
 
-  const coverSize = opts.variant === 'team' ? 340 : 580;
+  const coverSize = opts.variant === 'team' ? 280 : 580;
   const coverX = (CANVAS_SIZE - coverSize) / 2;
-  const coverY = 60;
+  const coverY = opts.variant === 'team' ? 50 : 60;
   await drawCover(ctx, opts.coverUrl, opts.accentColor, coverX, coverY, coverSize);
 
   // Ombre légère sur tout le texte dessiné après la pochette : le fond est
@@ -213,7 +239,7 @@ async function renderShareImage(opts: {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 52px sans-serif';
-  const titleY = coverY + coverSize + 80;
+  const titleY = coverY + coverSize + (opts.variant === 'team' ? 60 : 80);
   ctx.fillText(opts.title, CANVAS_SIZE / 2, titleY, CANVAS_SIZE - 120);
 
   ctx.fillStyle = '#9ca3af';
@@ -228,30 +254,46 @@ async function renderShareImage(opts: {
     ctx.fillStyle = '#ffffff';
     ctx.font = '700 46px sans-serif';
     ctx.fillText(`Sortie le ${dateLabel}`, CANVAS_SIZE / 2, titleY + 240);
+    await drawQrAndWordmark(ctx, opts.qrDataUrl);
   } else if (opts.variant === 'live') {
     const availabilityText = opts.onAllPlatforms ? 'SUR TOUTES LES PLATEFORMES' : 'DISPONIBLE SUR ONELIB';
     drawPill(ctx, availabilityText, opts.accentColor, CANVAS_SIZE / 2, titleY + 100);
     drawWaveform(ctx, opts.waveformPeaks, opts.accentColor, coverX, titleY + 200, coverSize, 70);
+    await drawQrAndWordmark(ctx, opts.qrDataUrl);
   } else if (opts.variant === 'team') {
+    // QR plus petit et rangées bornées, pour ne jamais empiéter dessus même
+    // avec plusieurs collaborateurs crédités (voir le retour "le QR code
+    // masque les écrits sur certaines images").
+    const qrSize = 110;
+    await drawQrAndWordmark(ctx, opts.qrDataUrl, qrSize);
+    const qrTop = CANVAS_SIZE - qrSize - 16 - 40 - 16;
+
     drawPill(ctx, 'L’ÉQUIPE', opts.accentColor, CANVAS_SIZE / 2, titleY + 60);
 
     const rows = [{ name: opts.artistName, role: 'Artiste' }, ...(opts.collaborators || []).map(c => ({ name: c.name, role: roleLabel(c.role) }))];
-    const rowHeight = 64;
-    let rowY = titleY + 170;
-    ctx.font = '500 36px sans-serif';
-    for (const row of rows.slice(0, 8)) {
+    const maxRows = 4;
+    const visibleRows = rows.length > maxRows ? rows.slice(0, maxRows - 1) : rows.slice(0, maxRows);
+    const overflowCount = rows.length > maxRows ? rows.length - visibleRows.length : 0;
+
+    const rowStep = 68;
+    let rowY = titleY + 160;
+    ctx.textAlign = 'center';
+    for (const row of visibleRows) {
+      if (rowY + 34 > qrTop - 20) break;
       ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
+      ctx.font = '500 34px sans-serif';
       ctx.fillText(row.name, CANVAS_SIZE / 2, rowY);
       ctx.fillStyle = '#9ca3af';
+      ctx.font = '400 24px sans-serif';
+      ctx.fillText(row.role, CANVAS_SIZE / 2, rowY + 30);
+      rowY += rowStep;
+    }
+    if (overflowCount > 0 && rowY <= qrTop - 20) {
+      ctx.fillStyle = '#9ca3af';
       ctx.font = '400 26px sans-serif';
-      ctx.fillText(row.role, CANVAS_SIZE / 2, rowY + 32);
-      ctx.font = '500 36px sans-serif';
-      rowY += rowHeight + 18;
+      ctx.fillText(`+${overflowCount} autre${overflowCount > 1 ? 's' : ''}`, CANVAS_SIZE / 2, rowY);
     }
   }
-
-  await drawQrAndWordmark(ctx, opts.qrDataUrl);
 
   return canvas.toDataURL('image/png');
 }
