@@ -240,9 +240,9 @@ async function renderShareImage(opts: {
 
   await drawBackground(ctx);
 
-  const coverSize = opts.variant === 'team' ? 280 : 580;
+  const coverSize = 580;
   const coverX = (CANVAS_SIZE - coverSize) / 2;
-  const coverY = opts.variant === 'team' ? 50 : 60;
+  const coverY = 60;
   await drawCover(ctx, opts.coverUrl, opts.accentColor, coverX, coverY, coverSize);
 
   // Ombre légère sur tout le texte dessiné après la pochette : le fond est
@@ -255,7 +255,7 @@ async function renderShareImage(opts: {
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 52px sans-serif';
-  const titleY = coverY + coverSize + (opts.variant === 'team' ? 60 : 80);
+  const titleY = coverY + coverSize + 80;
   ctx.fillText(opts.title, CANVAS_SIZE / 2, titleY, CANVAS_SIZE - 120);
 
   ctx.fillStyle = '#9ca3af';
@@ -279,37 +279,42 @@ async function renderShareImage(opts: {
     ctx.fillText(availabilityText, CANVAS_SIZE / 2, titleY + 145, CANVAS_SIZE - 120);
     await drawQrAndWordmark(ctx, opts.qrDataUrl);
   } else if (opts.variant === 'team') {
-    // QR plus petit et rangées bornées, pour ne jamais empiéter dessus même
-    // avec plusieurs collaborateurs crédités (voir le retour "le QR code
-    // masque les écrits sur certaines images").
+    // Pochette agrandie à la même taille que les autres images (voir
+    // demande) : moins de place reste sous le titre, donc la liste des
+    // protagonistes tient sur une ligne par personne (nom — rôle) plutôt
+    // que deux, et un QR réduit pour préserver le maximum de place.
     const qrSize = 70;
     await drawQrAndWordmark(ctx, opts.qrDataUrl, qrSize);
     const qrTop = qrBoxTop(qrSize);
+    const rowLimit = qrTop - 20;
 
-    drawPill(ctx, 'L’ÉQUIPE', CANVAS_SIZE / 2, titleY + 60);
+    const pillY = titleY + 64;
+    drawPill(ctx, 'L’ÉQUIPE', CANVAS_SIZE / 2, pillY);
 
     const rows = [{ name: opts.artistName, role: 'Artiste' }, ...(opts.collaborators || []).map(c => ({ name: c.name, role: roleLabel(c.role) }))];
-    const maxRows = 4;
-    const visibleRows = rows.length > maxRows ? rows.slice(0, maxRows - 1) : rows.slice(0, maxRows);
-    const overflowCount = rows.length > maxRows ? rows.length - visibleRows.length : 0;
+    const rowStep = 30;
+    const rowsStartY = pillY + 72 + 10;
 
-    const rowStep = 68;
-    let rowY = titleY + 160;
+    // Combien de lignes tiennent avant le QR ? Si tout le monde ne rentre
+    // pas, on réserve la dernière ligne pour "+N autres" plutôt que de
+    // risquer que le compte manquant disparaisse silencieusement.
+    let maxSlots = 0;
+    while (rowsStartY + maxSlots * rowStep + 12 <= rowLimit) maxSlots++;
+    const needsOverflow = rows.length > maxSlots;
+    const namedRowCount = needsOverflow ? Math.max(0, maxSlots - 1) : rows.length;
+
     ctx.textAlign = 'center';
-    for (const row of visibleRows) {
-      if (rowY + 34 > qrTop - 20) break;
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '500 34px sans-serif';
-      ctx.fillText(row.name, CANVAS_SIZE / 2, rowY);
+    ctx.font = '500 26px sans-serif';
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < namedRowCount; i++) {
+      const row = rows[i];
+      ctx.fillText(`${row.name} — ${row.role}`, CANVAS_SIZE / 2, rowsStartY + i * rowStep, CANVAS_SIZE - 160);
+    }
+    if (needsOverflow) {
+      const overflowCount = rows.length - namedRowCount;
       ctx.fillStyle = '#9ca3af';
       ctx.font = '400 24px sans-serif';
-      ctx.fillText(row.role, CANVAS_SIZE / 2, rowY + 30);
-      rowY += rowStep;
-    }
-    if (overflowCount > 0 && rowY <= qrTop - 20) {
-      ctx.fillStyle = '#9ca3af';
-      ctx.font = '400 26px sans-serif';
-      ctx.fillText(`+${overflowCount} autre${overflowCount > 1 ? 's' : ''}`, CANVAS_SIZE / 2, rowY);
+      ctx.fillText(`+${overflowCount} autre${overflowCount > 1 ? 's' : ''}`, CANVAS_SIZE / 2, rowsStartY + namedRowCount * rowStep);
     }
   }
 
