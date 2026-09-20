@@ -110,7 +110,7 @@ async function drawCover(
 
 const QR_MARGIN = 40;
 const QR_PADDING = 14;
-const QR_CONTAINER_COLOR = '#0d1424';
+const QR_CONTAINER_COLOR = '#ffffff';
 
 function qrBoxTop(qrSize: number) {
   return CANVAS_SIZE - qrSize - QR_PADDING - QR_MARGIN - QR_PADDING;
@@ -123,8 +123,7 @@ async function drawQrAndWordmark(ctx: CanvasRenderingContext2D, qrDataUrl: strin
   const boxX = qrX - QR_PADDING;
   const boxY = qrY - QR_PADDING;
 
-  // Fond sombre et arrondi (plutôt qu'un carré blanc générique) pour un
-  // QR code plus discret et plus proche de l'identité Studiolib/Onelib.
+  // Fond blanc arrondi, taille réduite par rapport au format initial.
   // Pas d'ombre ici : sur un bloc plat, elle ne fait que dessiner un
   // contour disgracieux autour du QR code plutôt qu'aider la lisibilité.
   const shadow = { color: ctx.shadowColor, blur: ctx.shadowBlur, offsetY: ctx.shadowOffsetY };
@@ -268,7 +267,7 @@ async function renderShareImage(opts: {
     await drawQrAndWordmark(ctx, opts.qrDataUrl);
   } else if (opts.variant === 'live') {
     const availabilityText = opts.onAllPlatforms ? 'SUR TOUTES LES PLATEFORMES' : 'DISPONIBLE SUR ONELIB';
-    ctx.fillStyle = opts.accentColor;
+    ctx.fillStyle = '#ffffff';
     ctx.font = '700 42px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(availabilityText, CANVAS_SIZE / 2, titleY + 130, CANVAS_SIZE - 120);
@@ -368,12 +367,7 @@ export default function OnelibShareImageButton({
     setIsLoading(true);
     setError(false);
     try {
-      // QR plus sombre et à la couleur de l'accent plutôt que le noir/blanc
-      // par défaut, pour un rendu plus original une fois posé sur son fond
-      // sombre arrondi (voir drawQrAndWordmark) - n'affecte pas le QR code
-      // classique affiché ailleurs dans Onelib, qui garde ses couleurs par défaut.
-      const qrParams = new URLSearchParams({ dark: accentColor, light: QR_CONTAINER_COLOR });
-      const res = await fetch(`/api/onelib/releases/${releaseId}/qrcode?${qrParams}`);
+      const res = await fetch(`/api/onelib/releases/${releaseId}/qrcode`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur QR code');
       setQrDataUrl(data.dataUrl);
