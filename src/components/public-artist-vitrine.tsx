@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   MapPin, Music2, Globe, Instagram, Youtube, Headphones, Music,
-  Play, Pause, Eye, Disc, ListMusic, QrCode, Copy, Check, X, User as UserIcon
+  Play, Pause, Eye, Disc, ListMusic, QrCode, Copy, Check, X, User as UserIcon, Star
 } from 'lucide-react';
 import { isSafeHttpUrl } from '@/lib/url-safety';
 
@@ -69,6 +69,8 @@ export default function PublicArtistVitrine({ artistId }: PublicArtistVitrinePro
   const [tracks, setTracks] = useState<PublicTrack[]>([]);
   const [releaseItems, setReleaseItems] = useState<ReleaseItem[]>([]);
   const [credits, setCredits] = useState<Credit[]>([]);
+  const [rating, setRating] = useState<number | null>(null);
+  const [reviewCount, setReviewCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [playingTrack, setPlayingTrack] = useState<string | null>(null);
@@ -87,6 +89,8 @@ export default function PublicArtistVitrine({ artistId }: PublicArtistVitrinePro
           setTracks(data.tracks || []);
           setReleaseItems(data.releaseItems || []);
           setCredits(data.credits || []);
+          setRating(data.rating ?? null);
+          setReviewCount(data.reviewCount || 0);
         } else {
           setNotFound(true);
         }
@@ -194,6 +198,15 @@ export default function PublicArtistVitrine({ artistId }: PublicArtistVitrinePro
           <h1 className="text-3xl font-bold text-white mb-2">{artist.name}</h1>
 
           <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
+            {rating !== null && (
+              <span
+                className="flex items-center gap-1 bg-[#1a1a1a] border border-[#2a2a2a] text-white text-xs font-semibold px-3 py-1 rounded-lg"
+                title={`Note moyenne des studios ayant travaillé avec ${artist.name} (${reviewCount} avis)`}
+              >
+                <Star className="w-3.5 h-3.5 text-yellow-400 fill-yellow-400" /> {rating.toFixed(1)}
+                <span className="text-gray-500 font-normal">({reviewCount})</span>
+              </span>
+            )}
             {artist.genre && (
               <span
                 className="px-3 py-1 rounded-lg text-xs font-bold text-white"

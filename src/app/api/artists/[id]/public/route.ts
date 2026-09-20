@@ -24,7 +24,7 @@ export async function GET(
       return NextResponse.json({ error: 'Artiste non trouvé' }, { status: 404 });
     }
 
-    const [tracks, releases, collections, releaseCredits, collectionCredits] = await Promise.all([
+    const [tracks, releases, collections, releaseCredits, collectionCredits, ratingAgg] = await Promise.all([
       prisma.track.findMany({
         where: { userId: id, isPublic: true, status: 'finished' },
         select: {
@@ -58,6 +58,13 @@ export async function GET(
           role: true, sharePercent: true,
           collection: { select: { slug: true, title: true, kind: true, coverUrl: true } },
         },
+      }),
+      // Note moyenne des avis studio->artiste (voir BUSINESS-PLAN.md "Reviews") -
+      // calculée à la volée, symétrique à Studio.rating côté studio.
+      prisma.review.aggregate({
+        where: { direction: 'studio_to_artist', appointment: { userId: id } },
+        _avg: { rating: true },
+        _count: { rating: true },
       }),
     ]);
 
@@ -107,7 +114,9 @@ export async function GET(
       })),
     ];
 
-    return NextResponse.json({ artist, tracks, releaseItems, credits });
+    const rating = ratingAgg._avg.rating !== null ? Math.round(ratingAgg._avg.rating * 10) / 10 : null;
+
+    return NextResponse.json({ artist, tracks, releaseItems, credits, rating, reviewCount: ratingAgg._count.rating });
   } catch (error) {
     console.error('Erreur récupération fiche publique artiste:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });

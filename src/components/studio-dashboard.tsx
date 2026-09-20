@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, ChevronLeft, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye, Star, Flag, Percent, Moon, Sun, Mail, Phone, User } from 'lucide-react';
+import { Calendar, FileText, Music, Users, Clock, Euro, TrendingUp, ChevronRight, ChevronLeft, Plus, Download, Send, Settings, Globe, Wallet, ArrowDownCircle, ArrowUpCircle, Check, X, Eye, Star, Flag, Percent, Moon, Sun, Mail, Phone, User, Radio } from 'lucide-react';
 import StudioHoursSettings from './studio-hours-settings';
 import EmptyState from './ui/empty-state';
 import StudioShowcasePage from './studio-showcase-page';
@@ -96,6 +96,7 @@ interface Project {
     sampleRate?: number | null; bitDepth?: number | null; bitrate?: number | null; audioFormat?: string | null;
     truePeak?: number | null; lufs?: number | null; lra?: number | null; waveformPeaks?: string | null;
   }[];
+  onelibRelease?: { id: string; slug: string; status: string } | null;
 }
 
 export default function StudioDashboard() {
@@ -1165,13 +1166,31 @@ export default function StudioDashboard() {
                     {project.user && (
                       <p className="text-gray-500 text-sm">Client : {project.user.name}</p>
                     )}
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      project.status === 'finished'
-                        ? 'bg-green-500/20 text-green-400'
-                        : 'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {project.status === 'finished' ? 'Terminé' : 'En cours'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {project.onelibRelease && (
+                        <a
+                          href={`/?public=onelib&slug=${project.onelibRelease.slug}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium hover:opacity-80 transition-opacity ${
+                            project.onelibRelease.status === 'published'
+                              ? 'bg-[#6366f1]/20 text-[#818cf8]'
+                              : 'bg-gray-500/20 text-gray-400'
+                          }`}
+                          title={project.onelibRelease.status === 'published' ? 'Voir la fiche publique OneLib' : 'Brouillon sur OneLib, pas encore publié'}
+                        >
+                          <Radio className="w-3 h-3" />
+                          {project.onelibRelease.status === 'published' ? 'Sur OneLib' : 'Brouillon OneLib'}
+                        </a>
+                      )}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        project.status === 'finished'
+                          ? 'bg-green-500/20 text-green-400'
+                          : 'bg-yellow-500/20 text-yellow-400'
+                      }`}>
+                        {project.status === 'finished' ? 'Terminé' : 'En cours'}
+                      </span>
+                    </div>
                   </div>
                   {project.versions && project.versions.length > 0 ? (
                     <AudioPlayerWithVersions

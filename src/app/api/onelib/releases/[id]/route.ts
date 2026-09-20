@@ -17,7 +17,10 @@ export async function GET(
     const { id } = await params;
     let release = await prisma.onelibRelease.findUnique({
       where: { id },
-      include: { track: true, collaborators: { orderBy: { createdAt: 'asc' } } }
+      include: {
+        track: { include: { studio: { select: { id: true, name: true, location: true } } } },
+        collaborators: { orderBy: { createdAt: 'asc' } },
+      }
     });
 
     if (!release || release.userId !== user.id) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Music, FileText, Pencil, Plus, X, Save, Globe, Lock, Upload, Loader2, Zap, Disc, Building2, Eye, MessageCircle, Trash2 } from 'lucide-react';
+import { Music, FileText, Pencil, Plus, X, Save, Globe, Lock, Upload, Loader2, Zap, Disc, Building2, Eye, MessageCircle, Trash2, User } from 'lucide-react';
 import CoverDropzone from './cover-dropzone';
 import AudioPlayer from './audio-player';
 import AudioPlayerWithVersions from './audio-player-with-versions';
@@ -119,8 +119,13 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     genre: '',
     studioId: '',
     status: 'in_progress',
-    isPublic: false
+    isPublic: false,
+    assignedArtistId: ''
   });
+  // Clients du studio ayant une réservation confirmée/terminée : seuls eux
+  // peuvent recevoir un dépôt direct de fichier dans leurs Créations (voir
+  // BUSINESS-PLAN.md / vérification côté API dans /api/tracks).
+  const [studioClients, setStudioClients] = useState<{ id: string; name: string }[]>([]);
   const [newText, setNewText] = useState({ title: '', artist: '', content: '' });
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [editText, setEditText] = useState({ title: '', artist: '', content: '' });
@@ -142,7 +147,23 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
         setHasUnlimitedNormalization(!!data.unlimited);
       })
       .catch(() => {});
-  }, []);
+
+    if (isStudioMode) {
+      fetch('/api/appointments')
+        .then((res) => res.json())
+        .then((data) => {
+          const appointments = data.appointments || [];
+          const clientsById = new Map<string, { id: string; name: string }>();
+          for (const appt of appointments) {
+            if ((appt.status === 'confirmed' || appt.status === 'completed') && appt.user) {
+              clientsById.set(appt.user.id, { id: appt.user.id, name: appt.user.name });
+            }
+          }
+          setStudioClients(Array.from(clientsById.values()).sort((a, b) => a.name.localeCompare(b.name)));
+        })
+        .catch(() => {});
+    }
+  }, [isStudioMode]);
 
   const fetchData = async () => {
     try {
@@ -254,6 +275,9 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
     formData.append('status', newTrack.status);
     // Studio tracks are always private
     formData.append('isPublic', isStudioMode ? 'false' : newTrack.isPublic.toString());
+    if (isStudioMode && newTrack.assignedArtistId) {
+      formData.append('assignedArtistId', newTrack.assignedArtistId);
+    }
     // L'analyse complète n'a peut-être pas encore fini : on envoie ce qu'on a
     // (les métadonnées rapides suffisent à créer la track sans attendre),
     // le reste sera complété en arrière-plan une fois l'analyse terminée.
@@ -298,7 +322,8 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
           genre: '',
           studioId: '',
           status: 'in_progress',
-          isPublic: false
+          isPublic: false,
+          assignedArtistId: ''
         });
         setUploadedFile(null);
         setCoverFile(null);
@@ -901,6 +926,31 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                       newTrack.isPublic ? 'left-7' : 'left-1'
                     }`} />
                   </button>
+                </div>
+              )}
+
+              {/* Attribution à un client - uniquement en mode studio */}
+              {isStudioMode && (
+                <div>
+                  <label className="text-gray-400 text-sm mb-2 block flex items-center gap-1">
+                    <User className="w-3 h-3 text-[#f59e0b]" />
+                    Client (optionnel)
+                  </label>
+                  <select
+                    value={newTrack.assignedArtistId}
+                    onChange={(e) => setNewTrack({ ...newTrack, assignedArtistId: e.target.value })}
+                    className="w-full bg-[#2a2a2a] text-white rounded-lg p-3 border border-[#3a3a3a]"
+                  >
+                    <option value="">Garder dans les projets du studio</option>
+                    {studioClients.map((client) => (
+                      <option key={client.id} value={client.id}>{client.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-gray-500 text-sm mt-1">
+                    {newTrack.assignedArtistId
+                      ? 'Le fichier sera déposé directement dans les Créations de ce client'
+                      : 'Seuls les clients ayant une réservation confirmée ou terminée apparaissent ici'}
+                  </p>
                 </div>
               )}
 

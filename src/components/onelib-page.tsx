@@ -9,7 +9,7 @@ import EmptyState from './ui/empty-state';
 import {
   Share2, Music2, ArrowLeft, Eye, CheckCircle2, PenLine, Trash2,
   Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users, ExternalLink, Clock,
-  Disc, ListMusic, Radio, Play, Pause, SlidersHorizontal,
+  Disc, ListMusic, Radio, Play, Pause, SlidersHorizontal, Building2,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -65,6 +65,7 @@ interface Release {
     normalizedLufs?: number | null;
     normalizedLra?: number | null;
     normalizedTruePeak?: number | null;
+    studio?: { id: string; name: string; location: string } | null;
     previewAudioUrl?: string | null;
     previewStartSeconds?: number | null;
   };
@@ -654,6 +655,12 @@ export default function OnelibPage() {
                   )}
                 </div>
                 <p className="text-gray-500 text-sm">{detail.track.artist}{detail.track.genre ? ` • ${detail.track.genre}` : ''}</p>
+                {detail.track.studio && (
+                  <p className="text-gray-500 text-xs mt-1 flex items-center gap-1.5">
+                    <Building2 className="w-3 h-3" /> Enregistré chez <span className="text-gray-400 font-medium">{detail.track.studio.name}</span>
+                    {' '}— crédité automatiquement sur la fiche publique
+                  </p>
+                )}
               </div>
             </div>
             <button

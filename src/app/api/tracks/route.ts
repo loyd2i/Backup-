@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         },
         versions: { orderBy: { version: 'asc' } },
         masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
-        onelibRelease: { select: { id: true, slug: true } },
+        onelibRelease: { select: { id: true, slug: true, status: true } },
         _count: { select: { comments: true, sharedWith: true } }
       },
       orderBy: { createdAt: 'desc' }
@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
           },
           versions: { orderBy: { version: 'asc' } },
           masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
-          onelibRelease: { select: { id: true, slug: true } },
+          onelibRelease: { select: { id: true, slug: true, status: true } },
           _count: { select: { comments: true, sharedWith: true } }
         },
         orderBy: { createdAt: 'desc' }
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
             },
             versions: { orderBy: { version: 'asc' } },
             masterValidation: { include: { version: true, requestedBy: { select: { id: true, name: true } } } },
-            onelibRelease: { select: { id: true, slug: true } },
+            onelibRelease: { select: { id: true, slug: true, status: true } },
             _count: { select: { comments: true } }
           }
         }
@@ -115,6 +115,10 @@ export async function POST(request: NextRequest) {
     const genre = formData.get('genre') as string;
     const studioId = formData.get('studioId') as string;
     const status = formData.get('status') as string;
+    // Un studio peut déposer directement un fichier dans le projet d'un
+    // artiste avec qui il a déjà travaillé (voir BUSINESS-PLAN.md) : la
+    // track appartient alors à l'artiste, pas au studio qui la dépose.
+    const assignedArtistId = formData.get('assignedArtistId') as string | null;
     // Une track en cours ne peut être rendue publique : seules les tracks
     // terminées peuvent être visibles publiquement ou via un lien.
     const isPublic = (status || 'in_progress') === 'finished' && formData.get('isPublic') === 'true';
@@ -161,15 +165,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Attribution à un artiste client du studio : vérifie qu'un rendez-vous
+    // confirmé ou terminé lie bien ce studio à cet artiste avant d'autoriser
+    // la création d'une track appartenant à quelqu'un d'autre que l'appelant.
+    let finalUserId = user.id;
+    let finalStudioId = studioId || null;
+    if (assignedArtistId) {
+      if (user.role !== 'studio_owner') {
+        return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
+      }
+      const studio = await prisma.studio.findFirst({ where: { ownerId: user.id } });
+      if (!studio) {
+        return NextResponse.json({ error: 'Aucun studio associé à ce compte' }, { status: 403 });
+      }
+      const hasHistory = await prisma.appointment.findFirst({
+        where: { studioId: studio.id, userId: assignedArtistId, status: { in: ['confirmed', 'completed'] } },
+        select: { id: true },
+      });
+      if (!hasHistory) {
+        return NextResponse.json({ error: 'Aucune réservation confirmée avec cet artiste' }, { status: 403 });
+      }
+      finalUserId = assignedArtistId;
+      finalStudioId = studio.id;
+    }
+
     const track = await prisma.track.create({
       data: {
-        userId: user.id,
+        userId: finalUserId,
         title,
         artist,
         bpm: bpm ? parseInt(bpm) : null,
         key,
         genre: genre || null,
-        studioId: studioId || null,
+        studioId: finalStudioId,
         status: status || 'in_progress',
         isPublic,
         audioUrl,

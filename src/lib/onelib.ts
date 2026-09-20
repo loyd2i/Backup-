@@ -54,12 +54,16 @@ export function promoteReleaseIfDue(
   return withPublicCollaborators ? promoteReleaseIfDuePublic(release) : promoteReleaseIfDueOwner(release);
 }
 
+const TRACK_WITH_STUDIO_INCLUDE = {
+  include: { studio: { select: { id: true, name: true, location: true } } },
+} as const;
+
 function promoteReleaseIfDueOwner(release: { id: string; status: string; scheduledAt: Date | null }) {
   if (release.status === 'scheduled' && release.scheduledAt && release.scheduledAt <= new Date()) {
     return prisma.onelibRelease.update({
       where: { id: release.id },
       data: { status: 'published', publishedAt: release.scheduledAt },
-      include: { track: true, collaborators: { orderBy: { createdAt: 'asc' } } }
+      include: { track: TRACK_WITH_STUDIO_INCLUDE, collaborators: { orderBy: { createdAt: 'asc' } } }
     });
   }
   return Promise.resolve(null);
@@ -70,7 +74,7 @@ function promoteReleaseIfDuePublic(release: { id: string; status: string; schedu
     return prisma.onelibRelease.update({
       where: { id: release.id },
       data: { status: 'published', publishedAt: release.scheduledAt },
-      include: { track: true, collaborators: { orderBy: { createdAt: 'asc' }, select: COLLABORATOR_PUBLIC_SELECT } }
+      include: { track: TRACK_WITH_STUDIO_INCLUDE, collaborators: { orderBy: { createdAt: 'asc' }, select: COLLABORATOR_PUBLIC_SELECT } }
     });
   }
   return Promise.resolve(null);
@@ -97,7 +101,7 @@ function promoteCollectionIfDueOwner(collection: { id: string; status: string; s
       where: { id: collection.id },
       data: { status: 'published', publishedAt: collection.scheduledAt },
       include: {
-        tracks: { include: { track: true }, orderBy: { order: 'asc' } },
+        tracks: { include: { track: TRACK_WITH_STUDIO_INCLUDE }, orderBy: { order: 'asc' } },
         collaborators: { orderBy: { createdAt: 'asc' } }
       }
     });
@@ -111,7 +115,7 @@ function promoteCollectionIfDuePublic(collection: { id: string; status: string; 
       where: { id: collection.id },
       data: { status: 'published', publishedAt: collection.scheduledAt },
       include: {
-        tracks: { include: { track: true }, orderBy: { order: 'asc' } },
+        tracks: { include: { track: TRACK_WITH_STUDIO_INCLUDE }, orderBy: { order: 'asc' } },
         collaborators: { orderBy: { createdAt: 'asc' }, select: COLLABORATOR_PUBLIC_SELECT }
       }
     });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Music2, ExternalLink, Music, Youtube, Apple, Disc3, Disc, ListMusic, Play, Pause } from 'lucide-react';
+import { ArrowLeft, Music2, ExternalLink, Music, Youtube, Apple, Disc3, Disc, ListMusic, Play, Pause, Building2 } from 'lucide-react';
 
 interface PublicCollaborator {
   name: string;
@@ -25,6 +25,22 @@ function collaboratorProfileHref(c: PublicCollaborator): string | null {
     return studioId ? `/studio/${studioId}` : null;
   }
   return `/artiste/${c.user.id}`;
+}
+
+// Crédit automatique du studio ayant travaillé le morceau (Track.studioId,
+// lié à une réservation) - distinct des collaborateurs manuels du split
+// sheet : pas de part de royalties, juste l'attribution "enregistré chez".
+function StudioCredit({ studio }: { studio: { id: string; name: string; location: string } | null | undefined }) {
+  if (!studio) return null;
+  return (
+    <a
+      href={`/studio/${studio.id}`}
+      className="flex items-center gap-1.5 text-sm text-gray-300 hover:underline w-fit"
+    >
+      <Building2 className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+      Enregistré chez <span className="font-medium">{studio.name}</span>
+    </a>
+  );
 }
 
 function CollaboratorCredits({ collaborators }: { collaborators: PublicCollaborator[] }) {
@@ -68,6 +84,7 @@ interface PublicTrackLinks {
   normalizedLra?: number | null;
   normalizedTruePeak?: number | null;
   previewAudioUrl?: string | null;
+  studio?: { id: string; name: string; location: string } | null;
 }
 
 interface PublicRelease {
@@ -289,6 +306,9 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
 
         <h1 className="text-2xl font-bold text-white">{track.title}</h1>
         <p className="text-gray-400 mt-1">{track.artist}{track.genre ? ` • ${track.genre}` : ''}</p>
+        <div className="mt-3">
+          <StudioCredit studio={track.studio} />
+        </div>
         <CollaboratorCredits collaborators={release!.collaborators} />
 
         {release!.description && (
