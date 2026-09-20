@@ -31,6 +31,23 @@ Plateforme indépendante des labels majors : pas de gatekeeping, pas de comité 
 - S'ajoute à la commission (ne la remplace pas)
 - Rôle réel : filtre d'engagement + plancher de revenu prévisible, pas le moteur principal de rentabilité (il faut du volume — des centaines de studios — avant que cette ligne pèse vraiment)
 
+## Normalisation audio (jetons)
+
+Aperçu streaming normalisé (30s, A/B) d'une release Onelib : mise à niveau de
+loudness + limiteur anti-écrêtage, **calculée côté client, sans traitement
+manuel** — contrairement à la distribution Onelib (voir section suivante),
+rien n'empêche ici un forfait illimité : le coût marginal réel est quasi nul
+(pas de temps humain, juste le stockage d'un extrait de quelques Mo).
+
+- **Jeton à l'unité : 2€** — tarif plancher, sert de référence pour les seuils ci-dessous.
+- **Inscription** : 3 jetons offerts, cumulables (jamais renouvelés, jamais expirés).
+- **Abonnement Artiste : 10€/mois** → +10 jetons/mois, cumulables si non utilisés.
+- **Abonnement Label : 39€/mois** → normalisations illimitées.
+- Seuils de bascule (à prix fixés) :
+  - Payer à l'unité devient moins intéressant que l'abonnement Artiste dès 6 normalisations payantes dans le mois (10€ / 2€) — l'abonnement offre donc une remise de 50% sur le tarif unitaire à pleine consommation (10 jetons).
+  - L'abonnement Label devient rentable pour l'utilisateur au-delà de ~25 normalisations/mois (10 + (39−10)/2), un rythme cohérent avec une structure gérant plusieurs artistes plutôt qu'un artiste solo.
+- Si le calcul devient un jour un vrai coût serveur significatif (ex: traitement plus lourd, stockage à grande échelle), revoir ces seuils - ils supposent un coût marginal proche de zéro, cohérent avec l'infra auto-hébergée actuelle (voir "Infrastructure et coûts tiers").
+
 ## Onelib (distribution musicale)
 
 - Modèle : **forfait fixe**, pas un pourcentage sur les royalties de streaming (éviterait de devoir suivre les revenus réels des DSP, infra que la plateforme n'a pas)

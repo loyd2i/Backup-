@@ -19,6 +19,8 @@ export async function GET() {
             id: true, title: true, artist: true, coverUrl: true, genre: true, status: true,
             spotifyUrl: true, youtubeUrl: true, appleMusicUrl: true, deezerUrl: true,
             audioUrl: true, duration: true,
+            normalizationStatus: true, normalizedLufs: true, normalizedLra: true,
+            normalizedTruePeak: true, previewAudioUrl: true, previewStartSeconds: true,
           }
         },
         collaborators: { orderBy: { createdAt: 'asc' } }
@@ -79,6 +81,8 @@ export async function POST(request: NextRequest) {
             id: true, title: true, artist: true, coverUrl: true, genre: true, status: true,
             spotifyUrl: true, youtubeUrl: true, appleMusicUrl: true, deezerUrl: true,
             audioUrl: true, duration: true,
+            normalizationStatus: true, normalizedLufs: true, normalizedLra: true,
+            normalizedTruePeak: true, previewAudioUrl: true, previewStartSeconds: true,
           }
         },
         collaborators: true

@@ -25,10 +25,19 @@ import {
 import { useAppStore } from '@/lib/store';
 import { PLATFORM_COMMISSION_RATE, ARTIST_COMMISSION_RATE } from '@/lib/tax-config';
 import { SUBSCRIPTION_PLANS, type SubscriptionPlan } from '@/lib/subscription-config';
+import { ONELIB_SUBSCRIPTION_PLANS, type OnelibSubscriptionPlan } from '@/lib/onelib-config';
 import { isPushSupported, getCurrentPushSubscription, subscribeToPush, unsubscribeFromPush } from '@/lib/push-client';
 
 interface StudioSubscriptionState {
   plan: SubscriptionPlan;
+  monthlyPrice: number;
+  status: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+}
+
+interface OnelibSubscriptionState {
+  plan: OnelibSubscriptionPlan;
   monthlyPrice: number;
   status: string;
   currentPeriodEnd: string;
@@ -68,6 +77,9 @@ export default function ReglagesPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [subscription, setSubscription] = useState<StudioSubscriptionState | null>(null);
   const [subActionLoading, setSubActionLoading] = useState(false);
+  const [onelibSubscription, setOnelibSubscription] = useState<OnelibSubscriptionState | null>(null);
+  const [onelibTokens, setOnelibTokens] = useState(0);
+  const [onelibSubActionLoading, setOnelibSubActionLoading] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
@@ -118,6 +130,21 @@ export default function ReglagesPage() {
       .then(data => setSubscription(data.subscription || null))
       .catch(() => {});
   }, [isStudioOwner, studioId]);
+
+  const fetchOnelibSubscription = () => {
+    fetch('/api/onelib/subscription')
+      .then(res => res.json())
+      .then(data => {
+        setOnelibSubscription(data.subscription || null);
+        setOnelibTokens(data.tokens || 0);
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    fetchOnelibSubscription();
+  }, [user]);
 
   useEffect(() => {
     if (!isStudioOwner || !studioId) return;
@@ -207,6 +234,45 @@ export default function ReglagesPage() {
       console.error('Error updating subscription:', error);
     } finally {
       setSubActionLoading(false);
+    }
+  };
+
+  const subscribeToOnelibPlan = async (plan: OnelibSubscriptionPlan) => {
+    setOnelibSubActionLoading(true);
+    try {
+      const res = await fetch('/api/onelib/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOnelibSubscription(data.subscription);
+        fetchOnelibSubscription();
+      }
+    } catch (error) {
+      console.error('Error subscribing to Onelib plan:', error);
+    } finally {
+      setOnelibSubActionLoading(false);
+    }
+  };
+
+  const setOnelibCancelAtPeriodEnd = async (cancelAtPeriodEnd: boolean) => {
+    setOnelibSubActionLoading(true);
+    try {
+      const res = await fetch('/api/onelib/subscription', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancelAtPeriodEnd }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOnelibSubscription(data.subscription);
+      }
+    } catch (error) {
+      console.error('Error updating Onelib subscription:', error);
+    } finally {
+      setOnelibSubActionLoading(false);
     }
   };
 
@@ -617,6 +683,82 @@ export default function ReglagesPage() {
                 <p className="text-gray-500 text-xs">{SUBSCRIPTION_PLANS[0].description}</p>
               </button>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Normalisation Onelib (jetons) */}
+      {user && (
+        <div className="mb-8 bg-[#1a1a1a] rounded-xl p-6 border border-[#2a2a2a]">
+          <h2 className="text-white font-semibold mb-1 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-[#6366f1]" />
+            Normalisation (jetons)
+          </h2>
+          <p className="text-gray-400 text-sm mb-4">
+            Chaque normalisation d&apos;une track dans Créations consomme 1 jeton. 3 jetons offerts
+            à l&apos;inscription, cumulables. Sans jeton disponible, la génération reste possible à
+            l&apos;unité.
+          </p>
+
+          {onelibSubscription && onelibSubscription.status === 'active' ? (
+            <div className="mb-4">
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+                <div>
+                  <p className="text-white font-medium">
+                    Plan {onelibSubscription.plan === 'label' ? 'Label' : 'Artiste'} — {onelibSubscription.monthlyPrice}€/mois
+                  </p>
+                  <p className="text-gray-500 text-sm">
+                    {onelibSubscription.cancelAtPeriodEnd
+                      ? `Résiliation prévue le ${new Date(onelibSubscription.currentPeriodEnd).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                      : onelibSubscription.plan === 'label'
+                        ? 'Normalisations illimitées'
+                        : `+10 jetons le ${new Date(onelibSubscription.currentPeriodEnd).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+                  </p>
+                </div>
+                {onelibSubscription.cancelAtPeriodEnd ? (
+                  <button
+                    onClick={() => setOnelibCancelAtPeriodEnd(false)}
+                    disabled={onelibSubActionLoading}
+                    className="bg-[#6366f1] text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                  >
+                    Réactiver
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setOnelibCancelAtPeriodEnd(true)}
+                    disabled={onelibSubActionLoading}
+                    className="bg-[#2a2a2a] text-gray-300 px-4 py-2 rounded-lg text-sm font-medium hover:bg-[#3a3a3a] disabled:opacity-50"
+                  >
+                    Résilier à l'échéance
+                  </button>
+                )}
+              </div>
+              {onelibSubscription.plan === 'artiste' && (
+                <p className="text-gray-500 text-xs">
+                  Solde actuel : {onelibTokens} jeton{onelibTokens !== 1 ? 's' : ''}.
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="text-gray-500 text-xs mb-3">
+                Solde actuel : {onelibTokens} jeton{onelibTokens !== 1 ? 's' : ''}. Aucun abonnement actif.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {ONELIB_SUBSCRIPTION_PLANS.map((plan) => (
+                  <button
+                    key={plan.plan}
+                    onClick={() => subscribeToOnelibPlan(plan.plan)}
+                    disabled={onelibSubActionLoading}
+                    className="text-left bg-[#2a2a2a] hover:bg-[#3a3a3a] rounded-lg p-4 transition-colors disabled:opacity-50"
+                  >
+                    <p className="text-white font-semibold">{plan.label}</p>
+                    <p className="text-2xl font-bold text-white my-1">{plan.monthlyPrice}€<span className="text-sm text-gray-400 font-normal">/mois</span></p>
+                    <p className="text-gray-500 text-xs">{plan.description}</p>
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

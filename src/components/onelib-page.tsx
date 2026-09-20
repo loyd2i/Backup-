@@ -2,15 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '@/lib/store';
-import { ONELIB_DISTRIBUTION_FEE, ONELIB_NORMALIZATION_FEE } from '@/lib/onelib-config';
-import { generateStreamingPreview, encodeWav } from '@/lib/loudness-normalizer';
+import { ONELIB_DISTRIBUTION_FEE } from '@/lib/onelib-config';
 import OnelibCollectionDetail from './onelib-collection-detail';
 import CoverDropzone from './cover-dropzone';
 import EmptyState from './ui/empty-state';
 import {
   Share2, Music2, ArrowLeft, Eye, CheckCircle2, PenLine, Trash2,
   Link2, Check, Music, Youtube, QrCode, Download, Plus, X, FileSignature, Package, Users, ExternalLink, Clock,
-  Disc, ListMusic, Radio, Play, Pause, SlidersHorizontal, Loader2,
+  Disc, ListMusic, Radio, Play, Pause, SlidersHorizontal,
 } from 'lucide-react';
 
 interface EligibleTrack {
@@ -47,16 +46,6 @@ interface Release {
   distributionRequestedAt: string | null;
   distributionFeeAmount: number | null;
   distributionFeePaidAt: string | null;
-  // Aperçu streaming normalisé (30s, A/B) : mise à niveau de loudness +
-  // anti-écrêtage, calculée côté client, sans mastering IA.
-  normalizationStatus: string; // none, done
-  normalizationRequestedAt: string | null;
-  normalizationFeeAmount: number | null;
-  normalizedLufs: number | null;
-  normalizedLra: number | null;
-  normalizedTruePeak: number | null;
-  previewAudioUrl: string | null;
-  previewStartSeconds: number | null;
   collaborators: Collaborator[];
   track: {
     id: string;
@@ -70,6 +59,14 @@ interface Release {
     deezerUrl?: string | null;
     audioUrl?: string | null;
     duration?: number | null;
+    // Aperçu streaming normalisé (30s, A/B) : geste fait dans Créations,
+    // avant l'envoi vers Onelib - affiché ici en lecture seule.
+    normalizationStatus?: string; // none, done
+    normalizedLufs?: number | null;
+    normalizedLra?: number | null;
+    normalizedTruePeak?: number | null;
+    previewAudioUrl?: string | null;
+    previewStartSeconds?: number | null;
   };
 }
 
@@ -134,8 +131,6 @@ export default function OnelibPage() {
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [shareSuccess, setShareSuccess] = useState(false);
   const [isRequestingDistribution, setIsRequestingDistribution] = useState(false);
-  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
   const [abMode, setAbMode] = useState<'original' | 'normalized'>('normalized');
   const [abPlaying, setAbPlaying] = useState(false);
   const originalAudioRef = useRef<HTMLAudioElement>(null);
@@ -335,61 +330,13 @@ export default function OnelibPage() {
     }
   };
 
-  // Génère l'aperçu streaming (30s, A/B) : débite le forfait, télécharge et
-  // décode le master, calcule la mise à niveau + le limiteur côté client
-  // (aucun envoi du master à un serveur de traitement), puis n'upload que
-  // l'extrait de 30s généré - jamais le fichier original.
-  const handleGenerateNormalizedPreview = async () => {
-    if (!detail || !detail.track.audioUrl) return;
-    if (!confirm(`Cette génération débite un forfait de ${ONELIB_NORMALIZATION_FEE}€, non remboursable. Continuer ?`)) return;
-
-    setIsGeneratingPreview(true);
-    setPreviewError(null);
-    try {
-      const chargeRes = await fetch(`/api/onelib/releases/${detail.id}/normalize`, { method: 'POST' });
-      const chargeData = await chargeRes.json();
-      if (!chargeRes.ok) throw new Error(chargeData.error || 'Erreur lors du paiement');
-
-      const audioRes = await fetch(detail.track.audioUrl);
-      const arrayBuffer = await audioRes.arrayBuffer();
-      const AudioContextCtor = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const audioContext = new AudioContextCtor();
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      const channels: Float32Array[] = [];
-      for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) channels.push(audioBuffer.getChannelData(ch));
-
-      const result = generateStreamingPreview(channels, audioBuffer.sampleRate);
-      const wavBlob = encodeWav(result.channels, result.sampleRate);
-
-      const formData = new FormData();
-      formData.append('audioFile', wavBlob, 'preview.wav');
-      formData.append('lufs', result.lufs.toString());
-      formData.append('lra', result.lra.toString());
-      formData.append('truePeak', result.truePeak.toString());
-      formData.append('startSeconds', result.startSeconds.toString());
-
-      const saveRes = await fetch(`/api/onelib/releases/${detail.id}/normalize`, { method: 'PUT', body: formData });
-      const saveData = await saveRes.json();
-      if (!saveRes.ok) throw new Error(saveData.error || "Erreur lors de l'enregistrement");
-
-      setDetail(saveData.release);
-      setReleases(prev => prev.map(r => (r.id === saveData.release.id ? saveData.release : r)));
-      setAbMode('normalized');
-    } catch (error) {
-      console.error('Error generating normalized preview:', error);
-      setPreviewError(error instanceof Error ? error.message : 'Erreur lors de la génération de l\'aperçu');
-    } finally {
-      setIsGeneratingPreview(false);
-    }
-  };
-
   const switchAbMode = (mode: 'original' | 'normalized') => {
     if (mode === abMode) return;
     const wasPlaying = abPlaying;
     originalAudioRef.current?.pause();
     previewAudioRef.current?.pause();
-    if (mode === 'original' && originalAudioRef.current && detail?.previewStartSeconds != null) {
-      originalAudioRef.current.currentTime = detail.previewStartSeconds;
+    if (mode === 'original' && originalAudioRef.current && detail?.track.previewStartSeconds != null) {
+      originalAudioRef.current.currentTime = detail.track.previewStartSeconds;
     } else if (mode === 'normalized' && previewAudioRef.current) {
       previewAudioRef.current.currentTime = 0;
     }
@@ -407,8 +354,8 @@ export default function OnelibPage() {
       setAbPlaying(false);
       return;
     }
-    if (abMode === 'original' && detail?.previewStartSeconds != null) {
-      ref.current.currentTime = detail.previewStartSeconds;
+    if (abMode === 'original' && detail?.track.previewStartSeconds != null) {
+      ref.current.currentTime = detail.track.previewStartSeconds;
     }
     ref.current.play();
     setAbPlaying(true);
@@ -417,8 +364,8 @@ export default function OnelibPage() {
   // En mode "original", on s'arrête après 30s (même durée que l'extrait
   // normalisé) pour garder une comparaison A/B équitable.
   const handleOriginalTimeUpdate = () => {
-    if (!originalAudioRef.current || detail?.previewStartSeconds == null) return;
-    if (originalAudioRef.current.currentTime >= detail.previewStartSeconds + 30) {
+    if (!originalAudioRef.current || detail?.track.previewStartSeconds == null) return;
+    if (originalAudioRef.current.currentTime >= detail.track.previewStartSeconds + 30) {
       originalAudioRef.current.pause();
       setAbPlaying(false);
     }
@@ -1088,40 +1035,32 @@ export default function OnelibPage() {
           <h2 className="text-white font-semibold flex items-center gap-2 mb-1">
             <SlidersHorizontal className="w-4 h-4" /> Aperçu streaming (avant/après)
           </h2>
-          <p className="text-gray-500 text-xs mb-4">
-            Génère un extrait public de 30 secondes qui simule ce que les auditeurs entendront
-            réellement une fois le morceau en ligne : mise à niveau du loudness aux normes des
-            plateformes (~-14 LUFS) et protection anti-écrêtage des crêtes par un vrai limiteur,
-            sans mastering IA ni retouche créative. Forfait de{' '}
-            <span className="text-gray-300 font-medium">{ONELIB_NORMALIZATION_FEE}€</span> par génération.
-          </p>
 
-          {detail.normalizationStatus !== 'done' ? (
-            <>
-              <button
-                onClick={handleGenerateNormalizedPreview}
-                disabled={isGeneratingPreview || !detail.track.audioUrl}
-                style={{ backgroundColor: accentColor }}
-                className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {isGeneratingPreview ? <Loader2 className="w-4 h-4 animate-spin" /> : <SlidersHorizontal className="w-4 h-4" />}
-                {isGeneratingPreview ? 'Génération en cours...' : `Générer l'aperçu — ${ONELIB_NORMALIZATION_FEE}€`}
-              </button>
-              {previewError && <p className="text-red-400 text-xs mt-2">{previewError}</p>}
-            </>
+          {detail.track.normalizationStatus !== 'done' ? (
+            <p className="text-gray-500 text-xs">
+              Pas encore normalisé. La mise à niveau de loudness aux normes streaming (~-14 LUFS)
+              et la protection anti-écrêtage se génèrent depuis{' '}
+              <span className="text-gray-300 font-medium">Créations</span>, sur cette track,
+              avant de la publier ici.
+            </p>
           ) : (
             <div className="space-y-4">
+              <p className="text-gray-500 text-xs">
+                Extrait public de 30 secondes, normalisé depuis Créations : simule ce que les
+                auditeurs entendront réellement une fois le morceau en ligne, sans mastering IA
+                ni retouche créative.
+              </p>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="bg-[#12121a] rounded-lg py-2 px-1">
-                  <p className="text-white text-sm font-semibold">{detail.normalizedLufs?.toFixed(1) ?? '—'} LUFS</p>
+                  <p className="text-white text-sm font-semibold">{detail.track.normalizedLufs?.toFixed(1) ?? '—'} LUFS</p>
                   <p className="text-gray-500 text-[10px] mt-0.5">Loudness intégré</p>
                 </div>
                 <div className="bg-[#12121a] rounded-lg py-2 px-1">
-                  <p className="text-white text-sm font-semibold">{detail.normalizedLra?.toFixed(1) ?? '—'} LU</p>
+                  <p className="text-white text-sm font-semibold">{detail.track.normalizedLra?.toFixed(1) ?? '—'} LU</p>
                   <p className="text-gray-500 text-[10px] mt-0.5">LRA (dynamique)</p>
                 </div>
                 <div className="bg-[#12121a] rounded-lg py-2 px-1">
-                  <p className="text-white text-sm font-semibold">{detail.normalizedTruePeak?.toFixed(1) ?? '—'} dBTP</p>
+                  <p className="text-white text-sm font-semibold">{detail.track.normalizedTruePeak?.toFixed(1) ?? '—'} dBTP</p>
                   <p className="text-gray-500 text-[10px] mt-0.5">Crête (True Peak)</p>
                 </div>
               </div>
@@ -1169,24 +1108,15 @@ export default function OnelibPage() {
                 />
                 <audio
                   ref={previewAudioRef}
-                  src={detail.previewAudioUrl || undefined}
+                  src={detail.track.previewAudioUrl || undefined}
                   onEnded={() => setAbPlaying(false)}
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <p className="text-gray-500 text-xs flex items-center gap-1.5">
-                  <Eye className="w-3.5 h-3.5" /> Aperçu public, visible sans compte sur la page de diffusion
-                </p>
-                <button
-                  onClick={handleGenerateNormalizedPreview}
-                  disabled={isGeneratingPreview}
-                  className="text-xs text-gray-400 hover:text-white underline hover:no-underline disabled:opacity-50"
-                >
-                  Régénérer — {ONELIB_NORMALIZATION_FEE}€
-                </button>
-              </div>
-              {previewError && <p className="text-red-400 text-xs">{previewError}</p>}
+              <p className="text-gray-500 text-xs flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5" /> Aperçu public, visible sans compte sur la page de diffusion.
+                Pour le régénérer, retourne sur cette track dans Créations.
+              </p>
             </div>
           )}
         </div>

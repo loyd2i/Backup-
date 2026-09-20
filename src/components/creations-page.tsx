@@ -9,6 +9,7 @@ import TrackShareButton from './track-share-button';
 import TrackDownloadButton from './track-download-button';
 import TrackQrCodeButton from './track-qrcode-button';
 import TrackOnelibButton from './track-onelib-button';
+import TrackNormalizeButton from './track-normalize-button';
 import { analyzeAudio, getQuickAudioMetadata, AudioAnalysisResult, QuickAudioMetadata } from '@/lib/audio-analyzer';
 import EmptyState from './ui/empty-state';
 
@@ -62,6 +63,7 @@ interface Track {
   }[];
   masterValidation?: MasterValidation | null;
   onelibRelease?: { id: string; slug: string } | null;
+  normalizationStatus?: string;
 }
 
 interface MasterValidation {
@@ -126,8 +128,20 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
   const [showRevisionFor, setShowRevisionFor] = useState<Record<string, boolean>>({});
   const [revisionDraft, setRevisionDraft] = useState<Record<string, string>>({});
 
+  // Jetons de normalisation (voir BUSINESS-PLAN.md) : partagés par tous les
+  // boutons "Normaliser" de la liste, chargés une seule fois ici.
+  const [normalizationTokens, setNormalizationTokens] = useState(0);
+  const [hasUnlimitedNormalization, setHasUnlimitedNormalization] = useState(false);
+
   useEffect(() => {
     fetchData();
+    fetch('/api/onelib/subscription')
+      .then((res) => res.json())
+      .then((data) => {
+        setNormalizationTokens(data.tokens || 0);
+        setHasUnlimitedNormalization(!!data.unlimited);
+      })
+      .catch(() => {});
   }, []);
 
   const fetchData = async () => {
@@ -1023,6 +1037,16 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                           <TrackShareButton trackId={track.id} />
                         )}
                         {!isStudioMode && !track.isShared && (
+                          <TrackNormalizeButton
+                            trackId={track.id}
+                            audioUrl={track.audioUrl}
+                            normalizationStatus={track.normalizationStatus}
+                            tokens={normalizationTokens}
+                            unlimited={hasUnlimitedNormalization}
+                            onTokensChanged={(tokens, unlimited) => { setNormalizationTokens(tokens); setHasUnlimitedNormalization(unlimited); }}
+                          />
+                        )}
+                        {!isStudioMode && !track.isShared && (
                           <TrackOnelibButton trackId={track.id} onelibReleaseId={track.onelibRelease?.id} />
                         )}
                       </div>
@@ -1072,6 +1096,16 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                         )}
                         {!track.isPublic && !track.isShared && (
                           <TrackShareButton trackId={track.id} />
+                        )}
+                        {!isStudioMode && !track.isShared && (
+                          <TrackNormalizeButton
+                            trackId={track.id}
+                            audioUrl={track.audioUrl}
+                            normalizationStatus={track.normalizationStatus}
+                            tokens={normalizationTokens}
+                            unlimited={hasUnlimitedNormalization}
+                            onTokensChanged={(tokens, unlimited) => { setNormalizationTokens(tokens); setHasUnlimitedNormalization(unlimited); }}
+                          />
                         )}
                         {!isStudioMode && !track.isShared && (
                           <TrackOnelibButton trackId={track.id} onelibReleaseId={track.onelibRelease?.id} />

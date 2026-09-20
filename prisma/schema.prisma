@@ -34,6 +34,12 @@ model User {
   // plateforme déjà déduite - voir MarketplaceItem/MarketplacePurchase.
   walletBalance Float   @default(0)
 
+  // Jetons de normalisation Onelib (voir BUSINESS-PLAN.md) : 3 offerts à
+  // l'inscription, cumulables (jamais renouvelés hors abonnement), +10/mois
+  // en plus tant que l'abonnement Artiste est actif (voir OnelibSubscription
+  // et le scheduler qui recharge le solde à chaque échéance).
+  normalizationTokens Int @default(3)
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   
@@ -71,6 +77,7 @@ model User {
   onelibCollections     OnelibCollection[]
   onelibCredits           OnelibCollaborator[]
   onelibCollectionCredits OnelibCollectionCollaborator[]
+  onelibSubscription      OnelibSubscription?
 
   // Marketplace (sample packs / instrus entre artistes)
   marketplaceItemsSold     MarketplaceItem[]     @relation("MarketplaceItemsSold")
@@ -193,6 +200,26 @@ model StudioSubscription {
   status               String    @default("active") // active, cancelled
   startedAt            DateTime  @default(now())
   currentPeriodEnd     DateTime  // prochaine échéance simulée
+  cancelAtPeriodEnd    Boolean   @default(false)
+  cancelledAt          DateTime?
+  stripeSubscriptionId String?   // simulation : sub_demo_...
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+// Abonnement Onelib (jetons de normalisation, voir BUSINESS-PLAN.md) - un
+// par utilisateur, indépendant de StudioSubscription (rôle différent :
+// artiste/label plutôt que studio). Comme StudioSubscription, aucune
+// intégration Stripe réelle.
+model OnelibSubscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                 String    // artiste (10 jetons/mois) | label (illimité)
+  monthlyPrice         Float     // prix verrouillé au moment de la souscription
+  status               String    @default("active") // active, cancelled
+  startedAt            DateTime  @default(now())
+  currentPeriodEnd     DateTime  // prochaine échéance simulée (recharge des jetons pour le plan artiste)
   cancelAtPeriodEnd    Boolean   @default(false)
   cancelledAt          DateTime?
   stripeSubscriptionId String?   // simulation : sub_demo_...
@@ -415,6 +442,24 @@ model Track {
   lra         Float?   // Loudness Range en LU (norme EBU Tech 3342) : variation de volume du morceau
   waveformPeaks String? // Crêtes d'amplitude par segment (JSON, ex: "[0.2,0.8,...]"), pour l'affichage de la forme d'onde réelle
   instruments   String? // Instruments détectés dans le mix à l'upload (JSON, ex: "[\"Guitare\",\"Batterie\"]")
+
+  // Aperçu normalisé "streaming" (30s, A/B) - voir BUSINESS-PLAN.md, section
+  // "Normalisation audio (jetons)". Geste sur le morceau lui-même, dans
+  // Créations, avant toute éventuelle sortie Onelib : simule ce que les
+  // plateformes feront réellement subir au master à la lecture (mise à
+  // niveau LUFS + limiteur anti-écrêtage), sans mastering IA. Calculé côté
+  // client, débite un jeton (ou payant à l'unité sans jeton, ou illimité en
+  // abonnement label).
+  normalizationStatus      String    @default("none") // none, done
+  normalizationRequestedAt DateTime?
+  normalizationFeeAmount   Float?    // 0 si jeton/illimité, sinon le montant payé à l'unité
+  // Mesures réelles sur l'extrait généré (jamais inventées) - distinctes de
+  // lufs/lra/truePeak ci-dessus, qui décrivent le master original.
+  normalizedLufs           Float?
+  normalizedLra            Float?
+  normalizedTruePeak       Float?
+  previewAudioUrl          String?   // extrait de 30s normalisé, public, distinct du master
+  previewStartSeconds      Float?    // position de l'extrait dans le morceau original
 
   // Fiche Release
   genre         String?
@@ -896,19 +941,6 @@ model OnelibRelease {
   distributionFeePaidAt   DateTime?
   distributionFeeStripeId String?
 
-  // Aperçu normalisé "streaming" (30s) : simule ce que les plateformes
-  // feront réellement subir au master à la lecture (mise à niveau LUFS +
-  // limiteur anti-écrêtage), sans aller jusqu'à un mastering IA. Traitement
-  // exécuté côté client (DSP existant), payant, simulé comme la distribution.
-  normalizationStatus      String    @default("none") // none, done
-  normalizationRequestedAt DateTime?
-  normalizationFeeAmount   Float?
-  // Caractéristiques mesurées (jamais inventées) sur l'extrait réellement généré.
-  normalizedLufs           Float?
-  normalizedLra            Float?
-  normalizedTruePeak       Float?
-  previewAudioUrl          String?   // extrait de 30s normalisé, public, distinct du master
-  previewStartSeconds      Float?    // position de l'extrait dans le morceau original
 
   collaborators   OnelibCollaborator[]
 }

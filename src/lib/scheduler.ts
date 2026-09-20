@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { notifyAppointmentEvent } from '@/lib/notifications';
 import { completeAppointment } from '@/lib/appointment-lifecycle';
+import { getOnelibSubscriptionPlanConfig } from '@/lib/onelib-config';
 
 // Scheduler en arrière-plan : envoie le rappel 2h avant le début d'une
 // session et clôture automatiquement les sessions dont l'heure de fin est
@@ -47,11 +48,41 @@ async function completeDueSessions(now: number) {
   }
 }
 
+// Recharge les jetons de normalisation Onelib des abonnés "artiste" dont
+// l'échéance mensuelle est passée (les jetons offerts à l'inscription et
+// non consommés sont cumulables - voir BUSINESS-PLAN.md - donc on AJOUTE
+// au solde plutôt que de le remettre à 10). Le plan "label" est illimité,
+// aucun jeton à recharger pour lui.
+async function refillDueOnelibSubscriptions(now: number) {
+  const due = await prisma.onelibSubscription.findMany({
+    where: { plan: 'artiste', status: 'active', currentPeriodEnd: { lte: new Date(now) } },
+  });
+
+  const planConfig = getOnelibSubscriptionPlanConfig('artiste');
+  const monthlyTokens = planConfig?.monthlyTokens ?? 0;
+
+  for (const sub of due) {
+    const nextPeriodEnd = new Date(sub.currentPeriodEnd);
+    nextPeriodEnd.setMonth(nextPeriodEnd.getMonth() + 1);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: sub.userId },
+        data: { normalizationTokens: { increment: monthlyTokens } },
+      }),
+      prisma.onelibSubscription.update({
+        where: { id: sub.id },
+        data: { currentPeriodEnd: nextPeriodEnd },
+      }),
+    ]);
+  }
+}
+
 async function tick() {
   const now = Date.now();
   try {
     await sendDueReminders(now);
     await completeDueSessions(now);
+    await refillDueOnelibSubscriptions(now);
   } catch (error) {
     console.error('Erreur scheduler rendez-vous:', error);
   }

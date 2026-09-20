@@ -19,6 +19,8 @@ export async function GET(
           select: {
             title: true, artist: true, genre: true, coverUrl: true,
             spotifyUrl: true, youtubeUrl: true, appleMusicUrl: true, deezerUrl: true,
+            normalizationStatus: true, normalizedLufs: true, normalizedLra: true,
+            normalizedTruePeak: true, previewAudioUrl: true, previewStartSeconds: true,
           }
         },
         collaborators: {

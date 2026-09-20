@@ -63,6 +63,11 @@ interface PublicTrackLinks {
   youtubeUrl: string | null;
   appleMusicUrl: string | null;
   deezerUrl: string | null;
+  normalizationStatus?: string;
+  normalizedLufs?: number | null;
+  normalizedLra?: number | null;
+  normalizedTruePeak?: number | null;
+  previewAudioUrl?: string | null;
 }
 
 interface PublicRelease {
@@ -74,11 +79,6 @@ interface PublicRelease {
   publishedAt: string | null;
   track: PublicTrackLinks;
   collaborators: PublicCollaborator[];
-  normalizationStatus?: string;
-  normalizedLufs?: number | null;
-  normalizedLra?: number | null;
-  normalizedTruePeak?: number | null;
-  previewAudioUrl?: string | null;
 }
 
 interface PublicCollectionTrackEntry {
@@ -295,7 +295,7 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
           <p className="text-gray-300 text-sm mt-4 leading-relaxed">{release!.description}</p>
         )}
 
-        {release!.normalizationStatus === 'done' && release!.previewAudioUrl && (
+        {track.normalizationStatus === 'done' && track.previewAudioUrl && (
           <div className="w-full mt-6 bg-[#1a1a1a] border border-[#2a2a2a] rounded-2xl p-4">
             <div className="flex items-center gap-3">
               <button
@@ -320,7 +320,7 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
             </div>
             <audio
               ref={previewAudioRef}
-              src={release!.previewAudioUrl}
+              src={track.previewAudioUrl || undefined}
               onEnded={() => setIsPreviewPlaying(false)}
             />
           </div>

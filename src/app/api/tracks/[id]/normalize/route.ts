@@ -3,15 +3,18 @@ import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
-import { ONELIB_NORMALIZATION_FEE } from '@/lib/onelib-config';
+import { ONELIB_TOKEN_PRICE } from '@/lib/onelib-config';
+import { hasUnlimitedNormalization, consumeNormalizationToken } from '@/lib/onelib-tokens';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// POST - Débite (simulé) le forfait de l'aperçu streaming normalisé. Le
-// calcul lui-même (gain + limiteur) est fait côté client juste après, sans
-// traitement manuel - contrairement à la distribution, il n'y a donc pas
-// d'état "requested" en attente : chaque appel correspond à une génération.
+// POST - Consomme un jeton de normalisation (illimité si abonnement label,
+// sinon un jeton si le solde le permet, sinon paiement simulé à l'unité).
+// Geste sur la track elle-même, dans Créations, avant toute éventuelle
+// sortie Onelib (voir BUSINESS-PLAN.md). Le calcul (gain + limiteur) est
+// fait côté client juste après, sans traitement manuel - chaque appel
+// correspond directement à une génération.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -21,27 +24,47 @@ export async function POST(
     if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
 
     const { id } = await params;
-    const release = await prisma.onelibRelease.findFirst({ where: { id, userId: user.id } });
-    if (!release) return NextResponse.json({ error: 'Release non trouvée' }, { status: 404 });
+    const track = await prisma.track.findFirst({ where: { id, userId: user.id } });
+    if (!track) return NextResponse.json({ error: 'Track non trouvée' }, { status: 404 });
+    if (!track.audioUrl) return NextResponse.json({ error: 'Cette track n\'a pas encore de fichier audio' }, { status: 400 });
 
-    const updated = await prisma.onelibRelease.update({
+    const unlimited = await hasUnlimitedNormalization(user.id);
+    let usedToken = false;
+    let chargedAmount = 0;
+
+    if (!unlimited) {
+      usedToken = await consumeNormalizationToken(user.id);
+      if (!usedToken) {
+        // Aucun jeton disponible : paiement simulé à l'unité (pas de vrai Stripe).
+        chargedAmount = ONELIB_TOKEN_PRICE;
+      }
+    }
+
+    const updated = await prisma.track.update({
       where: { id },
       data: {
         normalizationRequestedAt: new Date(),
-        normalizationFeeAmount: ONELIB_NORMALIZATION_FEE,
+        normalizationFeeAmount: chargedAmount,
       },
-      include: { track: true, collaborators: { orderBy: { createdAt: 'asc' } } },
     });
 
-    return NextResponse.json({ release: updated });
+    const freshUser = await prisma.user.findUnique({ where: { id: user.id }, select: { normalizationTokens: true } });
+
+    return NextResponse.json({
+      track: updated,
+      unlimited,
+      usedToken,
+      chargedAmount,
+      tokensRemaining: freshUser?.normalizationTokens ?? 0,
+    });
   } catch (error) {
-    console.error('Erreur paiement aperçu normalisé Onelib:', error);
+    console.error('Erreur paiement aperçu normalisé:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
 
 // PUT - Enregistre le résultat de la génération (extrait 30s + mesures
-// réelles) une fois le DSP exécuté côté client, et publie l'aperçu.
+// réelles) une fois le DSP exécuté côté client.
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -51,10 +74,10 @@ export async function PUT(
     if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 });
 
     const { id } = await params;
-    const release = await prisma.onelibRelease.findFirst({ where: { id, userId: user.id } });
-    if (!release) return NextResponse.json({ error: 'Release non trouvée' }, { status: 404 });
-    if (!release.normalizationRequestedAt) {
-      return NextResponse.json({ error: "Aucun aperçu payé pour cette release" }, { status: 400 });
+    const track = await prisma.track.findFirst({ where: { id, userId: user.id } });
+    if (!track) return NextResponse.json({ error: 'Track non trouvée' }, { status: 404 });
+    if (!track.normalizationRequestedAt) {
+      return NextResponse.json({ error: "Aucune génération payée pour cette track" }, { status: 400 });
     }
 
     const formData = await request.formData();
@@ -74,7 +97,7 @@ export async function PUT(
     const buffer = Buffer.from(await audioFile.arrayBuffer());
     await writeFile(path.join(uploadsDir, fileName), buffer);
 
-    const updated = await prisma.onelibRelease.update({
+    const updated = await prisma.track.update({
       where: { id },
       data: {
         normalizationStatus: 'done',
@@ -84,12 +107,11 @@ export async function PUT(
         normalizedLra: lra ? parseFloat(lra) : null,
         normalizedTruePeak: truePeak ? parseFloat(truePeak) : null,
       },
-      include: { track: true, collaborators: { orderBy: { createdAt: 'asc' } } },
     });
 
-    return NextResponse.json({ release: updated });
+    return NextResponse.json({ track: updated });
   } catch (error) {
-    console.error('Erreur enregistrement aperçu normalisé Onelib:', error);
+    console.error('Erreur enregistrement aperçu normalisé:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
