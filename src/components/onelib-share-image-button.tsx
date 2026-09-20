@@ -45,10 +45,32 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D) {
+// Fond de la page studio (console de mixage, lumière bleue) + le dégradé
+// sombre qui l'assombrit en haut/bas, pour que l'image partagée s'inscrive
+// visuellement dans l'identité Studiolib/Onelib. La fenêtre qui affiche le
+// résultat reprend le même fond (voir le composant plus bas).
+export const SHARE_IMAGE_BACKGROUND = '/background-studio.jpg';
+
+async function drawBackground(ctx: CanvasRenderingContext2D) {
+  ctx.fillStyle = '#06080f';
+  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+  try {
+    const bg = await loadImage(SHARE_IMAGE_BACKGROUND);
+    const scale = Math.max(CANVAS_SIZE / bg.width, CANVAS_SIZE / bg.height);
+    const drawWidth = bg.width * scale;
+    const drawHeight = bg.height * scale;
+    const dx = (CANVAS_SIZE - drawWidth) / 2;
+    const dy = (CANVAS_SIZE - drawHeight) / 2;
+    ctx.drawImage(bg, dx, dy, drawWidth, drawHeight);
+  } catch {
+    // Garde le fond uni si l'image est indisponible.
+  }
+
   const gradient = ctx.createLinearGradient(0, 0, 0, CANVAS_SIZE);
-  gradient.addColorStop(0, '#1a1a1a');
-  gradient.addColorStop(1, '#0a0a0a');
+  gradient.addColorStop(0, 'rgba(6, 8, 15, 0.55)');
+  gradient.addColorStop(0.5, 'rgba(6, 8, 15, 0.35)');
+  gradient.addColorStop(1, 'rgba(6, 8, 15, 0.75)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 }
@@ -127,11 +149,11 @@ function drawWaveform(ctx: CanvasRenderingContext2D, waveformPeaks: string | nul
 }
 
 function drawPill(ctx: CanvasRenderingContext2D, text: string, accentColor: string, centerX: number, y: number) {
-  ctx.font = '600 30px sans-serif';
-  const paddingX = 28;
+  ctx.font = '700 40px sans-serif';
+  const paddingX = 36;
   const textWidth = ctx.measureText(text).width;
   const pillWidth = textWidth + paddingX * 2;
-  const pillHeight = 56;
+  const pillHeight = 72;
   const pillX = centerX - pillWidth / 2;
   ctx.fillStyle = accentColor;
   ctx.beginPath();
@@ -145,7 +167,7 @@ function drawPill(ctx: CanvasRenderingContext2D, text: string, accentColor: stri
   ctx.fill();
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
-  ctx.fillText(text, centerX, y + pillHeight / 2 + 10);
+  ctx.fillText(text, centerX, y + pillHeight / 2 + 14);
 }
 
 // Génère une image carrée de partage (1080x1080), en trois variantes — voir
@@ -174,17 +196,24 @@ async function renderShareImage(opts: {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas non supporté');
 
-  drawBackground(ctx);
+  await drawBackground(ctx);
 
-  const coverSize = opts.variant === 'team' ? 360 : 640;
+  const coverSize = opts.variant === 'team' ? 340 : 580;
   const coverX = (CANVAS_SIZE - coverSize) / 2;
-  const coverY = 80;
+  const coverY = 60;
   await drawCover(ctx, opts.coverUrl, opts.accentColor, coverX, coverY, coverSize);
+
+  // Ombre légère sur tout le texte dessiné après la pochette : le fond est
+  // désormais une photo (console de mixage), pas un aplat sombre uni, donc
+  // le texte a besoin de contraste garanti quel que soit ce qu'il y a derrière.
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 2;
 
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 52px sans-serif';
-  const titleY = coverY + coverSize + 90;
+  const titleY = coverY + coverSize + 80;
   ctx.fillText(opts.title, CANVAS_SIZE / 2, titleY, CANVAS_SIZE - 120);
 
   ctx.fillStyle = '#9ca3af';
@@ -195,18 +224,16 @@ async function renderShareImage(opts: {
     const dateLabel = opts.scheduledAt
       ? new Date(opts.scheduledAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
       : '';
-    drawPill(ctx, 'BIENTÔT DISPONIBLE', opts.accentColor, CANVAS_SIZE / 2, titleY + 110);
+    drawPill(ctx, 'BIENTÔT DISPONIBLE', opts.accentColor, CANVAS_SIZE / 2, titleY + 100);
     ctx.fillStyle = '#ffffff';
-    ctx.font = '600 38px sans-serif';
-    ctx.fillText(`Sortie le ${dateLabel}`, CANVAS_SIZE / 2, titleY + 230);
+    ctx.font = '700 46px sans-serif';
+    ctx.fillText(`Sortie le ${dateLabel}`, CANVAS_SIZE / 2, titleY + 240);
   } else if (opts.variant === 'live') {
     const availabilityText = opts.onAllPlatforms ? 'SUR TOUTES LES PLATEFORMES' : 'DISPONIBLE SUR ONELIB';
     drawPill(ctx, availabilityText, opts.accentColor, CANVAS_SIZE / 2, titleY + 100);
-    drawWaveform(ctx, opts.waveformPeaks, opts.accentColor, coverX, titleY + 190, coverSize, 90);
+    drawWaveform(ctx, opts.waveformPeaks, opts.accentColor, coverX, titleY + 200, coverSize, 70);
   } else if (opts.variant === 'team') {
-    ctx.fillStyle = '#6366f1';
-    ctx.font = '600 32px sans-serif';
-    ctx.fillText('L’ÉQUIPE', CANVAS_SIZE / 2, titleY + 100);
+    drawPill(ctx, 'L’ÉQUIPE', opts.accentColor, CANVAS_SIZE / 2, titleY + 60);
 
     const rows = [{ name: opts.artistName, role: 'Artiste' }, ...(opts.collaborators || []).map(c => ({ name: c.name, role: roleLabel(c.role) }))];
     const rowHeight = 64;
@@ -321,8 +348,11 @@ export default function OnelibShareImageButton({
 
       {showModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-sm">
-            <div className="p-4 border-b border-[#2a2a2a] flex items-center justify-between">
+          <div
+            className="relative rounded-2xl w-full max-w-sm overflow-hidden bg-cover bg-center"
+            style={{ backgroundImage: `linear-gradient(rgba(6,8,15,0.82), rgba(6,8,15,0.9)), url(${SHARE_IMAGE_BACKGROUND})` }}
+          >
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
               <h3 className="text-white font-semibold">{meta.modalTitle}</h3>
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-white">
                 <X className="w-5 h-5" />
