@@ -304,11 +304,15 @@ async function renderShareImage(opts: {
     const qrTop = qrBoxTop(qrSize);
     const rowLimit = qrTop - 20;
 
-    const pillY = titleY + 90;
+    const pillY = titleY + 80;
     drawPill(ctx, 'L’ÉQUIPE', CANVAS_SIZE / 2, pillY);
 
     const rows = [{ name: opts.artistName, role: 'Artiste' }, ...(opts.collaborators || []).map(c => ({ name: c.name, role: roleLabel(c.role) }))];
-    const rowStep = 30;
+    // 36px d'écart entre deux lignes de 26px : la valeur précédente (30px)
+    // était plus serrée que la police elle-même, les lignes se touchaient
+    // visuellement (accents français compris) dès qu'il y avait 2 lignes
+    // réelles à afficher.
+    const rowStep = 36;
     const rowsStartY = pillY + 72 + 10;
 
     // Combien de lignes tiennent avant le QR ? Si tout le monde ne rentre
