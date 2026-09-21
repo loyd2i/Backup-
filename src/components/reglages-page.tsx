@@ -92,6 +92,12 @@ export default function ReglagesPage() {
   const [referralOffer, setReferralOffer] = useState('');
   const [isSavingReferralOffer, setIsSavingReferralOffer] = useState(false);
   const [referralOfferSaved, setReferralOfferSaved] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   const isStudioOwner = user?.role === 'studio_owner';
   const publicPath = isStudioOwner ? (studioId ? `/studio/${studioId}` : null) : `/artiste/${user?.id}`;
@@ -358,21 +364,64 @@ export default function ReglagesPage() {
     }
   };
 
-  const settingsSections = [
+  const openPasswordModal = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setShowPasswordModal(true);
+  };
+
+  const changePassword = async () => {
+    setPasswordError('');
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Les deux mots de passe ne correspondent pas');
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      const res = await fetch('/api/user/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPasswordError(data.error || 'Erreur lors du changement de mot de passe');
+        return;
+      }
+      setShowPasswordModal(false);
+      setMessage('Mot de passe mis à jour avec succès');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Error changing password:', error);
+      setPasswordError('Erreur serveur');
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
+  // Chaque item est soit une vraie action (`action`), soit une valeur
+  // purement informative (ni l'un ni l'autre), soit une fonctionnalité pas
+  // encore construite (`comingSoon`) - jamais un bouton qui ne fait rien.
+  const settingsSections: {
+    title: string;
+    items: { icon: typeof User; label: string; value?: string; action?: () => void; comingSoon?: boolean }[];
+  }[] = [
     {
       title: 'Coordonnées',
       items: [
-        { icon: User, label: 'Profil utilisateur' },
+        { icon: User, label: 'Profil utilisateur', action: handleEdit },
         { icon: Mail, label: 'E-mail', value: user?.email || '' },
-        { icon: Phone, label: 'Téléphone', value: user?.phone || 'Non renseigné' },
-        { icon: Lock, label: 'Mot de passe', value: '••••••••' },
+        { icon: Phone, label: 'Téléphone', value: user?.phone || 'Non renseigné', action: handleEdit },
+        { icon: Lock, label: 'Mot de passe', value: '••••••••', action: openPasswordModal },
       ],
     },
     {
       title: 'Paiement',
       items: [
-        { icon: CreditCard, label: 'Paramètres de paiement' },
-        { icon: CreditCard, label: 'Moyens de paiement' },
+        { icon: CreditCard, label: 'Paramètres de paiement', comingSoon: true },
+        { icon: CreditCard, label: 'Moyens de paiement', comingSoon: true },
         ...(user?.role === 'studio_owner'
           ? [{ icon: Percent, label: 'Commission plateforme', value: `${(PLATFORM_COMMISSION_RATE * 100).toFixed(0)}%` }]
           : [{ icon: Percent, label: 'Frais de service par réservation', value: `${(ARTIST_COMMISSION_RATE * 100).toFixed(0)}%` }]),
@@ -383,8 +432,8 @@ export default function ReglagesPage() {
       items: [
         { icon: Globe, label: 'Pays', value: 'France' },
         { icon: Globe, label: 'Langue', value: 'Français' },
-        { icon: Key, label: 'Identification à deux facteurs' },
-        { icon: Shield, label: 'Chiffrement des données' },
+        { icon: Key, label: 'Identification à deux facteurs', comingSoon: true },
+        { icon: Shield, label: 'Chiffrement des données', comingSoon: true },
       ],
     },
   ];
@@ -838,22 +887,47 @@ export default function ReglagesPage() {
             <div className="bg-[#1a1a1a] rounded-xl overflow-hidden divide-y divide-[#2a2a2a]">
               {section.items.map((item, itemIndex) => {
                 const Icon = item.icon;
+                if (item.comingSoon) {
+                  return (
+                    <button key={itemIndex} disabled className="flex items-center justify-between w-full p-4 text-left opacity-50 cursor-not-allowed">
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-5 h-5 text-gray-400" />
+                        <span className="text-white">{item.label}</span>
+                      </div>
+                      <span className="text-[10px] uppercase tracking-wide bg-[#2a2a2a] text-gray-400 px-1.5 py-0.5 rounded">
+                        Bientôt disponible
+                      </span>
+                    </button>
+                  );
+                }
+                if (item.action) {
+                  return (
+                    <button
+                      key={itemIndex}
+                      onClick={item.action}
+                      className="flex items-center justify-between w-full p-4 hover:bg-[#222] transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-5 h-5 text-gray-400" />
+                        <span className="text-white">{item.label}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {item.value && (
+                          <span className="text-gray-500 text-sm">{item.value}</span>
+                        )}
+                        <ChevronRight className="w-5 h-5 text-gray-500" />
+                      </div>
+                    </button>
+                  );
+                }
                 return (
-                  <button
-                    key={itemIndex}
-                    className="flex items-center justify-between w-full p-4 hover:bg-[#222] transition-colors text-left"
-                  >
+                  <div key={itemIndex} className="flex items-center justify-between w-full p-4">
                     <div className="flex items-center gap-3">
                       <Icon className="w-5 h-5 text-gray-400" />
                       <span className="text-white">{item.label}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {item.value && (
-                        <span className="text-gray-500 text-sm">{item.value}</span>
-                      )}
-                      <ChevronRight className="w-5 h-5 text-gray-500" />
-                    </div>
-                  </button>
+                    {item.value && <span className="text-gray-500 text-sm">{item.value}</span>}
+                  </div>
                 );
               })}
             </div>
@@ -910,6 +984,57 @@ export default function ReglagesPage() {
             >
               Télécharger le QR code
             </a>
+          </div>
+        </div>
+      )}
+
+      {/* Password Change Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1a1a1a] rounded-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white">Changer le mot de passe</h2>
+              <button onClick={() => setShowPasswordModal(false)} className="text-gray-400 hover:text-white">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-gray-400 text-sm mb-2 block">Mot de passe actuel</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-2 block">Nouveau mot de passe</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-sm mb-2 block">Confirmer le nouveau mot de passe</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="bg-[#2a2a2a] text-white rounded-lg px-3 py-2 w-full"
+                />
+              </div>
+              {passwordError && <p className="text-red-400 text-sm">{passwordError}</p>}
+              <button
+                onClick={changePassword}
+                disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}
+                className="w-full bg-[#6366f1] text-white py-3 rounded-lg font-medium hover:opacity-90 transition-colors disabled:opacity-50"
+              >
+                {passwordSaving ? 'Enregistrement...' : 'Mettre à jour'}
+              </button>
+            </div>
           </div>
         </div>
       )}
