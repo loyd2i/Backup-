@@ -313,7 +313,7 @@ async function renderShareImage(opts: {
     // visuellement (accents français compris) dès qu'il y avait 2 lignes
     // réelles à afficher.
     const rowStep = 36;
-    const rowsStartY = pillY + 72 + 10;
+    const rowsStartY = pillY + 72 + 18;
 
     // Combien de lignes tiennent avant le QR ? Si tout le monde ne rentre
     // pas, on réserve la dernière ligne pour "+N autres" plutôt que de
