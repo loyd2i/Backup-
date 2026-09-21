@@ -1089,7 +1089,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                     {track.onelibRelease && (
                       <OnelibShareImageButton
                         variant="teaser"
-                        releaseId={track.onelibRelease.id}
+                        qrEndpoint={`/api/onelib/releases/${track.onelibRelease.id}/qrcode`}
                         title={track.title}
                         artistName={track.artist}
                         coverUrl={track.coverUrl}
@@ -1132,7 +1132,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                           <>
                             <OnelibShareImageButton
                               variant="live"
-                              releaseId={track.onelibRelease.id}
+                              qrEndpoint={`/api/onelib/releases/${track.onelibRelease.id}/qrcode`}
                               title={track.title}
                               artistName={track.artist}
                               coverUrl={track.coverUrl}
@@ -1140,7 +1140,7 @@ export default function CreationsPage({ isStudioMode = false }: CreationsPagePro
                             />
                             <OnelibShareImageButton
                               variant="team"
-                              releaseId={track.onelibRelease.id}
+                              qrEndpoint={`/api/onelib/releases/${track.onelibRelease.id}/qrcode`}
                               title={track.title}
                               artistName={track.artist}
                               coverUrl={track.coverUrl}

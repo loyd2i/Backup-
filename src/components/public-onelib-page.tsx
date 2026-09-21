@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Music2, ExternalLink, Music, Youtube, Apple, Disc3, Disc, ListMusic, Play, Pause, Building2 } from 'lucide-react';
+import OnelibShareImageButton from './onelib-share-image-button';
 
 interface PublicCollaborator {
   name: string;
@@ -94,8 +95,16 @@ interface PublicRelease {
   coverUrl: string | null;
   views: number;
   publishedAt: string | null;
+  distributionStatus?: string;
   track: PublicTrackLinks;
   collaborators: PublicCollaborator[];
+}
+
+interface ScheduledPreview {
+  slug: string;
+  title: string;
+  artist: string;
+  coverUrl: string | null;
 }
 
 interface PublicCollectionTrackEntry {
@@ -154,6 +163,7 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [scheduledAt, setScheduledAt] = useState<string | null>(null);
+  const [scheduledPreview, setScheduledPreview] = useState<ScheduledPreview | null>(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const previewAudioRef = useRef<HTMLAudioElement>(null);
 
@@ -169,6 +179,7 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
         } else {
           setNotFound(true);
           setScheduledAt(data.scheduledAt || null);
+          setScheduledPreview(data.preview || null);
         }
       } catch {
         setNotFound(true);
@@ -186,14 +197,38 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center p-6">
         <div className="text-center">
-          <Music2 className="w-14 h-14 text-gray-600 mx-auto mb-4" />
+          {scheduledPreview?.coverUrl ? (
+            <div className="w-32 h-32 rounded-2xl overflow-hidden bg-[#1a1a1a] border border-[#2a2a2a] mx-auto mb-4">
+              <img src={scheduledPreview.coverUrl} alt={scheduledPreview.title} className="w-full h-full object-cover" />
+            </div>
+          ) : (
+            <Music2 className="w-14 h-14 text-gray-600 mx-auto mb-4" />
+          )}
           {scheduledAt ? (
             <>
+              {scheduledPreview && (
+                <>
+                  <p className="text-white font-semibold">{scheduledPreview.title}</p>
+                  <p className="text-gray-500 text-sm mb-2">{scheduledPreview.artist}</p>
+                </>
+              )}
               <p className="text-white text-lg font-semibold">Bientôt disponible</p>
               <p className="text-gray-500 text-sm mt-1">
                 Cette sortie sera en ligne le {new Date(scheduledAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                 {' '}à {new Date(scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </p>
+              {scheduledPreview && (
+                <div className="mt-4 flex justify-center">
+                  <OnelibShareImageButton
+                    variant="teaser"
+                    qrEndpoint={`/api/onelib/public/${scheduledPreview.slug}/qrcode`}
+                    title={scheduledPreview.title}
+                    artistName={scheduledPreview.artist}
+                    coverUrl={scheduledPreview.coverUrl}
+                    scheduledAt={scheduledAt}
+                  />
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -365,6 +400,27 @@ export default function PublicOnelibPage({ slug, onBack }: PublicOnelibPageProps
                 <ExternalLink className="w-4 h-4 text-gray-500 group-hover:text-gray-300 transition-colors" />
               </a>
             ))
+          )}
+        </div>
+
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <OnelibShareImageButton
+            variant="live"
+            qrEndpoint={`/api/onelib/public/${release!.slug}/qrcode`}
+            title={track.title}
+            artistName={track.artist}
+            coverUrl={cover}
+            distributionLive={release!.distributionStatus === 'live'}
+          />
+          {release!.collaborators.length > 0 && (
+            <OnelibShareImageButton
+              variant="team"
+              qrEndpoint={`/api/onelib/public/${release!.slug}/qrcode`}
+              title={track.title}
+              artistName={track.artist}
+              coverUrl={cover}
+              collaborators={release!.collaborators.map(c => ({ name: c.name, role: c.role }))}
+            />
           )}
         </div>
 

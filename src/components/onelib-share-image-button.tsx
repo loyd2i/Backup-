@@ -6,7 +6,11 @@ import { Image as ImageIcon, X, Download, Loader2, Calendar, Users } from 'lucid
 export type ShareImageVariant = 'teaser' | 'live' | 'team';
 
 interface OnelibShareImageButtonProps {
-  releaseId: string;
+  // URL du QR code à utiliser (propriétaire authentifié via
+  // /api/onelib/releases/[id]/qrcode dans Créations, ou public sans
+  // authentification via /api/onelib/public/[slug]/qrcode sur la fiche
+  // publique) - laisse l'appelant décider du bon endpoint.
+  qrEndpoint: string;
   title: string;
   artistName: string;
   coverUrl?: string | null;
@@ -348,7 +352,7 @@ const VARIANT_LABELS: Record<ShareImageVariant, { button: string; modalTitle: st
 };
 
 export default function OnelibShareImageButton({
-  releaseId,
+  qrEndpoint,
   title,
   artistName,
   coverUrl,
@@ -398,7 +402,7 @@ export default function OnelibShareImageButton({
     setIsLoading(true);
     setError(false);
     try {
-      const res = await fetch(`/api/onelib/releases/${releaseId}/qrcode`);
+      const res = await fetch(qrEndpoint);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur QR code');
       setQrDataUrl(data.dataUrl);

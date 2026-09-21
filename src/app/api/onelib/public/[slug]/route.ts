@@ -39,8 +39,20 @@ export async function GET(
       if (promoted) release = { ...release, ...promoted };
 
       if (release.status === 'scheduled') {
+        // Aperçu minimal (titre/artiste/pochette) pour la page "bientôt
+        // disponible" côté visiteur - permet de générer une image de
+        // partage "teaser" avant la sortie, comme une page de pré-save.
         return NextResponse.json(
-          { error: 'Cette release n\'est pas encore disponible', scheduledAt: release.scheduledAt },
+          {
+            error: 'Cette release n\'est pas encore disponible',
+            scheduledAt: release.scheduledAt,
+            preview: {
+              slug: release.slug,
+              title: release.track.title,
+              artist: release.track.artist,
+              coverUrl: release.coverUrl || release.track.coverUrl,
+            },
+          },
           { status: 404 }
         );
       }
