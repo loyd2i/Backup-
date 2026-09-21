@@ -304,7 +304,7 @@ async function renderShareImage(opts: {
     const qrTop = qrBoxTop(qrSize);
     const rowLimit = qrTop - 20;
 
-    const pillY = titleY + 80;
+    const pillY = titleY + 70;
     drawPill(ctx, 'L’ÉQUIPE', CANVAS_SIZE / 2, pillY);
 
     const rows = [{ name: opts.artistName, role: 'Artiste' }, ...(opts.collaborators || []).map(c => ({ name: c.name, role: roleLabel(c.role) }))];
@@ -313,7 +313,7 @@ async function renderShareImage(opts: {
     // visuellement (accents français compris) dès qu'il y avait 2 lignes
     // réelles à afficher.
     const rowStep = 36;
-    const rowsStartY = pillY + 72 + 18;
+    const rowsStartY = pillY + 72 + 28;
 
     // Combien de lignes tiennent avant le QR ? Si tout le monde ne rentre
     // pas, on réserve la dernière ligne pour "+N autres" plutôt que de
